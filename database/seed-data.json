@@ -1,0 +1,27 @@
+{
+  "_comment": [
+    "Season data for database/seed.js. Replace the placeholder teams below with",
+    "the real eight, then run: npm run seed",
+    "",
+    "teams[].players accepts either a plain name (jersey number left as TBD) or",
+    "an object: { \"name\": \"...\", \"jerseyNumber\": 7, \"position\": \"Forward\" }.",
+    "Jersey numbers must be unique within a team; omit the field for TBD.",
+    "",
+    "games[] is optional -- fixtures can also be added from the admin UI.",
+    "A playoff game sets \"playoffRound\" to one of: play-in, quarterfinal,",
+    "semifinal, final, and may leave homeTeam/awayTeam out for an unfilled slot."
+  ],
+
+  "teams": [
+    { "name": "Team 1", "primaryColor": "#B23A48", "players": [] },
+    { "name": "Team 2", "primaryColor": "#1D3557", "players": [] },
+    { "name": "Team 3", "primaryColor": "#2A9D8F", "players": [] },
+    { "name": "Team 4", "primaryColor": "#E9C46A", "players": [] },
+    { "name": "Team 5", "primaryColor": "#6A4C93", "players": [] },
+    { "name": "Team 6", "primaryColor": "#F4A261", "players": [] },
+    { "name": "Team 7", "primaryColor": "#264653", "players": [] },
+    { "name": "Team 8", "primaryColor": "#8AB17D", "players": [] }
+  ],
+
+  "games": []
+}

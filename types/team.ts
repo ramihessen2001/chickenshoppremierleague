@@ -1,19 +1,27 @@
 /**
- * Team type definitions for YM Soccer League
- * Represents a soccer team in the league with roster and metadata
+ * Team types.
  */
 
 import { Player } from './player'
 
 export interface Team {
-  id: string                    // Unique identifier (e.g., "eagles")
-  name: string                  // Display name (e.g., "Eagles")
-  logoUrl: string               // Path to logo image
-  roster: Player[]              // Array of players on team
-  primaryColor?: string         // Optional: Team primary color for UI accents
-  createdAt: string             // ISO 8601 timestamp
-  updatedAt: string             // ISO 8601 timestamp
+  /** Slug, e.g. "falcons" -- what the UI and URLs use. */
+  id: string
+  /** Database UUID, needed when writing games or players. */
+  uuid?: string
+  name: string
+  logoUrl: string
+  roster: Player[]
+  primaryColor?: string
+  createdAt: string
+  updatedAt: string
 }
 
-export type TeamId = 'eagles' | 'panthers' | 'lions' | 'dolphins' | 'knights' | 'warriors'
-
+/**
+ * A team slug.
+ *
+ * This used to be a union of the six team names, which meant the league could
+ * not change its teams without a type error in a dozen files. Teams now live in
+ * the database, so this is just a string.
+ */
+export type TeamId = string

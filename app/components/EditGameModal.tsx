@@ -1,5 +1,8 @@
 /**
- * EditGameModal - Admin interface for adding/editing games
+ * Add or edit a game.
+ *
+ * Teams come from the teams context, so the dropdowns follow whatever teams the
+ * league actually has. Game numbers are assigned by the server on create.
  */
 
 'use client'
@@ -7,60 +10,79 @@
 import { useState, useEffect } from 'react'
 import { Game, GameStatus } from '@/types/game'
 import { X, Save } from 'lucide-react'
-import { updateGame, createGame, getTeams, getAllGames } from '@/lib/supabaseData'
-import { TEAMS } from '@/config/teams'
+import { updateGame, createGame, notifyDataUpdated } from '@/lib/supabaseData'
+import { useTeams } from '@/lib/teamsContext'
 
 interface EditGameModalProps {
-  game: Game | null // null for new game
+  /** Null when adding a new game. */
+  game: Game | null
   isOpen: boolean
   onClose: () => void
   defaultWeek?: number
 }
 
-export function EditGameModal({ game, isOpen, onClose, defaultWeek }: EditGameModalProps) {
-  const [formData, setFormData] = useState<Partial<Game>>({
-    weekNumber: defaultWeek || 1,
-    date: '',
-    time: '',
-    location: '',
-    homeTeamId: TEAMS[0].id,
-    awayTeamId: TEAMS[1].id,
-    status: 'scheduled',
-    homeScore: null,
-    awayScore: null,
-  })
+interface GameFormData {
+  weekNumber: number
+  date: string
+  time: string
+  location: string
+  /** Team slugs; converted to UUIDs on save. */
+  homeTeamSlug: string
+  awayTeamSlug: string
+  status: GameStatus
+  homeScore: string
+  awayScore: string
+  isPlayoff: boolean
+  playoffRound: string
+}
+
+const PLAYOFF_ROUNDS = ['play-in', 'quarterfinal', 'semifinal', 'final']
+
+export function EditGameModal({
+  game,
+  isOpen,
+  onClose,
+  defaultWeek,
+}: EditGameModalProps) {
+  const { teams, getTeam } = useTeams()
+  const [formData, setFormData] = useState<GameFormData | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [supabaseTeams, setSupabaseTeams] = useState<any[]>([])
-  
-  // Load teams from Supabase
-  useEffect(() => {
-    async function loadTeams() {
-      const teams = await getTeams()
-      setSupabaseTeams(teams)
-    }
-    if (isOpen) {
-      loadTeams()
-    }
-  }, [isOpen])
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (game && isOpen) {
-      setFormData(game)
-    } else if (isOpen && !game) {
-      // Reset for new game
+    if (!isOpen) return
+    setError(null)
+
+    if (game) {
+      setFormData({
+        weekNumber: game.weekNumber,
+        date: game.date,
+        time: game.time,
+        location: game.location,
+        homeTeamSlug: game.homeTeamId,
+        awayTeamSlug: game.awayTeamId,
+        status: game.status,
+        homeScore: game.homeScore === null ? '' : String(game.homeScore),
+        awayScore: game.awayScore === null ? '' : String(game.awayScore),
+        isPlayoff: game.isPlayoff ?? game.weekNumber === 0,
+        playoffRound: game.playoffRound ?? '',
+      })
+    } else {
       setFormData({
         weekNumber: defaultWeek || 1,
         date: '',
         time: '',
         location: '',
-        homeTeamId: TEAMS[0].id,
-        awayTeamId: TEAMS[1].id,
+        homeTeamSlug: teams[0]?.slug ?? '',
+        awayTeamSlug: teams[1]?.slug ?? '',
         status: 'scheduled',
-        homeScore: null,
-        awayScore: null,
+        homeScore: '',
+        awayScore: '',
+        isPlayoff: defaultWeek === 0,
+        playoffRound: '',
       })
     }
-  }, [game, isOpen, defaultWeek])
+  }, [game, isOpen, defaultWeek, teams])
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -76,95 +98,74 @@ export function EditGameModal({ game, isOpen, onClose, defaultWeek }: EditGameMo
     }
   }, [isOpen, onClose])
 
-  if (!isOpen) return null
+  if (!isOpen || !formData) return null
 
-  const handleChange = (field: keyof Game, value: any) => {
-    setFormData({ ...formData, [field]: value })
+  const update = <K extends keyof GameFormData>(field: K, value: GameFormData[K]) => {
+    setFormData((current) => (current ? { ...current, [field]: value } : current))
+  }
+
+  const parseScore = (value: string): number | null => {
+    if (value.trim() === '') return null
+    const parsed = Number(value)
+    return Number.isInteger(parsed) && parsed >= 0 ? parsed : null
   }
 
   const handleSave = async () => {
-    // Validation
-    if (!formData.date || !formData.time || !formData.location) {
-      alert('Please fill in all required fields')
+    setError(null)
+
+    if (!formData.date || !formData.time.trim()) {
+      setError('Date and time are required')
       return
     }
 
-    if (formData.homeTeamId === formData.awayTeamId) {
-      alert('Home and away teams must be different')
+    // Playoff slots may be unfilled ("winner of the play-in"), so empty teams
+    // are allowed there but not in a regular season fixture.
+    const homeTeam = getTeam(formData.homeTeamSlug)
+    const awayTeam = getTeam(formData.awayTeamSlug)
+
+    if (!formData.isPlayoff && (!homeTeam || !awayTeam)) {
+      setError('Please choose both teams')
+      return
+    }
+    if (homeTeam && awayTeam && homeTeam.id === awayTeam.id) {
+      setError('Home and away teams must be different')
       return
     }
 
     setIsSaving(true)
-
     try {
-      let success = false
-
-      // Find team UUIDs from slugs
-      const homeTeam = supabaseTeams.find(t => t.slug === formData.homeTeamId)
-      const awayTeam = supabaseTeams.find(t => t.slug === formData.awayTeamId)
-
-      if (!homeTeam || !awayTeam) {
-        alert('Invalid team selection')
-        setIsSaving(false)
-        return
+      const fields = {
+        weekNumber: formData.isPlayoff ? 0 : formData.weekNumber,
+        date: formData.date,
+        time: formData.time.trim(),
+        location: formData.location.trim() || 'TBD',
+        homeTeamId: homeTeam?.id ?? null,
+        awayTeamId: awayTeam?.id ?? null,
+        homeScore: parseScore(formData.homeScore),
+        awayScore: parseScore(formData.awayScore),
+        status: formData.status,
+        isPlayoff: formData.isPlayoff,
+        playoffRound: formData.isPlayoff ? formData.playoffRound || null : null,
       }
 
       if (game) {
-        // Update existing game
-        success = await updateGame(game.id, {
-          weekNumber: formData.weekNumber,
-          date: formData.date,
-          time: formData.time,
-          location: formData.location,
-          homeTeamId: homeTeam.id, // Use UUID
-          awayTeamId: awayTeam.id, // Use UUID
-          homeScore: formData.homeScore,
-          awayScore: formData.awayScore,
-          status: formData.status as GameStatus
-        })
+        await updateGame(game.id, fields)
       } else {
-        // Create new game - need to get next game number
-        const allGames = await getAllGames()
-        const maxGameNumber = allGames.reduce((max, g) => {
-          const num = parseInt(g.id.replace('game-', ''))
-          return isNaN(num) ? max : Math.max(max, num)
-        }, 0)
-        
-        const gameId = await createGame({
-          gameNumber: maxGameNumber + 1,
-          weekNumber: formData.weekNumber!,
-          date: formData.date!,
-          time: formData.time!,
-          location: formData.location!,
-          homeTeamId: homeTeam.id, // Use UUID
-          awayTeamId: awayTeam.id, // Use UUID
-          homeScore: formData.homeScore,
-          awayScore: formData.awayScore,
-          status: formData.status as GameStatus
-        })
-        
-        success = !!gameId
+        await createGame(fields)
       }
 
-      if (!success) {
-        alert('Failed to save game')
-        setIsSaving(false)
-        return
-      }
-
-      // Trigger refresh by dispatching custom event
-      window.dispatchEvent(new Event('dataUpdated'))
-
-      setTimeout(() => {
-        setIsSaving(false)
-        onClose()
-      }, 300)
-    } catch (error) {
-      console.error('Error saving game:', error)
-      alert('An error occurred while saving')
+      notifyDataUpdated()
+      onClose()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to save game')
+    } finally {
       setIsSaving(false)
     }
   }
+
+  const inputClass =
+    'w-full px-4 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-white focus:outline-none focus:border-[#D47F7D]'
+  const labelClass = 'block text-sm font-medium text-gray-300 mb-2'
 
   return (
     <div
@@ -172,6 +173,7 @@ export function EditGameModal({ game, isOpen, onClose, defaultWeek }: EditGameMo
       onClick={onClose}
       role="dialog"
       aria-modal="true"
+      aria-labelledby="edit-game-title"
     >
       <div
         className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-[#1a1a1a] border border-[#D47F7D] rounded-lg p-8 shadow-2xl"
@@ -179,102 +181,150 @@ export function EditGameModal({ game, isOpen, onClose, defaultWeek }: EditGameMo
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-black hover:bg-white/10 rounded-full transition-colors"
+          className="absolute top-4 right-4 p-2 text-white hover:bg-white/10 rounded-full transition-colors"
           aria-label="Close"
         >
           <X size={24} />
         </button>
 
-        <h2 className="text-3xl font-bold text-center uppercase text-[#D47F7D] mb-6">
+        <h2
+          id="edit-game-title"
+          className="text-3xl font-bold text-center uppercase text-[#D47F7D] mb-6"
+        >
           {game ? 'Edit Game' : 'Add New Game'}
         </h2>
 
+        {error && (
+          <p
+            className="mb-4 px-4 py-3 bg-red-950/60 border border-red-700 rounded text-red-200 text-sm"
+            role="alert"
+          >
+            {error}
+          </p>
+        )}
+
         <div className="space-y-4">
-          {/* Day Number */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Day Number *
-            </label>
+          <div className="flex items-center gap-3">
             <input
-              type="number"
-              min="1"
-              max="12"
-              value={formData.weekNumber}
-              onChange={(e) => handleChange('weekNumber', parseInt(e.target.value) || 1)}
-              className="w-full px-4 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-black focus:outline-none focus:border-[#D47F7D]"
+              type="checkbox"
+              id="game-playoff"
+              checked={formData.isPlayoff}
+              onChange={(e) => update('isPlayoff', e.target.checked)}
+              className="w-5 h-5 bg-[#2a2a2a] border border-[#523232] rounded"
             />
+            <label htmlFor="game-playoff" className="text-sm font-medium text-gray-300">
+              This is a playoff game
+            </label>
           </div>
 
-          {/* Date */}
+          {formData.isPlayoff ? (
+            <div>
+              <label htmlFor="game-round" className={labelClass}>
+                Playoff Round
+              </label>
+              <select
+                id="game-round"
+                value={formData.playoffRound}
+                onChange={(e) => update('playoffRound', e.target.value)}
+                className={inputClass}
+              >
+                <option value="">Choose a round</option>
+                {PLAYOFF_ROUNDS.map((round) => (
+                  <option key={round} value={round}>
+                    {round.charAt(0).toUpperCase() + round.slice(1).replace('-', ' ')}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <label htmlFor="game-week" className={labelClass}>
+                Week Number *
+              </label>
+              <input
+                id="game-week"
+                type="number"
+                min={1}
+                value={formData.weekNumber}
+                onChange={(e) => update('weekNumber', parseInt(e.target.value) || 1)}
+                className={inputClass}
+              />
+            </div>
+          )}
+
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="game-date" className={labelClass}>
               Date *
             </label>
             <input
+              id="game-date"
               type="date"
               value={formData.date}
-              onChange={(e) => handleChange('date', e.target.value)}
-              className="w-full px-4 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-black focus:outline-none focus:border-[#D47F7D]"
+              onChange={(e) => update('date', e.target.value)}
+              className={inputClass}
             />
           </div>
 
-          {/* Time */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="game-time" className={labelClass}>
               Time *
             </label>
             <input
+              id="game-time"
               type="text"
-              placeholder="e.g., 10:00 AM"
+              placeholder="e.g. 6:15 PM"
               value={formData.time}
-              onChange={(e) => handleChange('time', e.target.value)}
-              className="w-full px-4 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-black focus:outline-none focus:border-[#D47F7D]"
+              onChange={(e) => update('time', e.target.value)}
+              className={inputClass}
             />
           </div>
 
-          {/* Location */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Location *
+            <label htmlFor="game-location" className={labelClass}>
+              Location
             </label>
             <input
+              id="game-location"
               type="text"
-              placeholder="e.g., Main Field"
+              placeholder="e.g. Main Field"
               value={formData.location}
-              onChange={(e) => handleChange('location', e.target.value)}
-              className="w-full px-4 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-black focus:outline-none focus:border-[#D47F7D]"
+              onChange={(e) => update('location', e.target.value)}
+              className={inputClass}
             />
           </div>
 
-          {/* Teams */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Home Team *
+              <label htmlFor="game-home" className={labelClass}>
+                Home Team {formData.isPlayoff ? '' : '*'}
               </label>
               <select
-                value={formData.homeTeamId}
-                onChange={(e) => handleChange('homeTeamId', e.target.value)}
-                className="w-full px-4 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-black focus:outline-none focus:border-[#D47F7D]"
+                id="game-home"
+                value={formData.homeTeamSlug}
+                onChange={(e) => update('homeTeamSlug', e.target.value)}
+                className={inputClass}
               >
-                {TEAMS.map(team => (
-                  <option key={team.id} value={team.id}>
+                <option value="">{formData.isPlayoff ? 'TBD' : 'Choose a team'}</option>
+                {teams.map((team) => (
+                  <option key={team.slug} value={team.slug}>
                     {team.name}
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Away Team *
+              <label htmlFor="game-away" className={labelClass}>
+                Away Team {formData.isPlayoff ? '' : '*'}
               </label>
               <select
-                value={formData.awayTeamId}
-                onChange={(e) => handleChange('awayTeamId', e.target.value)}
-                className="w-full px-4 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-black focus:outline-none focus:border-[#D47F7D]"
+                id="game-away"
+                value={formData.awayTeamSlug}
+                onChange={(e) => update('awayTeamSlug', e.target.value)}
+                className={inputClass}
               >
-                {TEAMS.map(team => (
-                  <option key={team.id} value={team.id}>
+                <option value="">{formData.isPlayoff ? 'TBD' : 'Choose a team'}</option>
+                {teams.map((team) => (
+                  <option key={team.slug} value={team.slug}>
                     {team.name}
                   </option>
                 ))}
@@ -282,59 +332,60 @@ export function EditGameModal({ game, isOpen, onClose, defaultWeek }: EditGameMo
             </div>
           </div>
 
-          {/* Status */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="game-status" className={labelClass}>
               Status
             </label>
             <select
+              id="game-status"
               value={formData.status}
-              onChange={(e) => handleChange('status', e.target.value)}
-              className="w-full px-4 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-black focus:outline-none focus:border-[#D47F7D]"
+              onChange={(e) => update('status', e.target.value as GameStatus)}
+              className={inputClass}
             >
               <option value="scheduled">Scheduled</option>
+              <option value="in_progress">In progress</option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
               <option value="postponed">Postponed</option>
             </select>
           </div>
 
-          {/* Scores (optional) */}
           {formData.status === 'completed' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="game-home-score" className={labelClass}>
                   Home Score
                 </label>
                 <input
+                  id="game-home-score"
                   type="number"
-                  min="0"
-                  value={formData.homeScore ?? ''}
-                  onChange={(e) => handleChange('homeScore', e.target.value ? parseInt(e.target.value) : null)}
-                  className="w-full px-4 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-black focus:outline-none focus:border-[#D47F7D]"
+                  min={0}
+                  value={formData.homeScore}
+                  onChange={(e) => update('homeScore', e.target.value)}
+                  className={inputClass}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="game-away-score" className={labelClass}>
                   Away Score
                 </label>
                 <input
+                  id="game-away-score"
                   type="number"
-                  min="0"
-                  value={formData.awayScore ?? ''}
-                  onChange={(e) => handleChange('awayScore', e.target.value ? parseInt(e.target.value) : null)}
-                  className="w-full px-4 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-black focus:outline-none focus:border-[#D47F7D]"
+                  min={0}
+                  value={formData.awayScore}
+                  onChange={(e) => update('awayScore', e.target.value)}
+                  className={inputClass}
                 />
               </div>
             </div>
           )}
         </div>
 
-        {/* Action Buttons */}
         <div className="flex justify-end gap-4 mt-6">
           <button
             onClick={onClose}
-            className="px-6 py-2 bg-gray-600 text-black rounded hover:bg-gray-700 transition-colors"
+            className="px-6 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors disabled:opacity-50"
             disabled={isSaving}
           >
             Cancel
@@ -342,7 +393,7 @@ export function EditGameModal({ game, isOpen, onClose, defaultWeek }: EditGameMo
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="flex items-center gap-2 px-6 py-2 bg-[#D47F7D] text-black rounded hover:bg-[#c66f6d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-6 py-2 bg-[#D47F7D] text-black font-semibold rounded hover:bg-[#c66f6d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save size={18} />
             {isSaving ? 'Saving...' : 'Save Game'}
@@ -352,4 +403,3 @@ export function EditGameModal({ game, isOpen, onClose, defaultWeek }: EditGameMo
     </div>
   )
 }
-

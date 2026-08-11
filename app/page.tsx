@@ -1,6 +1,5 @@
 /**
- * Homepage for YM JAX Soccer League
- * Main landing page displaying current week's games, team logos, and statistical leaders
+ * Homepage: this week's fixtures (or the playoff bracket), teams and leaders.
  */
 
 import { HomePageClient } from './components/HomePageClient'

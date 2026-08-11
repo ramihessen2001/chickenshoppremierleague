@@ -1,13 +1,14 @@
 /**
- * WeeklyGames component for YM JAX Soccer League
- * Displays current week's scheduled games
+ * The current week's games, shown on the homepage.
  */
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Game } from '@/types/game'
-import { getTeamById } from '@/config/teams'
+import { displayJersey } from '@/types/player'
+import { useTeams } from '@/lib/teamsContext'
+import { LEAGUE } from '@/config/league'
 import { formatDate, formatTime } from '@/lib/dateUtils'
 import { BoxScoreModal } from './BoxScoreModal'
 import { EditBoxScoreModal } from './EditBoxScoreModal'
@@ -74,14 +75,16 @@ export function WeeklyGames({ games, weekNumber }: WeeklyGamesProps) {
     <>
       <section className="py-12 px-4 sm:px-6" aria-labelledby="weekly-games-title">
         <div className="max-w-7xl mx-auto">
-          <h2 id="weekly-games-title" className="text-3xl sm:text-4xl font-black text-center mb-8 text-black">
-            TODAY'S GAMES
+          <h2 id="weekly-games-title" className="text-3xl sm:text-4xl font-black text-center mb-2 text-black">
+            This Week&apos;s Games
           </h2>
-          
-          <p className="text-center text-gray-400 mb-6">Day {weekNumber}</p>
-          
+
+          <p className="text-center text-gray-700 mb-6">Week {weekNumber}</p>
+
           {games.length === 0 ? (
-            <p className="text-center text-gray-400">No games scheduled for today</p>
+            <p className="text-center text-gray-700">
+              No games scheduled for week {weekNumber}
+            </p>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {games.map(game => (
@@ -142,26 +145,25 @@ interface GameCardProps {
 }
 
 function GameCard({ game, onClick, onEdit }: GameCardProps) {
-  const homeTeam = getTeamById(game.homeTeamId)
-  const awayTeam = getTeamById(game.awayTeamId)
-  
-  if (!homeTeam || !awayTeam) return null
-  
+  const { teamName } = useTeams()
+  const homeTeamName = teamName(game.homeTeamId)
+  const awayTeamName = teamName(game.awayTeamId)
+
   // Show scores if they exist (including 0-0 for scheduled games)
   const hasScores = game.homeScore !== null && game.awayScore !== null
   const scoreDisplay = hasScores ? `${game.homeScore} - ${game.awayScore}` : 'VS'
-  
+
   return (
     <div className="relative">
       <button
         onClick={onClick}
         className="block w-full p-6 border border-[#523232] rounded-lg shadow-league hover:border-[#D47F7D] transition-colors text-left cursor-pointer"
-        aria-label={`View box score for ${homeTeam.name} vs ${awayTeam.name}`}
+        aria-label={`View box score for ${homeTeamName} vs ${awayTeamName}`}
       >
         <div className="flex justify-between items-center mb-4">
-          <span className="text-lg font-bold uppercase text-black">{homeTeam.name}</span>
+          <span className="text-lg font-bold uppercase text-black">{homeTeamName}</span>
           <span className="text-2xl font-black text-[#D47F7D]">{scoreDisplay}</span>
-          <span className="text-lg font-bold uppercase text-black">{awayTeam.name}</span>
+          <span className="text-lg font-bold uppercase text-black">{awayTeamName}</span>
         </div>
         
         <div className="text-sm text-gray-400 space-y-1">
@@ -177,8 +179,8 @@ function GameCard({ game, onClick, onEdit }: GameCardProps) {
           <div className="mt-4 pt-4 border-t border-[#523232]">
             <div className="flex items-center gap-3 px-4 py-3 rounded-lg">
               <Image
-                src="/images/puro_logo.png"
-                alt="Puro"
+                src={LEAGUE.manOfTheMatch.badgeImageUrl}
+                alt=""
                 width={50}
                 height={50}
                 className="rounded-full"
@@ -186,10 +188,10 @@ function GameCard({ game, onClick, onEdit }: GameCardProps) {
               <div className="flex-1">
                 <p className="text-xs text-black font-bold uppercase flex items-center gap-1.5">
                   <Trophy size={14} className="text-black" />
-                  Puro Man of The Match
+                  {LEAGUE.manOfTheMatch.label}
                 </p>
                 <p className="text-base font-black text-black mt-1">
-                  #{game.playerOfGame.jerseyNumber} {game.playerOfGame.name}
+                  #{displayJersey(game.playerOfGame.jerseyNumber)} {game.playerOfGame.name}
                 </p>
               </div>
             </div>

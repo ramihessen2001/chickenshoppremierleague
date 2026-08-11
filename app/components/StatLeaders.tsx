@@ -1,5 +1,5 @@
 /**
- * StatLeaders component for YM JAX Soccer League
+ * Leaderboards for goals, assists and saves.
  * Displays top 5 leaders in goals, assists, and saves
  */
 

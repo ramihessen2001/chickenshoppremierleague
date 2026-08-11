@@ -1,138 +1,189 @@
 /**
- * Supabase Data Fetching Utilities
- * 
- * Helper functions for fetching data from the Supabase database.
- * All functions handle errors gracefully and return null/empty arrays on failure.
+ * Data access for the browser.
+ *
+ * Reads go straight to Supabase with the anon key (RLS allows SELECT).
+ * Writes go through /api/admin/* routes, which verify the admin session cookie
+ * server-side and use the service role key there. Nothing in this file can
+ * write to the database on its own -- that is the point.
  */
 
-import { supabase, supabaseAdmin, Team, Player as SupabasePlayer, Game as SupabaseGame, GameStatistic, LeagueConfig } from './supabase'
+import { supabase, Team, Player as SupabasePlayer, LeagueConfig } from './supabase'
 import { Game } from '@/types/game'
 import { Player } from '@/types/player'
-import { GameStatistic as LocalGameStatistic } from '@/types/statistic'
+import { GameStatistic as LocalGameStatistic, StatType } from '@/types/statistic'
+
+/* -------------------------------------------------------------------------- */
+/* Shared query fragments                                                      */
+/* -------------------------------------------------------------------------- */
+
+const GAME_SELECT = `
+  *,
+  home_team:teams!home_team_id(id, name, slug, logo_url),
+  away_team:teams!away_team_id(id, name, slug, logo_url),
+  player_of_game:players!player_of_game_id(
+    id, name, jersey_number, position, is_active, created_at, updated_at,
+    team:teams(id, name, slug)
+  )
+`
+
+const GAME_SELECT_WITH_STATS = `
+  ${GAME_SELECT},
+  statistics:game_statistics(
+    *,
+    player:players(id, name, jersey_number),
+    team:teams(id, name, slug)
+  )
+`
+
+/* -------------------------------------------------------------------------- */
+/* Transforms                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** Supabase joins return either an object or a single-element array. */
+function one<T>(value: T | T[] | null | undefined): T | undefined {
+  if (Array.isArray(value)) return value[0]
+  return value ?? undefined
+}
+
+function transformStatistic(raw: any): LocalGameStatistic {
+  const player = one<any>(raw.player)
+  const team = one<any>(raw.team)
+  return {
+    id: raw.id,
+    gameId: raw.game_id,
+    playerId: raw.player_id,
+    playerName: player?.name,
+    jerseyNumber: player?.jersey_number,
+    teamId: team?.slug || raw.team_id,
+    type: raw.stat_type,
+    count: raw.count,
+    timestamp: raw.timestamp,
+    createdAt: raw.created_at,
+  }
+}
 
 /**
- * Fetch league configuration
+ * Converts a database game row into the shape the components use.
+ *
+ * Teams are exposed by slug (what the UI works in) but the UUIDs are kept
+ * alongside, because writes need them.
  */
+function transformGame(raw: any): Game {
+  const homeTeam = one<any>(raw.home_team)
+  const awayTeam = one<any>(raw.away_team)
+  const potm = one<any>(raw.player_of_game)
+
+  return {
+    id: raw.id,
+    gameNumber: raw.game_number,
+    weekNumber: raw.week_number ?? 0,
+    date: raw.date,
+    time: raw.time,
+    location: raw.location,
+    homeTeamId: homeTeam?.slug || '',
+    awayTeamId: awayTeam?.slug || '',
+    homeTeamUUID: homeTeam?.id,
+    awayTeamUUID: awayTeam?.id,
+    homeScore: raw.home_score,
+    awayScore: raw.away_score,
+    status: raw.status,
+    isPlayoff: raw.is_playoff ?? false,
+    playoffRound: raw.playoff_round ?? null,
+    statistics: (raw.statistics ?? []).map(transformStatistic),
+    playerOfGameId: raw.player_of_game_id,
+    playerOfGame: potm
+      ? {
+          id: potm.id,
+          name: potm.name,
+          jerseyNumber: potm.jersey_number,
+          teamId: one<any>(potm.team)?.slug || '',
+          position: potm.position,
+          isActive: potm.is_active,
+          createdAt: potm.created_at,
+          updatedAt: potm.updated_at,
+        }
+      : null,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Reads                                                                       */
+/* -------------------------------------------------------------------------- */
+
 export async function getLeagueConfig(): Promise<LeagueConfig | null> {
   const { data, error } = await supabase
     .from('league_config')
     .select('*')
-    .single()
+    .limit(1)
+    .maybeSingle()
 
   if (error) {
     console.error('Error fetching league config:', error)
     return null
   }
-
   return data
 }
 
-/**
- * Fetch all teams with their players
- */
-export async function getTeamsWithPlayers(): Promise<(Team & { players: SupabasePlayer[] })[]> {
+export async function getCurrentWeek(): Promise<number> {
+  const config = await getLeagueConfig()
+  return config?.current_week ?? 1
+}
+
+export async function getTeams(): Promise<Team[]> {
   const { data, error } = await supabase
     .from('teams')
-    .select(`
-      *,
-      players (*)
-    `)
+    .select('*')
+    .order('display_order')
+    .order('name')
+
+  if (error) {
+    console.error('Error fetching teams:', error)
+    return []
+  }
+  return data ?? []
+}
+
+export async function getTeamsWithPlayers(): Promise<
+  (Team & { players: SupabasePlayer[] })[]
+> {
+  const { data, error } = await supabase
+    .from('teams')
+    .select('*, players(*)')
+    .order('display_order')
     .order('name')
 
   if (error) {
     console.error('Error fetching teams with players:', error)
     return []
   }
-
-  return data || []
+  return data ?? []
 }
 
-/**
- * Fetch a single team by slug
- */
-export async function getTeamBySlug(slug: string): Promise<(Team & { players: SupabasePlayer[] }) | null> {
+export async function getTeamBySlug(
+  slug: string
+): Promise<(Team & { players: SupabasePlayer[] }) | null> {
   const { data, error } = await supabase
     .from('teams')
-    .select(`
-      *,
-      players (*)
-    `)
+    .select('*, players(*)')
     .eq('slug', slug)
-    .single()
+    .maybeSingle()
 
   if (error) {
     console.error(`Error fetching team ${slug}:`, error)
     return null
   }
-
   return data
 }
 
 /**
- * Transform Supabase game to local Game type
- * Converts UUID team IDs to slug-based IDs for compatibility with existing components
- * Also stores original UUID team IDs for saving statistics
- */
-function transformGame(supabaseGame: any): Game & { homeTeamUUID?: string; awayTeamUUID?: string } {
-  return {
-    id: supabaseGame.id,
-    weekNumber: supabaseGame.week_number || 0,
-    date: supabaseGame.date,
-    time: supabaseGame.time,
-    location: supabaseGame.location,
-    homeTeamId: supabaseGame.home_team?.slug || '',
-    awayTeamId: supabaseGame.away_team?.slug || '',
-    homeTeamUUID: supabaseGame.home_team?.id, // Store UUID for saving
-    awayTeamUUID: supabaseGame.away_team?.id, // Store UUID for saving
-    homeScore: supabaseGame.home_score,
-    awayScore: supabaseGame.away_score,
-    status: supabaseGame.status,
-    statistics: supabaseGame.statistics?.map((stat: any) => transformStatistic(stat)) || [],
-    playerOfGameId: supabaseGame.player_of_game_id,
-    playerOfGame: supabaseGame.player_of_game ? {
-      id: supabaseGame.player_of_game.id,
-      name: supabaseGame.player_of_game.name,
-      jerseyNumber: supabaseGame.player_of_game.jersey_number,
-      teamId: supabaseGame.player_of_game.team?.slug || '',
-      position: supabaseGame.player_of_game.position,
-      isActive: supabaseGame.player_of_game.is_active,
-      createdAt: supabaseGame.player_of_game.created_at,
-      updatedAt: supabaseGame.player_of_game.updated_at
-    } : null,
-    createdAt: supabaseGame.created_at,
-    updatedAt: supabaseGame.updated_at
-  }
-}
-
-/**
- * Transform Supabase statistic to local GameStatistic type
- */
-function transformStatistic(supabaseStat: any): LocalGameStatistic {
-  return {
-    id: supabaseStat.id,
-    gameId: supabaseStat.game_id,
-    playerId: supabaseStat.player_id,
-    playerName: supabaseStat.player?.name, // Include player name for display
-    jerseyNumber: supabaseStat.player?.jersey_number, // Include jersey number for display
-    teamId: supabaseStat.team?.slug || supabaseStat.team_id, // Use team slug for filtering
-    type: supabaseStat.stat_type,
-    count: supabaseStat.count,
-    timestamp: supabaseStat.timestamp,
-    createdAt: supabaseStat.created_at
-  }
-}
-
-/**
- * Fetch games for a specific week with team info
+ * Games for a single week. Week 0 holds playoff games.
  */
 export async function getGamesByWeek(weekNumber: number): Promise<Game[]> {
   const { data, error } = await supabase
     .from('games')
-    .select(`
-      *,
-      home_team:teams!home_team_id(id, name, slug, logo_url),
-      away_team:teams!away_team_id(id, name, slug, logo_url)
-    `)
+    .select(GAME_SELECT_WITH_STATS)
     .eq('week_number', weekNumber)
     .order('date')
     .order('time')
@@ -141,230 +192,49 @@ export async function getGamesByWeek(weekNumber: number): Promise<Game[]> {
     console.error(`Error fetching games for week ${weekNumber}:`, error)
     return []
   }
-
-  // For each game, fetch the player of game if it exists
-  const gamesWithPlayerOfGame = await Promise.all(
-    (data || []).map(async (game) => {
-      if (game.player_of_game_id) {
-        const { data: player, error: playerError } = await supabase
-          .from('players')
-          .select(`
-            id,
-            name,
-            jersey_number,
-            position,
-            is_active,
-            created_at,
-            updated_at,
-            team:teams(id, name, slug)
-          `)
-          .eq('id', game.player_of_game_id)
-          .single()
-
-        if (!playerError && player) {
-          return { ...game, player_of_game: player }
-        }
-      }
-      return game
-    })
-  )
-
-  return gamesWithPlayerOfGame.map(transformGame)
+  return (data ?? []).map(transformGame)
 }
 
-/**
- * Fetch all games with team info
- */
 export async function getAllGames(): Promise<Game[]> {
   const { data, error } = await supabase
     .from('games')
-    .select(`
-      *,
-      home_team:teams!home_team_id(id, name, slug, logo_url),
-      away_team:teams!away_team_id(id, name, slug, logo_url),
-      statistics:game_statistics(
-        *,
-        player:players(id, name, jersey_number),
-        team:teams(id, name, slug)
-      )
-    `)
+    .select(GAME_SELECT_WITH_STATS)
     .order('game_number')
 
   if (error) {
     console.error('Error fetching all games:', error)
     return []
   }
-
-  // For each game, fetch the player of game if it exists
-  const gamesWithPlayerOfGame = await Promise.all(
-    (data || []).map(async (game) => {
-      if (game.player_of_game_id) {
-        const { data: player, error: playerError } = await supabase
-          .from('players')
-          .select(`
-            id,
-            name,
-            jersey_number,
-            position,
-            is_active,
-            created_at,
-            updated_at,
-            team:teams(id, name, slug)
-          `)
-          .eq('id', game.player_of_game_id)
-          .single()
-
-        if (!playerError && player) {
-          return { ...game, player_of_game: player }
-        }
-      }
-      return game
-    })
-  )
-
-  return gamesWithPlayerOfGame.map(transformGame)
+  return (data ?? []).map(transformGame)
 }
 
-/**
- * Fetch a single game by ID with statistics
- */
-export async function getGameById(gameId: string): Promise<Game | null> {
-  const { data: game, error: gameError } = await supabase
-    .from('games')
-    .select(`
-      *,
-      home_team:teams!home_team_id(id, name, slug, logo_url),
-      away_team:teams!away_team_id(id, name, slug, logo_url)
-    `)
-    .eq('id', gameId)
-    .single()
+/** All playoff games, i.e. week 0. */
+export async function getPlayoffGames(): Promise<Game[]> {
+  return getGamesByWeek(0)
+}
 
-  if (gameError) {
-    console.error(`Error fetching game ${gameId}:`, gameError)
+export async function getGameById(gameId: string): Promise<Game | null> {
+  const { data, error } = await supabase
+    .from('games')
+    .select(GAME_SELECT_WITH_STATS)
+    .eq('id', gameId)
+    .maybeSingle()
+
+  if (error) {
+    console.error(`Error fetching game ${gameId}:`, error)
     return null
   }
-
-  // Fetch statistics for this game
-  const { data: statistics, error: statsError } = await supabase
-    .from('game_statistics')
-    .select(`
-      *,
-      player:players(id, name, jersey_number),
-      team:teams(id, name, slug)
-    `)
-    .eq('game_id', gameId)
-
-  if (statsError) {
-    console.error(`Error fetching statistics for game ${gameId}:`, statsError)
-  }
-
-  // Fetch player of game if it exists
-  let playerOfGame = null
-  if (game.player_of_game_id) {
-    const { data: player, error: playerError } = await supabase
-      .from('players')
-      .select(`
-        id,
-        name,
-        jersey_number,
-        position,
-        is_active,
-        created_at,
-        updated_at,
-        team:teams(id, name, slug)
-      `)
-      .eq('id', game.player_of_game_id)
-      .single()
-
-    if (!playerError && player) {
-      playerOfGame = player
-    }
-  }
-
-  return transformGame({
-    ...game,
-    statistics: statistics || [],
-    player_of_game: playerOfGame
-  })
+  return data ? transformGame(data) : null
 }
 
 /**
- * Calculate top stat leaders
- * Returns data in the format expected by the StatLeaders component
- */
-export async function getStatLeaders(statType: 'goal' | 'assist' | 'save', limit: number = 5) {
-  // Use SQL aggregation to sum all counts for each player
-  const { data, error } = await supabase
-    .from('game_statistics')
-    .select(`
-      player_id,
-      count,
-      player:players(id, name, jersey_number, team_id)
-    `)
-    .eq('stat_type', statType)
-
-  if (error) {
-    console.error(`Error fetching ${statType} leaders:`, error)
-    return []
-  }
-
-  // Aggregate by player (sum all counts for each player)
-  const aggregated = new Map()
-  data?.forEach((stat: any) => {
-    const playerId = stat.player_id
-    const player = Array.isArray(stat.player) ? stat.player[0] : stat.player
-    if (aggregated.has(playerId)) {
-      // Add the count from this statistic record
-      aggregated.get(playerId).count += stat.count || 1
-    } else {
-      aggregated.set(playerId, {
-        player: {
-          id: player?.id || playerId,
-          name: player?.name || 'Unknown',
-          teamId: player?.team_id || ''
-        },
-        count: stat.count || 1
-      })
-    }
-  })
-
-  // Convert to array, sort by count descending, and take top N
-  const leaders = Array.from(aggregated.values())
-    .sort((a, b) => b.count - a.count)
-    .slice(0, limit)
-
-  return leaders
-}
-
-/**
- * Get all teams (simple list)
- */
-export async function getTeams(): Promise<Team[]> {
-  const { data, error } = await supabase
-    .from('teams')
-    .select('*')
-    .order('name')
-
-  if (error) {
-    console.error('Error fetching teams:', error)
-    return []
-  }
-
-  return data || []
-}
-
-/**
- * Get all players across all teams
- * Returns players with team slug as teamId for compatibility with existing components
- * Also includes teamUUID for saving to database
+ * All active players, keyed for UI use (team slug) but carrying the team UUID
+ * for any code that still needs it.
  */
 export async function getAllPlayers(): Promise<(Player & { teamUUID?: string })[]> {
   const { data, error } = await supabase
     .from('players')
-    .select(`
-      *,
-      team:teams(id, name, slug)
-    `)
+    .select('*, team:teams(id, name, slug)')
     .eq('is_active', true)
     .order('name')
 
@@ -373,328 +243,326 @@ export async function getAllPlayers(): Promise<(Player & { teamUUID?: string })[
     return []
   }
 
-  // Transform to use team slug as teamId for compatibility, but keep UUID for saving
-  return (data || []).map(player => ({
-    id: player.id,
-    name: player.name,
-    jerseyNumber: player.jersey_number,
-    teamId: player.team?.slug || player.team_id, // Use slug for compatibility
-    teamUUID: player.team?.id || player.team_id, // Keep UUID for saving
-    isActive: player.is_active,
-    position: player.position,
-    createdAt: player.created_at,
-    updatedAt: player.updated_at
-  }))
+  return (data ?? []).map((player: any) => {
+    const team = one<any>(player.team)
+    return {
+      id: player.id,
+      name: player.name,
+      jerseyNumber: player.jersey_number,
+      teamId: team?.slug || player.team_id,
+      teamUUID: team?.id || player.team_id,
+      isActive: player.is_active,
+      position: player.position,
+      createdAt: player.created_at,
+      updatedAt: player.updated_at,
+    }
+  })
 }
 
 /**
- * Get current week number based on league config
+ * Top N players for a statistic, summed across all games.
  */
-export async function getCurrentWeek(): Promise<number> {
-  const config = await getLeagueConfig()
-  return config?.current_week || 1
-}
-
-/**
- * Update game scores
- * Uses admin client to bypass RLS
- */
-export async function updateGameScores(
-  gameId: string,
-  homeScore: number,
-  awayScore: number,
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'postponed' = 'completed'
-): Promise<boolean> {
-  const { error } = await supabaseAdmin
-    .from('games')
-    .update({
-      home_score: homeScore,
-      away_score: awayScore,
-      status: status,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', gameId)
-
-  if (error) {
-    console.error('Error updating game scores:', error)
-    return false
-  }
-
-  return true
-}
-
-/**
- * Update full game details (date, time, location, teams, status, scores)
- * Uses admin client to bypass RLS
- */
-export async function updateGame(
-  gameId: string,
-  updates: {
-    weekNumber?: number
-    date?: string
-    time?: string
-    location?: string
-    homeTeamId?: string // UUID
-    awayTeamId?: string // UUID
-    homeScore?: number | null
-    awayScore?: number | null
-    status?: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'postponed'
-  }
-): Promise<boolean> {
-  const updateData: any = {
-    updated_at: new Date().toISOString()
-  }
-
-  if (updates.weekNumber !== undefined) updateData.week_number = updates.weekNumber
-  if (updates.date !== undefined) updateData.date = updates.date
-  if (updates.time !== undefined) updateData.time = updates.time
-  if (updates.location !== undefined) updateData.location = updates.location
-  if (updates.homeTeamId !== undefined) updateData.home_team_id = updates.homeTeamId
-  if (updates.awayTeamId !== undefined) updateData.away_team_id = updates.awayTeamId
-  if (updates.homeScore !== undefined) updateData.home_score = updates.homeScore
-  if (updates.awayScore !== undefined) updateData.away_score = updates.awayScore
-  if (updates.status !== undefined) updateData.status = updates.status
-
-  const { error } = await supabaseAdmin
-    .from('games')
-    .update(updateData)
-    .eq('id', gameId)
-
-  if (error) {
-    console.error('Error updating game:', error)
-    return false
-  }
-
-  return true
-}
-
-/**
- * Create a new game
- * Uses admin client to bypass RLS
- */
-export async function createGame(gameData: {
-  gameNumber: number
-  weekNumber: number
-  date: string
-  time: string
-  location: string
-  homeTeamId: string // UUID
-  awayTeamId: string // UUID
-  homeScore?: number | null
-  awayScore?: number | null
-  status?: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'postponed'
-}): Promise<string | null> {
-  const { data, error } = await supabaseAdmin
-    .from('games')
-    .insert({
-      game_number: gameData.gameNumber,
-      week_number: gameData.weekNumber,
-      date: gameData.date,
-      time: gameData.time,
-      location: gameData.location,
-      home_team_id: gameData.homeTeamId,
-      away_team_id: gameData.awayTeamId,
-      home_score: gameData.homeScore ?? null,
-      away_score: gameData.awayScore ?? null,
-      status: gameData.status ?? 'scheduled',
-      is_playoff: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
-    .select('id')
-    .single()
-
-  if (error) {
-    console.error('Error creating game:', error)
-    return null
-  }
-
-  return data?.id || null
-}
-
-/**
- * Add game statistic
- * Uses admin client to bypass RLS
- * Note: Use deleteAllGameStatistics() before calling this to avoid duplicates
- */
-export async function upsertGameStatistic(
-  gameId: string,
-  playerId: string,
-  teamId: string,
-  statType: 'goal' | 'assist' | 'save' | 'yellow_card' | 'red_card' | 'blue_card',
-  count: number = 1
-): Promise<boolean> {
-  console.log('Inserting statistic:', { gameId, playerId, teamId, statType, count })
-  
-  const { data, error } = await supabaseAdmin
+export async function getStatLeaders(
+  statType: 'goal' | 'assist' | 'save',
+  limit = 5
+) {
+  const { data, error } = await supabase
     .from('game_statistics')
-    .insert({
-      game_id: gameId,
-      player_id: playerId,
-      team_id: teamId,
-      stat_type: statType,
-      count: count,
-      created_at: new Date().toISOString()
-    })
-    .select()
+    .select('player_id, count, player:players(id, name, jersey_number, team_id)')
+    .eq('stat_type', statType)
 
   if (error) {
-    console.error('Error inserting game statistic:', {
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code
-    })
-    return false
+    console.error(`Error fetching ${statType} leaders:`, error)
+    return []
   }
 
-  console.log('Statistic inserted successfully:', data)
-  return true
-}
+  const totals = new Map<string, { player: any; count: number }>()
 
-// Alias for backward compatibility
-export const insertGameStatistic = upsertGameStatistic
+  for (const stat of data ?? []) {
+    const player = one<any>((stat as any).player)
+    const playerId = (stat as any).player_id
+    const amount = (stat as any).count || 1
+    const existing = totals.get(playerId)
 
-/**
- * Delete game statistic
- * Uses admin client to bypass RLS
- */
-export async function deleteGameStatistic(statisticId: string): Promise<boolean> {
-  const { error } = await supabaseAdmin
-    .from('game_statistics')
-    .delete()
-    .eq('id', statisticId)
-
-  if (error) {
-    console.error('Error deleting game statistic:', error)
-    return false
+    if (existing) {
+      existing.count += amount
+    } else {
+      totals.set(playerId, {
+        player: {
+          id: player?.id || playerId,
+          name: player?.name || 'Unknown',
+          teamId: player?.team_id || '',
+        },
+        count: amount,
+      })
+    }
   }
 
-  return true
+  return Array.from(totals.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
 }
 
 /**
- * Delete all statistics for a game
- * Uses admin client to bypass RLS
- */
-export async function deleteAllGameStatistics(gameId: string): Promise<boolean> {
-  const { error } = await supabaseAdmin
-    .from('game_statistics')
-    .delete()
-    .eq('game_id', gameId)
-
-  if (error) {
-    console.error('Error deleting game statistics:', error)
-    return false
-  }
-
-  return true
-}
-
-/**
- * Get all players with their aggregated statistics
+ * Every player with their season totals.
  */
 export async function getAllPlayersWithStats() {
-  // Fetch all players with their team info
-  const { data: players, error: playersError } = await supabase
-    .from('players')
-    .select(`
-      id,
-      name,
-      jersey_number,
-      position,
-      team:teams(id, name, slug, logo_url)
-    `)
-    .eq('is_active', true)
-    .order('name')
+  const [{ data: players, error: playersError }, { data: statistics, error: statsError }] =
+    await Promise.all([
+      supabase
+        .from('players')
+        .select('id, name, jersey_number, position, team:teams(id, name, slug, logo_url)')
+        .eq('is_active', true)
+        .order('name'),
+      supabase.from('game_statistics').select('game_id, player_id, stat_type, count'),
+    ])
 
   if (playersError) {
     console.error('Error fetching players:', playersError)
     return []
   }
-
-  // Fetch all statistics
-  const { data: statistics, error: statsError } = await supabase
-    .from('game_statistics')
-    .select('player_id, stat_type, count')
-
   if (statsError) {
     console.error('Error fetching statistics:', statsError)
     return []
   }
 
-  // Fetch Man of The Match awards (count how many times each player was selected)
-  const { data: motmGames, error: motmError } = await supabase
+  const { data: motmGames } = await supabase
     .from('games')
     .select('player_of_game_id')
     .not('player_of_game_id', 'is', null)
 
-  if (motmError) {
-    console.error('Error fetching Man of The Match data:', motmError)
+  const motmCount = new Map<string, number>()
+  for (const game of motmGames ?? []) {
+    const id = (game as any).player_of_game_id
+    if (id) motmCount.set(id, (motmCount.get(id) ?? 0) + 1)
   }
 
-  // Count Man of The Match awards per player
-  const motmCount = new Map()
-  motmGames?.forEach((game: any) => {
-    if (game.player_of_game_id) {
-      motmCount.set(
-        game.player_of_game_id,
-        (motmCount.get(game.player_of_game_id) || 0) + 1
-      )
-    }
-  })
-
-  // Aggregate stats for each player
-  const playerStatsMap = new Map()
-
-  players?.forEach((player: any) => {
-    playerStatsMap.set(player.id, {
+  const byPlayer = new Map<string, any>()
+  for (const player of (players ?? []) as any[]) {
+    const team = one<any>(player.team)
+    byPlayer.set(player.id, {
       id: player.id,
       name: player.name,
       jerseyNumber: player.jersey_number,
       position: player.position,
-      team: player.team ? {
-        id: player.team.id,
-        name: player.team.name,
-        slug: player.team.slug,
-        logoUrl: player.team.logo_url
-      } : null,
+      team: team
+        ? { id: team.id, name: team.name, slug: team.slug, logoUrl: team.logo_url }
+        : null,
       goals: 0,
       assists: 0,
       saves: 0,
       gamesPlayed: 0,
-      manOfTheMatchCount: motmCount.get(player.id) || 0
+      manOfTheMatchCount: motmCount.get(player.id) ?? 0,
     })
-  })
+  }
 
-  // Aggregate statistics
-  const gamesPerPlayer = new Map()
-  
-  statistics?.forEach((stat: any) => {
-    const playerStats = playerStatsMap.get(stat.player_id)
-    if (playerStats) {
-      const count = stat.count || 1
-      if (stat.stat_type === 'goal') {
-        playerStats.goals += count
-      } else if (stat.stat_type === 'assist') {
-        playerStats.assists += count
-      } else if (stat.stat_type === 'save') {
-        playerStats.saves += count
-      }
+  // Games played is the number of distinct games a player recorded a stat in.
+  // A player who appeared but recorded nothing will not be counted -- the data
+  // model has no appearance record to count instead.
+  const gamesByPlayer = new Map<string, Set<string>>()
 
-      // Track unique games played
-      if (!gamesPerPlayer.has(stat.player_id)) {
-        gamesPerPlayer.set(stat.player_id, new Set())
-      }
+  for (const stat of (statistics ?? []) as any[]) {
+    const player = byPlayer.get(stat.player_id)
+    if (!player) continue
+
+    const amount = stat.count || 1
+    if (stat.stat_type === 'goal') player.goals += amount
+    else if (stat.stat_type === 'assist') player.assists += amount
+    else if (stat.stat_type === 'save') player.saves += amount
+
+    if (!gamesByPlayer.has(stat.player_id)) {
+      gamesByPlayer.set(stat.player_id, new Set())
     }
-  })
+    gamesByPlayer.get(stat.player_id)!.add(stat.game_id)
+  }
 
-  // Count games played for each player
-  playerStatsMap.forEach((playerStats, playerId) => {
-    const games = gamesPerPlayer.get(playerId)
-    playerStats.gamesPlayed = games ? games.size : 0
-  })
+  for (const [playerId, player] of byPlayer) {
+    player.gamesPlayed = gamesByPlayer.get(playerId)?.size ?? 0
+  }
 
-  return Array.from(playerStatsMap.values())
+  return Array.from(byPlayer.values())
 }
 
+/* -------------------------------------------------------------------------- */
+/* Writes -- all routed through the server                                     */
+/* -------------------------------------------------------------------------- */
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
+/**
+ * Calls an admin API route and throws an ApiError carrying the server's message
+ * so callers can surface something useful instead of a bare "failed".
+ */
+async function apiRequest<T = unknown>(
+  path: string,
+  options: { method: string; body?: unknown; formData?: FormData }
+): Promise<T> {
+  const init: RequestInit = { method: options.method }
+
+  if (options.formData) {
+    init.body = options.formData
+  } else if (options.body !== undefined) {
+    init.headers = { 'Content-Type': 'application/json' }
+    init.body = JSON.stringify(options.body)
+  }
+
+  const response = await fetch(path, init)
+  const payload = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    const message =
+      response.status === 401
+        ? 'Your admin session has expired. Please log in again.'
+        : payload.error || `Request failed (${response.status})`
+    throw new ApiError(message, response.status)
+  }
+
+  return payload as T
+}
+
+/** Tells every mounted component to re-read its data. */
+export function notifyDataUpdated() {
+  window.dispatchEvent(new Event('dataUpdated'))
+}
+
+export interface GameWriteFields {
+  weekNumber?: number | null
+  date?: string
+  time?: string
+  location?: string
+  /** Team UUIDs, not slugs. */
+  homeTeamId?: string | null
+  awayTeamId?: string | null
+  homeScore?: number | null
+  awayScore?: number | null
+  status?: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'postponed'
+  isPlayoff?: boolean
+  playoffRound?: string | null
+  playerOfGameId?: string | null
+}
+
+export async function createGame(fields: GameWriteFields): Promise<string> {
+  const { id } = await apiRequest<{ id: string }>('/api/admin/games', {
+    method: 'POST',
+    body: fields,
+  })
+  return id
+}
+
+export async function updateGame(gameId: string, fields: GameWriteFields): Promise<void> {
+  await apiRequest(`/api/admin/games/${gameId}`, { method: 'PATCH', body: fields })
+}
+
+export async function deleteGame(gameId: string): Promise<void> {
+  await apiRequest(`/api/admin/games/${gameId}`, { method: 'DELETE' })
+}
+
+export async function updateGameScores(
+  gameId: string,
+  homeScore: number,
+  awayScore: number,
+  status: GameWriteFields['status'] = 'completed'
+): Promise<void> {
+  await updateGame(gameId, { homeScore, awayScore, status })
+}
+
+export async function setPlayerOfGame(
+  gameId: string,
+  playerId: string | null
+): Promise<void> {
+  await updateGame(gameId, { playerOfGameId: playerId })
+}
+
+export interface BoxScoreStat {
+  playerId: string
+  type: StatType
+  count?: number
+}
+
+/**
+ * Saves a game's scores, statistics and man of the match in one request.
+ * The statistics array replaces whatever the game currently has.
+ */
+export async function saveBoxScore(
+  gameId: string,
+  input: {
+    homeScore: number | null
+    awayScore: number | null
+    status?: GameWriteFields['status']
+    playerOfGameId?: string | null
+    statistics: BoxScoreStat[]
+  }
+): Promise<void> {
+  await apiRequest(`/api/admin/games/${gameId}/box-score`, {
+    method: 'PUT',
+    body: input,
+  })
+}
+
+export interface PlayerWriteFields {
+  name?: string
+  /** Null means the player has no shirt number yet (shown as TBD). */
+  jerseyNumber?: number | null
+  /** Team UUID, not slug. */
+  teamId?: string
+  position?: string | null
+  isActive?: boolean
+}
+
+export async function createPlayer(fields: PlayerWriteFields): Promise<string> {
+  const { id } = await apiRequest<{ id: string }>('/api/admin/players', {
+    method: 'POST',
+    body: fields,
+  })
+  return id
+}
+
+export async function updatePlayer(
+  playerId: string,
+  fields: PlayerWriteFields
+): Promise<void> {
+  await apiRequest(`/api/admin/players/${playerId}`, { method: 'PATCH', body: fields })
+}
+
+export async function deletePlayer(playerId: string): Promise<void> {
+  await apiRequest(`/api/admin/players/${playerId}`, { method: 'DELETE' })
+}
+
+export interface LeagueConfigWriteFields {
+  currentWeek?: number
+  totalWeeks?: number
+  season?: string
+  leagueName?: string
+  startDate?: string
+  endDate?: string
+  playoffsStarted?: boolean
+  standingsImageUrl?: string | null
+}
+
+export async function updateLeagueConfig(
+  fields: LeagueConfigWriteFields
+): Promise<LeagueConfig> {
+  const { config } = await apiRequest<{ config: LeagueConfig }>(
+    '/api/admin/league-config',
+    { method: 'PATCH', body: fields }
+  )
+  return config
+}
+
+export async function uploadStandingsImage(file: File): Promise<string> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { url } = await apiRequest<{ url: string }>('/api/admin/standings', {
+    method: 'POST',
+    formData,
+  })
+  return url
+}

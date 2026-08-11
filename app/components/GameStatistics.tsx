@@ -1,13 +1,16 @@
 /**
- * GameStatistics component for YM JAX Soccer League
- * Displays complete box score with all six tracked statistics
+ * Full box score: score line, man of the match, and every tracked statistic.
  */
 
+'use client'
+
 import { Game } from '@/types/game'
+import { displayJersey } from '@/types/player'
 import { GameStatistic } from '@/types/statistic'
-import { getTeamById } from '@/config/teams'
+import { useTeams } from '@/lib/teamsContext'
 import { StatCategory } from './StatCategory'
 import { formatDate, formatTime } from '@/lib/dateUtils'
+import { LEAGUE } from '@/config/league'
 import Image from 'next/image'
 import { Trophy } from 'lucide-react'
 
@@ -16,15 +19,14 @@ interface GameStatisticsProps {
 }
 
 export function GameStatistics({ game }: GameStatisticsProps) {
-  const homeTeam = getTeamById(game.homeTeamId)
-  const awayTeam = getTeamById(game.awayTeamId)
-  
-  if (!homeTeam || !awayTeam) return null
-  
+  const { teamName } = useTeams()
+  const homeTeamName = teamName(game.homeTeamId)
+  const awayTeamName = teamName(game.awayTeamId)
+
   // Group statistics by type and team
   const homeStats = groupStatsByType(game.statistics.filter(s => s.teamId === game.homeTeamId))
   const awayStats = groupStatsByType(game.statistics.filter(s => s.teamId === game.awayTeamId))
-  
+
   return (
     <div>
       {/* Score header */}
@@ -34,12 +36,12 @@ export function GameStatistics({ game }: GameStatisticsProps) {
         </h2>
         <div className="flex items-center justify-center gap-4 sm:gap-8 mb-4">
           <div className="text-center">
-            <p className="text-xl font-bold text-white mb-2">{homeTeam.name}</p>
+            <p className="text-xl font-bold text-white mb-2">{homeTeamName}</p>
             <p className="text-5xl font-black text-[#D47F7D]">{game.homeScore}</p>
           </div>
           <span className="text-3xl text-gray-400">-</span>
           <div className="text-center">
-            <p className="text-xl font-bold text-white mb-2">{awayTeam.name}</p>
+            <p className="text-xl font-bold text-white mb-2">{awayTeamName}</p>
             <p className="text-5xl font-black text-[#D47F7D]">{game.awayScore}</p>
           </div>
         </div>
@@ -54,8 +56,8 @@ export function GameStatistics({ game }: GameStatisticsProps) {
           <div className="bg-gradient-to-r from-[#FFD700]/20 via-[#FFD700]/10 to-[#FFD700]/20 border-2 border-[#FFD700] rounded-lg p-6 max-w-2xl mx-auto">
             <div className="flex items-center justify-center gap-4">
               <Image
-                src="/images/puro_logo.png"
-                alt="Puro Logo"
+                src={LEAGUE.manOfTheMatch.badgeImageUrl}
+                alt=""
                 width={60}
                 height={60}
                 className="rounded-full animate-pulse"
@@ -64,12 +66,12 @@ export function GameStatistics({ game }: GameStatisticsProps) {
                 <div className="flex items-center gap-2 justify-center mb-2">
                   <Trophy size={24} className="text-[#FFD700]" />
                   <h3 className="text-xl font-black text-[#FFD700] uppercase tracking-wide">
-                    Puro Man of The Match
+                    {LEAGUE.manOfTheMatch.label}
                   </h3>
                   <Trophy size={24} className="text-[#FFD700]" />
                 </div>
                 <p className="text-3xl font-black text-white">
-                  #{game.playerOfGame.jerseyNumber} {game.playerOfGame.name}
+                  #{displayJersey(game.playerOfGame.jerseyNumber)} {game.playerOfGame.name}
                 </p>
                 {game.playerOfGame.position && (
                   <p className="text-sm text-gray-300 mt-1">
@@ -78,8 +80,8 @@ export function GameStatistics({ game }: GameStatisticsProps) {
                 )}
               </div>
               <Image
-                src="/images/puro_logo.png"
-                alt="Puro Logo"
+                src={LEAGUE.manOfTheMatch.badgeImageUrl}
+                alt=""
                 width={60}
                 height={60}
                 className="rounded-full animate-pulse"
@@ -109,8 +111,8 @@ export function GameStatistics({ game }: GameStatisticsProps) {
           {/* Goals */}
           <StatCategory
             title="Goals"
-            homeTeamName={homeTeam.name}
-            awayTeamName={awayTeam.name}
+            homeTeamName={homeTeamName}
+            awayTeamName={awayTeamName}
             homeStats={homeStats.goal || []}
             awayStats={awayStats.goal || []}
             playerOfGameId={game.playerOfGameId}
@@ -119,8 +121,8 @@ export function GameStatistics({ game }: GameStatisticsProps) {
           {/* Assists */}
           <StatCategory
             title="Assists"
-            homeTeamName={homeTeam.name}
-            awayTeamName={awayTeam.name}
+            homeTeamName={homeTeamName}
+            awayTeamName={awayTeamName}
             homeStats={homeStats.assist || []}
             awayStats={awayStats.assist || []}
             playerOfGameId={game.playerOfGameId}
@@ -129,8 +131,8 @@ export function GameStatistics({ game }: GameStatisticsProps) {
           {/* Saves */}
           <StatCategory
             title="Saves"
-            homeTeamName={homeTeam.name}
-            awayTeamName={awayTeam.name}
+            homeTeamName={homeTeamName}
+            awayTeamName={awayTeamName}
             homeStats={homeStats.save || []}
             awayStats={awayStats.save || []}
             playerOfGameId={game.playerOfGameId}
@@ -143,8 +145,8 @@ export function GameStatistics({ game }: GameStatisticsProps) {
             <>
               <StatCategory
                 title="Yellow Cards"
-                homeTeamName={homeTeam.name}
-                awayTeamName={awayTeam.name}
+                homeTeamName={homeTeamName}
+                awayTeamName={awayTeamName}
                 homeStats={homeStats.yellow_card || []}
                 awayStats={awayStats.yellow_card || []}
                 playerOfGameId={game.playerOfGameId}
@@ -152,8 +154,8 @@ export function GameStatistics({ game }: GameStatisticsProps) {
               
               <StatCategory
                 title="Red Cards"
-                homeTeamName={homeTeam.name}
-                awayTeamName={awayTeam.name}
+                homeTeamName={homeTeamName}
+                awayTeamName={awayTeamName}
                 homeStats={homeStats.red_card || []}
                 awayStats={awayStats.red_card || []}
                 playerOfGameId={game.playerOfGameId}
@@ -161,8 +163,8 @@ export function GameStatistics({ game }: GameStatisticsProps) {
               
               <StatCategory
                 title="Blue Cards"
-                homeTeamName={homeTeam.name}
-                awayTeamName={awayTeam.name}
+                homeTeamName={homeTeamName}
+                awayTeamName={awayTeamName}
                 homeStats={homeStats.blue_card || []}
                 awayStats={awayStats.blue_card || []}
                 playerOfGameId={game.playerOfGameId}

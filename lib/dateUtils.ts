@@ -1,6 +1,5 @@
 /**
- * Date utilities for YM JAX Soccer League
- * Handles week calculations based on league start date
+ * Date and time formatting helpers.
  */
 
 /**

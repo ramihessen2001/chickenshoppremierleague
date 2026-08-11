@@ -1,13 +1,17 @@
 /**
- * StandingsPageClient - Client component for viewing league standings
- * Displays admin-uploaded standings image
+ * League standings page.
+ *
+ * Standings are an image the admin uploads rather than a computed table. The
+ * upload now goes through /api/admin/standings so the storage bucket can stay
+ * read-only to the public; it used to upload straight from the browser, which
+ * required a bucket that accepted writes from anyone.
  */
 
 'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { getLeagueConfig, uploadStandingsImage } from '@/lib/supabaseData'
 import { Upload, ArrowLeft } from 'lucide-react'
 import Image from 'next/image'
 import { useAdmin } from '@/lib/adminContext'
@@ -18,123 +22,41 @@ export function StandingsPageClient() {
   const [standingsImageUrl, setStandingsImageUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isUploading, setIsUploading] = useState(false)
-
-  // Fetch current standings image URL
-  const fetchStandingsImage = async () => {
-    try {
-      console.log('Fetching standings image...')
-      const { data, error } = await supabase
-        .from('league_config')
-        .select('standings_image_url')
-        .limit(1)
-        .single()
-
-      if (error) {
-        console.error('Supabase error:', error)
-        throw error
-      }
-      
-      console.log('Fetched data:', data)
-      const imageUrl = data?.standings_image_url || null
-      console.log('Image URL:', imageUrl)
-      setStandingsImageUrl(imageUrl)
-    } catch (error) {
-      console.error('Error fetching standings image:', error)
-      setStandingsImageUrl(null)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchStandingsImage()
+    getLeagueConfig()
+      .then((config) => setStandingsImageUrl(config?.standings_image_url ?? null))
+      .catch(() => setStandingsImageUrl(null))
+      .finally(() => setIsLoading(false))
   }, [])
 
-  // Handle file upload
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
+    const input = event.target
+    const file = input.files?.[0]
     if (!file) return
 
-    // Validate file type
+    setError(null)
+
     if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file')
+      setError('Please choose an image file')
+      input.value = ''
       return
     }
-
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert('File size must be less than 5MB')
+      setError('Image must be 5MB or smaller')
+      input.value = ''
       return
     }
 
+    setIsUploading(true)
     try {
-      setIsUploading(true)
-
-      // Generate unique filename
-      const timestamp = Date.now()
-      const fileExt = file.name.split('.').pop()
-      const fileName = `standings_${timestamp}.${fileExt}`
-
-      // Upload to Supabase storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('league-images')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
-        })
-
-      if (uploadError) {
-        console.error('Storage upload error:', uploadError)
-        throw new Error(`Upload failed: ${uploadError.message}`)
-      }
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('league-images')
-        .getPublicUrl(fileName)
-
-      console.log('Generated public URL:', publicUrl)
-
-      // Update league config with new image URL (get first record since there's only one)
-      const { data: configData, error: selectError } = await supabase
-        .from('league_config')
-        .select('id')
-        .limit(1)
-        .single()
-
-      if (selectError) {
-        console.error('Error fetching league config:', selectError)
-        throw new Error(`Failed to fetch league config: ${selectError.message}`)
-      }
-
-      if (!configData) {
-        throw new Error('League config not found')
-      }
-
-      console.log('Updating league config with ID:', configData.id)
-      console.log('Setting standings_image_url to:', publicUrl)
-
-      const { data: updateData, error: updateError } = await supabase
-        .from('league_config')
-        .update({ standings_image_url: publicUrl })
-        .eq('id', configData.id)
-        .select()
-
-      if (updateError) {
-        console.error('Database update error:', updateError)
-        throw new Error(`Database update failed: ${updateError.message}`)
-      }
-
-      console.log('Update successful, result:', updateData)
-
-      // Update local state
-      setStandingsImageUrl(publicUrl)
-      alert('Standings image uploaded successfully!')
-    } catch (error: any) {
-      console.error('Error uploading standings image:', error)
-      alert(`Failed to upload standings image: ${error.message || 'Please try again.'}`)
+      setStandingsImageUrl(await uploadStandingsImage(file))
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Upload failed')
     } finally {
       setIsUploading(false)
+      input.value = ''
     }
   }
 
@@ -192,8 +114,13 @@ export function StandingsPageClient() {
               )}
             </div>
             <p className="text-sm text-gray-600 mt-2">
-              Upload an image of the current league standings (max 5MB, PNG/JPG/JPEG)
+              Upload an image of the current league standings (max 5MB, PNG/JPG/WebP)
             </p>
+            {error && (
+              <p className="mt-3 text-sm text-red-700 font-medium" role="alert">
+                {error}
+              </p>
+            )}
           </div>
         )}
 

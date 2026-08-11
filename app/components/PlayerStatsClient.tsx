@@ -1,6 +1,5 @@
 /**
- * PlayerStatsClient - Client component for player statistics page
- * Displays all players with their aggregated stats, with team filtering and search
+ * Player statistics table, with team filtering, search and sorting.
  */
 
 'use client'
@@ -9,7 +8,8 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { getAllPlayersWithStats } from '@/lib/supabaseData'
-import { TEAMS } from '@/config/teams'
+import { useTeams } from '@/lib/teamsContext'
+import { displayJersey } from '@/types/player'
 import { Search, Filter, Trophy, Target, Users, ChevronLeft, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { useAdmin } from '@/lib/adminContext'
 import { AwardVoting } from './AwardVoting'
@@ -18,7 +18,7 @@ import { AwardManagement } from './AwardManagement'
 interface PlayerStats {
   id: string
   name: string
-  jerseyNumber: number
+  jerseyNumber: number | null
   position: string | null
   team: {
     id: string
@@ -38,6 +38,7 @@ type SortOrder = 'asc' | 'desc'
 
 export function PlayerStatsClient() {
   const { isAdmin } = useAdmin()
+  const { teams } = useTeams()
   const [players, setPlayers] = useState<PlayerStats[]>([])
   const [filteredPlayers, setFilteredPlayers] = useState<PlayerStats[]>([])
   const [selectedTeam, setSelectedTeam] = useState<string>('all')
@@ -71,7 +72,8 @@ export function PlayerStatsClient() {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(player => 
         player.name.toLowerCase().includes(query) ||
-        player.jerseyNumber.toString().includes(query)
+        (player.jerseyNumber !== null &&
+          player.jerseyNumber.toString().includes(query))
       )
     }
 
@@ -191,8 +193,8 @@ export function PlayerStatsClient() {
                   className="w-full px-4 py-2 bg-[#0a0a0a] border border-[#523232] rounded-lg text-white focus:border-[#D47F7D] focus:outline-none"
                 >
                   <option value="all">All Teams</option>
-                  {TEAMS.map(team => (
-                    <option key={team.id} value={team.id}>
+                  {teams.map(team => (
+                    <option key={team.slug} value={team.slug}>
                       {team.name}
                     </option>
                   ))}
@@ -271,7 +273,7 @@ export function PlayerStatsClient() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-[#523232] flex items-center justify-center font-bold text-white flex-shrink-0">
-                              #{player.jerseyNumber}
+                              #{displayJersey(player.jerseyNumber)}
                             </div>
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-white">
@@ -335,7 +337,7 @@ export function PlayerStatsClient() {
                   <div key={player.id} className="p-4">
                     <div className="flex items-start gap-4 mb-4">
                       <div className="w-12 h-12 rounded-full bg-[#523232] flex items-center justify-center font-bold text-white flex-shrink-0">
-                        #{player.jerseyNumber}
+                        #{displayJersey(player.jerseyNumber)}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">

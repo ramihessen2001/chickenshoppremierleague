@@ -1,13 +1,13 @@
 /**
- * Full Season Schedule Page
- * Displays all games for the entire season organized by week
+ * Full season schedule, grouped by week.
  */
 
+import type { Metadata } from 'next'
 import { SchedulePageClient } from '@/app/components/SchedulePageClient'
 
-export const metadata = {
-  title: 'Full Season Schedule - YM JAX Soccer League',
-  description: 'View the complete schedule for the 2025 YM JAX Soccer Winter League season.'
+export const metadata: Metadata = {
+  title: 'Schedule',
+  description: 'The complete fixture list for the season.',
 }
 
 export default function SchedulePage() {

@@ -1,5 +1,5 @@
 /**
- * BoxScoreModal component for YM JAX Soccer League
+ * Modal showing a completed game's box score.
  * Modal overlay displaying detailed game statistics
  */
 

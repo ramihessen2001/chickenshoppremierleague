@@ -1,9 +1,14 @@
 /**
- * Player Statistics Page for YM JAX Soccer League
- * Displays all player stats with team filtering and search functionality
+ * Player statistics and award voting.
  */
 
+import type { Metadata } from 'next'
 import { PlayerStatsClient } from '../components/PlayerStatsClient'
+
+export const metadata: Metadata = {
+  title: 'Player Stats',
+  description: 'Player statistics and end-of-season award voting.',
+}
 
 export default function StatsPage() {
   return <PlayerStatsClient />

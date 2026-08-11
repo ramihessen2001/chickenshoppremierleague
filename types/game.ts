@@ -1,28 +1,44 @@
 /**
- * Game type definitions for YM Soccer League
- * Represents a scheduled or completed soccer match
+ * Game types.
  */
 
 import { GameStatistic } from './statistic'
 import { Player } from './player'
 
-export type GameStatus = 'scheduled' | 'completed' | 'cancelled' | 'postponed'
+export type GameStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'postponed'
 
 export interface Game {
-  id: string                    // Unique identifier
-  weekNumber: number            // Week in season (1-12)
-  date: string                  // ISO 8601 date (YYYY-MM-DD)
-  time: string                  // 12-hour format (e.g., "6:00 PM")
-  location: string              // Field location (e.g., "Field 3, Mandarin Park")
-  homeTeamId: string            // Foreign key to Team.id
-  awayTeamId: string            // Foreign key to Team.id
-  homeScore: number | null      // Final score for home team (null if not played)
-  awayScore: number | null      // Final score for away team (null if not played)
-  status: GameStatus            // Game status
-  statistics: GameStatistic[]   // Box score statistics
-  playerOfGameId?: string | null // Player selected as Puro Man of The Match
-  playerOfGame?: Player | null  // Full player object (when fetched with join)
-  createdAt: string             // ISO 8601 timestamp
-  updatedAt: string             // ISO 8601 timestamp
-}
+  id: string
+  /** Sequential number. Regular season counts from 1, playoffs from 100. */
+  gameNumber?: number
+  /** Week in the season. 0 means a playoff game. */
+  weekNumber: number
+  /** ISO date, YYYY-MM-DD. */
+  date: string
+  /** Display time, e.g. "6:00 PM". */
+  time: string
+  location: string
 
+  /** Team slugs -- what the UI works in. Empty string for an unfilled slot. */
+  homeTeamId: string
+  awayTeamId: string
+  /** Team UUIDs -- required when writing back to the database. */
+  homeTeamUUID?: string
+  awayTeamUUID?: string
+
+  homeScore: number | null
+  awayScore: number | null
+  status: GameStatus
+
+  isPlayoff?: boolean
+  /** play-in | quarterfinal | semifinal | final */
+  playoffRound?: string | null
+
+  statistics: GameStatistic[]
+
+  playerOfGameId?: string | null
+  playerOfGame?: Player | null
+
+  createdAt: string
+  updatedAt: string
+}

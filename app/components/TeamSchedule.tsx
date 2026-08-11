@@ -1,6 +1,5 @@
 /**
- * TeamSchedule component for YM JAX Soccer League
- * Displays a team's game schedule with past results and upcoming games
+ * A single team's fixtures: results so far and games still to come.
  */
 
 'use client'
@@ -8,7 +7,8 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import { Game } from '@/types/game'
-import { TEAMS } from '@/config/teams'
+import { displayJersey } from '@/types/player'
+import { useTeams } from '@/lib/teamsContext'
 import { BoxScoreModal } from './BoxScoreModal'
 import { Calendar, Trophy, Clock } from 'lucide-react'
 
@@ -21,8 +21,7 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   
-  // Get team info
-  const team = TEAMS.find(t => t.id === teamId)
+  const { teamName } = useTeams()
   
   // Filter games for this team
   const teamGames = games.filter(
@@ -60,8 +59,7 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
   
   const getOpponentName = (game: Game) => {
     const opponentId = game.homeTeamId === teamId ? game.awayTeamId : game.homeTeamId
-    const opponent = TEAMS.find(t => t.id === opponentId)
-    return opponent?.name || 'Unknown'
+    return teamName(opponentId)
   }
   
   const getGameResult = (game: Game) => {
@@ -126,7 +124,7 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
                     onClick={() => handleGameClick(game)}
                     className={`
                       bg-[#1a1a1a] border rounded-lg p-4 transition-all
-                      ${game.status === 'completed' ? 'cursor-pointer hover:border-[#2686DF] hover:shadow-lg' : 'border-[#523232]'}
+                      ${game.status === 'completed' ? 'cursor-pointer hover:border-[#523232] hover:shadow-lg' : 'border-[#523232]'}
                     `}
                   >
                     <div className="flex items-center justify-between gap-4">
@@ -187,7 +185,7 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
                               Puro Man of The Match
                             </p>
                             <p className="text-sm font-black text-black mt-0.5">
-                              #{game.playerOfGame.jerseyNumber} {game.playerOfGame.name}
+                              #{displayJersey(game.playerOfGame.jerseyNumber)} {game.playerOfGame.name}
                             </p>
                           </div>
                         </div>
@@ -204,8 +202,8 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
         {upcomingGames.length > 0 && (
           <div>
             <div className="flex items-center gap-3 mb-4">
-              <Clock className="w-6 h-6 text-[#2686DF]" />
-              <h3 className="text-xl sm:text-2xl font-bold uppercase text-[#2686DF]">
+              <Clock className="w-6 h-6 text-[#523232]" />
+              <h3 className="text-xl sm:text-2xl font-bold uppercase text-[#523232]">
                 Upcoming Games
               </h3>
               <span className="text-gray-500">({upcomingGames.length} {upcomingGames.length === 1 ? 'game' : 'games'})</span>
@@ -239,7 +237,7 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
                         )}
                       </div>
                       
-                      <div className="px-3 py-1 bg-[#2686DF]/20 text-[#2686DF] rounded text-sm font-semibold">
+                      <div className="px-3 py-1 bg-[#523232]/20 text-[#523232] rounded text-sm font-semibold">
                         Scheduled
                       </div>
                     </div>

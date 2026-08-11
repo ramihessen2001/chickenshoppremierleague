@@ -1,53 +1,38 @@
 /**
- * Supabase Client Configuration
- * 
- * This creates a Supabase client for accessing the YM Soccer League database.
- * Uses environment variables from .env.local for configuration.
+ * Supabase client for the browser.
+ *
+ * This module is safe to import from client components. It only ever holds the
+ * anon key, which under our RLS policies can read but never write.
+ *
+ * Writes live in `lib/supabaseAdmin.ts`, which is server-only and must never be
+ * imported from a client component.
  */
 
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
-    'Missing Supabase environment variables. Please check your .env.local file.'
+    'Missing Supabase environment variables. Copy .env.example to .env.local ' +
+      'and fill in NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.'
   )
 }
 
-// Client for read operations (uses anon key)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Client for admin write operations (uses service role key if available)
-// This bypasses RLS policies for authenticated operations
-const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY
-
-if (!supabaseServiceKey) {
-  console.error('⚠️ NEXT_PUBLIC_SUPABASE_SERVICE_KEY is not set! Admin operations will fail.')
-} else {
-  console.log('✅ Service key loaded for admin operations')
-}
-
-export const supabaseAdmin = supabaseServiceKey 
-  ? createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
-  : supabase // Fallback to regular client if service key not available
-
 /**
- * Database Types
- * These match the schema in database/schema.sql
+ * Database row types -- these mirror database/schema.sql.
  */
 
 export interface Team {
   id: string
   name: string
   slug: string
-  logo_url: string
+  logo_url: string | null
+  primary_color: string
+  display_order: number
   created_at: string
   updated_at: string
 }
@@ -55,13 +40,21 @@ export interface Team {
 export interface Player {
   id: string
   name: string
-  jersey_number: number
+  /** Null when the player has not been given a shirt number yet. */
+  jersey_number: number | null
   team_id: string
   is_active: boolean
   position?: string
   created_at: string
   updated_at: string
 }
+
+export type GameStatus =
+  | 'scheduled'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'postponed'
 
 export interface Game {
   id: string
@@ -70,23 +63,32 @@ export interface Game {
   date: string
   time: string
   location: string
-  home_team_id: string
-  away_team_id: string
+  home_team_id: string | null
+  away_team_id: string | null
   home_score: number | null
   away_score: number | null
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'postponed'
+  status: GameStatus
   is_playoff: boolean
   playoff_round?: string | null
+  player_of_game_id?: string | null
   created_at: string
   updated_at: string
 }
+
+export type StatType =
+  | 'goal'
+  | 'assist'
+  | 'save'
+  | 'yellow_card'
+  | 'red_card'
+  | 'blue_card'
 
 export interface GameStatistic {
   id: string
   game_id: string
   player_id: string
   team_id: string
-  stat_type: 'goal' | 'assist' | 'save' | 'yellow_card' | 'red_card' | 'blue_card'
+  stat_type: StatType
   count?: number
   timestamp?: string
   created_at: string
@@ -100,7 +102,8 @@ export interface LeagueConfig {
   end_date: string
   current_week: number
   total_weeks: number
-  standings_image_url?: string
+  standings_image_url?: string | null
+  playoffs_started: boolean
   updated_at: string
 }
 
@@ -131,4 +134,3 @@ export interface AwardVote {
   voter_name?: string
   voted_at: string
 }
-

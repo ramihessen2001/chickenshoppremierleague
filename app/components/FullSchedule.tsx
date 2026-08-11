@@ -1,6 +1,6 @@
 /**
- * FullSchedule component for YM JAX Soccer League
- * Displays complete season schedule organized by week
+ * The whole season's schedule, grouped by week, with a playoff section if any
+ * playoff games exist.
  */
 
 'use client'
@@ -120,30 +120,40 @@ export function FullSchedule({ games, currentWeek, totalWeeks }: FullSchedulePro
               FULL SEASON SCHEDULE
             </h1>
             <p className="text-xl text-[#B7853E]">
-              {totalWeeks} Days • Current Day: {currentWeek}
+              {totalWeeks} weeks • Currently week {currentWeek}
             </p>
           </div>
           
           {/* Gold divider */}
           <div className="h-px bg-gradient-to-r from-transparent via-[#B8860B] to-transparent mb-12" />
           
-          {/* Day sections */}
+          {/* One section per week, then playoffs (week 0) at the end if the
+              bracket has been scheduled. */}
           <div className="space-y-6">
-            {Array.from({ length: totalWeeks }, (_, i) => i + 1).map(dayNum => {
-              const dayGames = gamesByWeek.get(dayNum) || []
-              return (
-                <WeekSection
-                  key={dayNum}
-                  weekNumber={dayNum}
-                  games={dayGames}
-                  isCurrentWeek={dayNum === currentWeek}
-                  onGameClick={handleGameClick}
-                  onEditBoxScore={isAdmin ? handleEditBoxScore : undefined}
-                  onEditGame={isAdmin ? handleEditGame : undefined}
-                  onAddGame={isAdmin ? () => handleAddGame(dayNum) : undefined}
-                />
-              )
-            })}
+            {Array.from({ length: totalWeeks }, (_, i) => i + 1).map(week => (
+              <WeekSection
+                key={week}
+                weekNumber={week}
+                games={gamesByWeek.get(week) || []}
+                isCurrentWeek={week === currentWeek}
+                onGameClick={handleGameClick}
+                onEditBoxScore={isAdmin ? handleEditBoxScore : undefined}
+                onEditGame={isAdmin ? handleEditGame : undefined}
+                onAddGame={isAdmin ? () => handleAddGame(week) : undefined}
+              />
+            ))}
+
+            {(gamesByWeek.get(0)?.length ?? 0) > 0 && (
+              <WeekSection
+                weekNumber={0}
+                games={gamesByWeek.get(0)!}
+                isCurrentWeek={false}
+                onGameClick={handleGameClick}
+                onEditBoxScore={isAdmin ? handleEditBoxScore : undefined}
+                onEditGame={isAdmin ? handleEditGame : undefined}
+                onAddGame={isAdmin ? () => handleAddGame(0) : undefined}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -152,9 +162,9 @@ export function FullSchedule({ games, currentWeek, totalWeeks }: FullSchedulePro
       <BoxScoreModal game={selectedGame} isOpen={isModalOpen} onClose={handleCloseModal} />
       
       {/* Edit Box Score Modal */}
-      <EditBoxScoreModal 
-        game={selectedGameWithStats} 
-        isOpen={isEditBoxScoreModalOpen} 
+      <EditBoxScoreModal
+        game={selectedGameWithStats}
+        isOpen={isEditBoxScoreModalOpen}
         onClose={handleCloseEditBoxScoreModal}
       />
       

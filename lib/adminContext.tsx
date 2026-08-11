@@ -1,67 +1,90 @@
 /**
- * Admin Context for YM JAX Soccer League
- * Manages admin authentication state with session storage
+ * Admin authentication state.
+ *
+ * `isAdmin` here controls what the UI offers -- it is a convenience flag, not a
+ * security boundary. The real check happens on the server: every admin API
+ * route verifies the signed httpOnly session cookie before it writes anything.
+ * Flipping this flag in devtools reveals admin buttons that will simply get
+ * 401s, which is the behaviour we want.
  */
 
 'use client'
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from 'react'
 
 interface AdminContextType {
   isAdmin: boolean
-  login: (password: string) => boolean
-  logout: () => void
+  /** True until the initial session check resolves. */
+  isLoading: boolean
+  /** Resolves to an error message on failure, or null on success. */
+  login: (password: string) => Promise<string | null>
+  logout: () => Promise<void>
 }
 
-const AdminContext = createContext<AdminContextType>({
-  isAdmin: false,
-  login: () => false,
-  logout: () => {},
-})
+const AdminContext = createContext<AdminContextType | null>(null)
 
-// Hardcoded admin password for Phase 1
-// Note: This is acceptable for an amateur league with trusted admins
-// Phase 3 will implement proper backend authentication
-const ADMIN_PASSWORD = 'sport2233'
-
-interface AdminProviderProps {
-  children: ReactNode
-}
-
-export function AdminProvider({ children }: AdminProviderProps) {
+export function AdminProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false)
-  const [isHydrated, setIsHydrated] = useState(false)
-  
-  // Hydration-safe: check sessionStorage after mount
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Ask the server whether this browser already holds a valid session cookie.
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const adminStatus = sessionStorage.getItem('admin') === 'true'
-      setIsAdmin(adminStatus)
-      setIsHydrated(true)
+    let cancelled = false
+
+    fetch('/api/admin/session')
+      .then((response) => (response.ok ? response.json() : { isAdmin: false }))
+      .then((data) => {
+        if (!cancelled) setIsAdmin(Boolean(data.isAdmin))
+      })
+      .catch(() => {
+        if (!cancelled) setIsAdmin(false)
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
     }
   }, [])
-  
-  const login = (password: string): boolean => {
-    if (password === ADMIN_PASSWORD) {
-      sessionStorage.setItem('admin', 'true')
+
+  const login = useCallback(async (password: string): Promise<string | null> => {
+    try {
+      const response = await fetch('/api/admin/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        return data.error ?? 'Login failed'
+      }
+
       setIsAdmin(true)
-      return true
+      return null
+    } catch {
+      return 'Could not reach the server. Check your connection and try again.'
     }
-    return false
-  }
-  
-  const logout = () => {
-    sessionStorage.removeItem('admin')
-    setIsAdmin(false)
-  }
-  
-  // Don't render until hydrated to avoid SSR mismatch
-  if (!isHydrated) {
-    return <>{children}</>
-  }
-  
+  }, [])
+
+  const logout = useCallback(async () => {
+    try {
+      await fetch('/api/admin/session', { method: 'DELETE' })
+    } finally {
+      setIsAdmin(false)
+    }
+  }, [])
+
   return (
-    <AdminContext.Provider value={{ isAdmin, login, logout }}>
+    <AdminContext.Provider value={{ isAdmin, isLoading, login, logout }}>
       {children}
     </AdminContext.Provider>
   )
@@ -70,8 +93,7 @@ export function AdminProvider({ children }: AdminProviderProps) {
 export function useAdmin() {
   const context = useContext(AdminContext)
   if (!context) {
-    throw new Error('useAdmin must be used within AdminProvider')
+    throw new Error('useAdmin must be used within an AdminProvider')
   }
   return context
 }
-

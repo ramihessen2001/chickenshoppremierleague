@@ -1,6 +1,5 @@
 /**
- * AdminButton component for YM JAX Soccer League
- * Button to trigger admin authentication modal
+ * Opens the admin login dialog.
  */
 
 'use client'

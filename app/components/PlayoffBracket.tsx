@@ -1,309 +1,209 @@
 /**
- * PlayoffBracket - Displays the playoff tournament bracket
- * Shows play-in, semifinal, and final matchups with seeds and results
- * Admins can edit scores and update results
+ * Playoff bracket.
+ *
+ * Rounds, matchups and seeds all come from the database. The previous version
+ * hardcoded last season's seeds by team slug and printed fixed round dates
+ * ("Play-In Round - January 4th"), so it went stale the moment the season
+ * ended. Round dates are now derived from the games in each round.
  */
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { Trophy, Calendar, Clock, Pencil } from 'lucide-react'
-import { TEAMS } from '@/config/teams'
 import { useAdmin } from '@/lib/adminContext'
+import { useTeams } from '@/lib/teamsContext'
+import { LEAGUE } from '@/config/league'
 import { EditBoxScoreModal } from './EditBoxScoreModal'
 import { BoxScoreModal } from './BoxScoreModal'
 import { Game } from '@/types/game'
-import { supabase } from '@/lib/supabase'
-import { getGameById } from '@/lib/supabaseData'
+import { getPlayoffGames, getGameById } from '@/lib/supabaseData'
+import { formatDate } from '@/lib/dateUtils'
+import { displayJersey } from '@/types/player'
+
+/** Rounds in the order they should appear, earliest first. */
+const ROUND_ORDER = ['play-in', 'quarterfinal', 'semifinal', 'final'] as const
+
+const ROUND_LABELS: Record<string, string> = {
+  'play-in': 'Play-In Round',
+  quarterfinal: 'Quarterfinals',
+  semifinal: 'Semifinals',
+  final: 'Championship Final',
+}
 
 export function PlayoffBracket() {
   const { isAdmin } = useAdmin()
+  const { teamName, teamLogo } = useTeams()
   const [playoffGames, setPlayoffGames] = useState<Game[]>([])
-  const [selectedGameForEdit, setSelectedGameForEdit] = useState<Game | null>(null)
-  const [selectedGameForView, setSelectedGameForView] = useState<Game | null>(null)
+  const [gameForEdit, setGameForEdit] = useState<Game | null>(null)
+  const [gameForView, setGameForView] = useState<Game | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Load playoff games from Supabase (week_number = 0)
-  const loadPlayoffGames = async () => {
+  const loadPlayoffGames = useCallback(async () => {
+    setIsLoading(true)
     try {
-      setIsLoading(true)
-      const { data, error } = await supabase
-        .from('games')
-        .select(`
-          *,
-          home_team:teams!home_team_id(id, name, slug, logo_url),
-          away_team:teams!away_team_id(id, name, slug, logo_url)
-        `)
-        .eq('week_number', 0)
-        .order('game_number')
-
-      if (error) {
-        console.error('Error loading playoff games:', error)
-        return
-      }
-
-      // For each game, fetch the player of game if it exists
-      const gamesWithPlayerOfGame = await Promise.all(
-        (data || []).map(async (g: any) => {
-          let playerOfGame = null
-          if (g.player_of_game_id) {
-            const { data: player, error: playerError } = await supabase
-              .from('players')
-              .select(`
-                id,
-                name,
-                jersey_number,
-                position,
-                is_active,
-                created_at,
-                updated_at,
-                team:teams(id, name, slug)
-              `)
-              .eq('id', g.player_of_game_id)
-              .single()
-
-            if (!playerError && player) {
-              const team = Array.isArray(player.team) ? player.team[0] : player.team
-              playerOfGame = {
-                id: player.id,
-                name: player.name,
-                jerseyNumber: player.jersey_number,
-                teamId: team?.slug || '',
-                position: player.position,
-                isActive: player.is_active,
-                createdAt: player.created_at,
-                updatedAt: player.updated_at
-              }
-            }
-          }
-
-          return {
-            id: g.id,
-            gameNumber: g.game_number,
-            weekNumber: g.week_number,
-            date: g.date,
-            time: g.time,
-            location: g.location,
-            homeTeamId: g.home_team?.slug || '',
-            awayTeamId: g.away_team?.slug || '',
-            homeScore: g.home_score,
-            awayScore: g.away_score,
-            status: g.status,
-            statistics: [],
-            playerOfGameId: g.player_of_game_id,
-            playerOfGame: playerOfGame,
-            playoffRound: g.playoff_round,
-            createdAt: g.created_at,
-            updatedAt: g.updated_at
-          }
-        })
-      )
-
-      setPlayoffGames(gamesWithPlayerOfGame)
-    } catch (error) {
-      console.error('Error loading playoff games:', error)
+      setPlayoffGames(await getPlayoffGames())
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     loadPlayoffGames()
+    const handleUpdate = () => loadPlayoffGames()
+    window.addEventListener('dataUpdated', handleUpdate)
+    return () => window.removeEventListener('dataUpdated', handleUpdate)
+  }, [loadPlayoffGames])
 
-    // Listen for data updates
-    const handleDataUpdate = () => {
-      loadPlayoffGames()
-    }
-
-    window.addEventListener('dataUpdated', handleDataUpdate)
-
-    return () => {
-      window.removeEventListener('dataUpdated', handleDataUpdate)
-    }
-  }, [])
-
-  const handleEditGame = (game: Game) => {
-    setSelectedGameForEdit(game)
-    setIsEditModalOpen(true)
-  }
-
-  const handleViewGame = async (game: Game) => {
-    // Fetch full game with statistics
-    const fullGame = await getGameById(game.id)
-    if (fullGame) {
-      setSelectedGameForView(fullGame)
+  const handleView = async (game: Game) => {
+    const full = await getGameById(game.id)
+    if (full) {
+      setGameForView(full)
       setIsViewModalOpen(true)
     }
   }
 
-  const handleCloseModal = () => {
-    setIsEditModalOpen(false)
-    setTimeout(() => setSelectedGameForEdit(null), 200)
+  const handleEdit = async (game: Game) => {
+    const full = await getGameById(game.id)
+    setGameForEdit(full ?? game)
+    setIsEditModalOpen(true)
   }
 
-  const handleCloseViewModal = () => {
-    setIsViewModalOpen(false)
-    setTimeout(() => setSelectedGameForView(null), 200)
-  }
-
-  const handleSavePlayoffGame = () => {
-    // Reload playoff games from Supabase after edit
-    loadPlayoffGames()
-    handleCloseModal()
-  }
-
-  const getTeamLogo = (slug: string) => {
-    if (!slug) return ''
-    const team = TEAMS.find(t => t.id === slug)
-    return team?.logoUrl || `/images/${slug}_logo.png`
-  }
-
-  const getTeamName = (slug: string) => {
-    if (!slug) return 'TBD'
-    const team = TEAMS.find(t => t.id === slug)
-    return team?.name || slug
-  }
-
-  const getTeamSeed = (slug: string) => {
-    // Hardcoded seeds for playoff teams
-    const seeds: Record<string, number> = {
-      'knights': 1,
-      'panthers': 2,
-      'warriors': 3,
-      'dolphins': 4,
-      'lions': 5,
-      'eagles': 6
+  /**
+   * Groups games by round, keeping ROUND_ORDER first and appending any
+   * unrecognised round names so nothing silently disappears from the bracket.
+   */
+  const rounds = (() => {
+    const byRound = new Map<string, Game[]>()
+    for (const game of playoffGames) {
+      const round = game.playoffRound || 'other'
+      if (!byRound.has(round)) byRound.set(round, [])
+      byRound.get(round)!.push(game)
     }
-    return seeds[slug] || 0
+
+    const known = ROUND_ORDER.filter((round) => byRound.has(round))
+    const extra = [...byRound.keys()].filter(
+      (round) => !ROUND_ORDER.includes(round as (typeof ROUND_ORDER)[number])
+    )
+
+    return [...known, ...extra].map((round) => ({
+      round,
+      label: ROUND_LABELS[round] ?? 'Playoffs',
+      games: byRound.get(round)!,
+    }))
+  })()
+
+  if (isLoading) {
+    return (
+      <section className="py-12 px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto text-center">
+          <p className="text-black">Loading playoff bracket...</p>
+        </div>
+      </section>
+    )
   }
 
-  const getRoundLabel = (round: string) => {
-    switch (round) {
-      case 'play-in': return 'Play-In'
-      case 'semifinal': return 'Semifinal'
-      case 'final': return 'Final'
-      default: return round
-    }
+  if (playoffGames.length === 0) return null
+
+  /** "Oct 12" or "Oct 12 – Oct 14" for the games in a round. */
+  const roundDateLabel = (games: Game[]): string => {
+    const dates = [...new Set(games.map((g) => g.date))].filter(Boolean).sort()
+    if (dates.length === 0) return ''
+    if (dates.length === 1) return formatDate(dates[0])
+    return `${formatDate(dates[0])} – ${formatDate(dates[dates.length - 1])}`
   }
 
   const GameCard = ({ game }: { game: Game }) => {
     const hasScores = game.homeScore !== null && game.awayScore !== null
-    const homeTeamName = getTeamName(game.homeTeamId)
-    const awayTeamName = getTeamName(game.awayTeamId)
-    const homeTeamSeed = getTeamSeed(game.homeTeamId)
-    const awayTeamSeed = getTeamSeed(game.awayTeamId)
-    const winner = hasScores && game.homeScore! > game.awayScore! ? game.homeTeamId :
-                   hasScores && game.awayScore! > game.homeScore! ? game.awayTeamId : undefined
-    
+    const homeName = teamName(game.homeTeamId)
+    const awayName = teamName(game.awayTeamId)
+
+    const winner = !hasScores
+      ? undefined
+      : game.homeScore! > game.awayScore!
+        ? game.homeTeamId
+        : game.awayScore! > game.homeScore!
+          ? game.awayTeamId
+          : undefined
+
+    const TeamRow = ({
+      slug,
+      name,
+      score,
+    }: {
+      slug: string
+      name: string
+      score: number | null
+    }) => (
+      <div
+        className={`flex items-center justify-between p-3 rounded-lg ${
+          winner && winner === slug
+            ? 'bg-green-900/30 border border-green-700'
+            : 'bg-[#0a0a0a]'
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          {slug && (
+            <Image
+              src={teamLogo(slug)}
+              alt=""
+              width={32}
+              height={32}
+              className="rounded"
+            />
+          )}
+          <span className="font-bold text-white">{name}</span>
+        </div>
+        {hasScores && (
+          <span className="text-2xl font-black text-[#D47F7D]">{score}</span>
+        )}
+      </div>
+    )
+
     return (
       <div className="relative">
         <button
-          onClick={() => handleViewGame(game)}
+          onClick={() => handleView(game)}
           className="w-full bg-[#1a1a1a] border border-[#523232] rounded-lg p-4 shadow-league hover:border-[#D47F7D] transition-colors text-left cursor-pointer"
-          aria-label={`View box score for ${homeTeamName} vs ${awayTeamName}`}
+          aria-label={`View box score for ${homeName} versus ${awayName}`}
         >
-          {/* Date and Time */}
           <div className="flex items-center justify-center gap-3 mb-3 text-xs text-gray-400">
-            <div className="flex items-center gap-1">
+            <span className="flex items-center gap-1">
               <Calendar size={12} />
-              <span>{new Date(game.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}</span>
-            </div>
-            <span>•</span>
-            <div className="flex items-center gap-1">
-              <Clock size={12} />
-              <span>{game.time}</span>
-            </div>
-          </div>
-
-          {/* Teams */}
-          <div className="space-y-2">
-            {/* Home Team */}
-            <div className={`flex items-center justify-between p-3 rounded-lg ${
-              hasScores && winner === game.homeTeamId
-                ? 'bg-green-900/30 border border-green-700' 
-                : 'bg-[#0a0a0a]'
-            }`}>
-              <div className="flex items-center gap-3">
-                {game.homeTeamId && (
-                  <Image
-                    src={getTeamLogo(game.homeTeamId)}
-                    alt={homeTeamName}
-                    width={32}
-                    height={32}
-                    className="rounded"
-                  />
-                )}
-                <div>
-                  <div className="font-bold text-white">{homeTeamName}</div>
-                  {homeTeamSeed > 0 && (
-                    <div className="text-xs text-gray-400">Seed #{homeTeamSeed}</div>
-                  )}
-                </div>
-              </div>
-              {hasScores && (
-                <div className="text-2xl font-black text-[#D47F7D]">{game.homeScore}</div>
-              )}
-            </div>
-
-            {/* VS Divider */}
-            <div className="text-center text-xs font-bold text-gray-500">VS</div>
-
-            {/* Away Team */}
-            <div className={`flex items-center justify-between p-3 rounded-lg ${
-              hasScores && winner === game.awayTeamId
-                ? 'bg-green-900/30 border border-green-700' 
-                : 'bg-[#0a0a0a]'
-            }`}>
-              <div className="flex items-center gap-3">
-                {game.awayTeamId && (
-                  <Image
-                    src={getTeamLogo(game.awayTeamId)}
-                    alt={awayTeamName}
-                    width={32}
-                    height={32}
-                    className="rounded"
-                  />
-                )}
-                <div>
-                  <div className="font-bold text-white">{awayTeamName}</div>
-                  {awayTeamSeed > 0 && (
-                    <div className="text-xs text-gray-400">Seed #{awayTeamSeed}</div>
-                  )}
-                </div>
-              </div>
-              {hasScores && (
-                <div className="text-2xl font-black text-[#D47F7D]">{game.awayScore}</div>
-              )}
-            </div>
-          </div>
-
-          {/* Round Label and Status */}
-          <div className="mt-3 flex items-center justify-center gap-2">
-            <span className="text-xs px-3 py-1 bg-[#D47F7D]/20 text-[#D47F7D] rounded-full font-semibold uppercase">
-              {getRoundLabel((game as any).playoffRound || 'playoff')}
+              {formatDate(game.date)}
             </span>
-            {hasScores && (
+            <span>•</span>
+            <span className="flex items-center gap-1">
+              <Clock size={12} />
+              {game.time}
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            <TeamRow slug={game.homeTeamId} name={homeName} score={game.homeScore} />
+            <div className="text-center text-xs font-bold text-gray-500">VS</div>
+            <TeamRow slug={game.awayTeamId} name={awayName} score={game.awayScore} />
+          </div>
+
+          {hasScores && (
+            <div className="mt-3 flex justify-center">
               <span className="text-xs px-3 py-1 bg-green-900/30 text-green-400 rounded-full font-semibold">
                 FINAL
               </span>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* Location */}
-          <div className="mt-2 text-center text-xs text-gray-500">
-            {game.location}
-          </div>
+          <p className="mt-2 text-center text-xs text-gray-500">{game.location}</p>
 
-          {/* Player of the Game Badge */}
           {game.playerOfGame && (
             <div className="mt-4 pt-4 border-t border-[#523232]">
               <div className="flex items-center gap-3 px-4 py-3 rounded-lg">
                 <Image
-                  src="/images/puro_white.png"
-                  alt="Puro"
+                  src={LEAGUE.manOfTheMatch.badgeImageUrl}
+                  alt=""
                   width={50}
                   height={50}
                   className="rounded-full"
@@ -311,10 +211,11 @@ export function PlayoffBracket() {
                 <div className="flex-1">
                   <p className="text-xs text-white font-bold uppercase flex items-center gap-1.5">
                     <Trophy size={14} className="text-white" />
-                    Puro Man of The Match
+                    {LEAGUE.manOfTheMatch.label}
                   </p>
                   <p className="text-base font-black text-white mt-1">
-                    #{game.playerOfGame.jerseyNumber} {game.playerOfGame.name}
+                    #{displayJersey(game.playerOfGame.jerseyNumber)}{' '}
+                    {game.playerOfGame.name}
                   </p>
                 </div>
               </div>
@@ -322,12 +223,11 @@ export function PlayoffBracket() {
           )}
         </button>
 
-        {/* Admin Edit Button */}
         {isAdmin && (
           <button
             onClick={(e) => {
               e.stopPropagation()
-              handleEditGame(game)
+              handleEdit(game)
             }}
             className="absolute top-2 right-2 p-2 bg-[#D47F7D]/90 hover:bg-[#D47F7D] rounded-full transition-colors"
             aria-label="Edit playoff game"
@@ -339,98 +239,72 @@ export function PlayoffBracket() {
     )
   }
 
-  const playInGames = playoffGames.filter(g => (g as any).playoffRound === 'play-in')
-  const semifinalGames = playoffGames.filter(g => (g as any).playoffRound === 'semifinal')
-  const finalGames = playoffGames.filter(g => (g as any).playoffRound === 'final')
-
-  if (isLoading) {
-    return (
-      <section className="py-12 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto text-center">
-          <p className="text-white">Loading playoff bracket...</p>
-        </div>
-      </section>
-    )
-  }
-
   return (
     <>
-      <section className="py-12 px-4 sm:px-6">
+      <section className="py-12 px-4 sm:px-6" aria-labelledby="playoff-bracket-title">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-3 mb-2">
               <Trophy size={32} className="text-[#FFD700]" />
-              <h2 className="text-3xl sm:text-4xl font-black uppercase text-black">
+              <h2
+                id="playoff-bracket-title"
+                className="text-3xl sm:text-4xl font-black uppercase text-black"
+              >
                 Playoff Bracket
               </h2>
               <Trophy size={32} className="text-[#FFD700]" />
             </div>
-            <p className="text-gray-400">Road to the Championship</p>
+            <p className="text-gray-700">Road to the Championship</p>
           </div>
 
-          {/* Play-In Round */}
-          {playInGames.length > 0 && (
-            <div className="mb-12">
-              <h3 className="text-xl font-bold text-center text-[#D47F7D] uppercase mb-6">
-                Play-In Round - January 4th
-              </h3>
-              <div className="grid gap-6 md:grid-cols-2 max-w-4xl mx-auto">
-                {playInGames.map(game => (
-                  <GameCard key={game.id} game={game} />
-                ))}
-              </div>
-            </div>
-          )}
+          {rounds.map(({ round, label, games }) => {
+            const dateLabel = roundDateLabel(games)
+            const isFinal = round === 'final'
 
-          {/* Semifinals */}
-          {semifinalGames.length > 0 && (
-            <div className="mb-12">
-              <h3 className="text-xl font-bold text-center text-[#D47F7D] uppercase mb-6">
-                Semifinals - January 9th
-              </h3>
-              <div className="grid gap-6 md:grid-cols-2 max-w-4xl mx-auto">
-                {semifinalGames.map(game => (
-                  <GameCard key={game.id} game={game} />
-                ))}
+            return (
+              <div key={round} className="mb-12">
+                <h3 className="text-xl font-bold text-center text-[#523232] uppercase mb-6">
+                  {label}
+                  {dateLabel && (
+                    <span className="block text-sm font-semibold text-gray-700 normal-case mt-1">
+                      {dateLabel}
+                    </span>
+                  )}
+                </h3>
+                <div
+                  className={
+                    isFinal
+                      ? 'max-w-md mx-auto'
+                      : 'grid gap-6 md:grid-cols-2 max-w-4xl mx-auto'
+                  }
+                >
+                  {games.map((game) => (
+                    <GameCard key={game.id} game={game} />
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-
-          {/* Finals */}
-          {finalGames.length > 0 && (
-            <div className="mb-8">
-              <h3 className="text-xl font-bold text-center text-[#D47F7D] uppercase mb-6">
-                Championship Final
-              </h3>
-              <div className="max-w-md mx-auto">
-                {finalGames.map(game => (
-                  <GameCard key={game.id} game={game} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Seeding Note */}
-          <div className="mt-6 text-center text-sm text-gray-500">
-            * Lower seed from play-in will face #1 Knights, higher seed faces #2 Panthers
-          </div>
+            )
+          })}
         </div>
       </section>
 
-      {/* Edit Modal - Uses the full EditBoxScoreModal */}
       <EditBoxScoreModal
-        game={selectedGameForEdit}
+        game={gameForEdit}
         isOpen={isEditModalOpen}
-        onClose={handleCloseModal}
-        onSave={handleSavePlayoffGame}
+        onClose={() => {
+          setIsEditModalOpen(false)
+          setTimeout(() => setGameForEdit(null), 200)
+        }}
+        onSave={loadPlayoffGames}
       />
 
-      {/* View Modal - Box Score Display */}
       <BoxScoreModal
-        game={selectedGameForView}
+        game={gameForView}
         isOpen={isViewModalOpen}
-        onClose={handleCloseViewModal}
+        onClose={() => {
+          setIsViewModalOpen(false)
+          setTimeout(() => setGameForView(null), 200)
+        }}
       />
     </>
   )

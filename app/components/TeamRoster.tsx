@@ -1,6 +1,5 @@
 /**
- * TeamRoster component for YM JAX Soccer League
- * Displays team information and complete roster
+ * A team's page: crest, roster and fixtures.
  */
 
 'use client'
@@ -68,10 +67,10 @@ export function TeamRoster({ team, games = [] }: TeamRosterProps) {
               />
             </div>
             <div className="text-center sm:text-left flex-1">
-              <h1 className="text-4xl sm:text-5xl font-black text-white mb-2">
+              <h1 className="text-4xl sm:text-5xl font-black text-black mb-2">
                 {team.name.toUpperCase()}
               </h1>
-              <p className="text-xl text-gray-400">
+              <p className="text-xl text-gray-700">
                 {team.roster.length} {team.roster.length === 1 ? 'Player' : 'Players'}
               </p>
             </div>
@@ -106,7 +105,7 @@ export function TeamRoster({ team, games = [] }: TeamRosterProps) {
             
             {/* Right column: Schedule */}
             <div>
-              <h2 className="text-2xl sm:text-3xl font-bold uppercase mb-6 text-[#2686DF]">
+              <h2 className="text-2xl sm:text-3xl font-bold uppercase mb-6 text-[#523232]">
                 Team Schedule
               </h2>
               

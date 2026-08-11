@@ -1,6 +1,8 @@
 /**
- * PasswordModal component for YM JAX Soccer League
- * Modal dialog for admin authentication
+ * Modal dialog for admin authentication.
+ *
+ * The password is checked on the server, so submitting is async and the button
+ * has to show a pending state.
  */
 
 'use client'
@@ -11,13 +13,15 @@ import { X } from 'lucide-react'
 interface PasswordModalProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess: (password: string) => boolean
+  /** Resolves to an error message on failure, or null on success. */
+  onSubmit: (password: string) => Promise<string | null>
 }
 
-export function PasswordModal({ isOpen, onClose, onSuccess }: PasswordModalProps) {
+export function PasswordModal({ isOpen, onClose, onSubmit }: PasswordModalProps) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
   // Handle ESC key
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -38,26 +42,28 @@ export function PasswordModal({ isOpen, onClose, onSuccess }: PasswordModalProps
     }
   }, [isOpen, onClose])
   
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    
+
     if (!password.trim()) {
       setError('Please enter a password')
       return
     }
-    
-    const success = onSuccess(password)
-    if (success) {
-      // Close modal and reset state
+
+    setIsSubmitting(true)
+    const message = await onSubmit(password)
+    setIsSubmitting(false)
+
+    if (message === null) {
       setPassword('')
       setError('')
       onClose()
     } else {
-      setError('Incorrect password. Please try again.')
+      setError(message)
       setPassword('')
     }
   }
-  
+
   const handleClose = () => {
     setPassword('')
     setError('')
@@ -103,7 +109,8 @@ export function PasswordModal({ isOpen, onClose, onSuccess }: PasswordModalProps
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 bg-black border border-[#523232] rounded focus:border-[#D47F7D] focus:ring-2 focus:ring-[#D47F7D]/50 outline-none transition-colors text-white"
+                disabled={isSubmitting}
+                className="w-full px-4 py-2 bg-black border border-[#523232] rounded focus:border-[#D47F7D] focus:ring-2 focus:ring-[#D47F7D]/50 outline-none transition-colors text-white disabled:opacity-60"
                 autoFocus
                 aria-describedby={error ? 'password-error' : undefined}
                 aria-invalid={error ? 'true' : 'false'}
@@ -119,15 +126,17 @@ export function PasswordModal({ isOpen, onClose, onSuccess }: PasswordModalProps
               <button
                 type="button"
                 onClick={handleClose}
-                className="flex-1 px-4 py-2 border border-[#523232] rounded hover:bg-white/5 transition-colors text-white"
+                disabled={isSubmitting}
+                className="flex-1 px-4 py-2 border border-[#523232] rounded hover:bg-white/5 transition-colors text-white disabled:opacity-60"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="flex-1 px-4 py-2 bg-[#D47F7D] rounded hover:bg-[#D47F7D]/90 transition-colors font-semibold text-white"
+                disabled={isSubmitting}
+                className="flex-1 px-4 py-2 bg-[#D47F7D] rounded hover:bg-[#D47F7D]/90 transition-colors font-semibold text-white disabled:opacity-60"
               >
-                Submit
+                {isSubmitting ? 'Checking...' : 'Submit'}
               </button>
             </div>
           </form>

@@ -1,24 +1,36 @@
 /**
- * EditBoxScoreModal - Admin interface for editing game box scores
- * Now saves to Supabase database
+ * Admin editor for a game's box score.
+ *
+ * Scores, statistics and man of the match are saved together in one request
+ * (PUT /api/admin/games/[id]/box-score). The old version fired one request per
+ * statistic and saved the man of the match separately, so a failure partway
+ * through left the game in a half-updated state.
  */
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Game } from '@/types/game'
-import { GameStatistic, StatType } from '@/types/statistic'
-import { Player } from '@/types/player'
+import { StatType } from '@/types/statistic'
+import { Player, displayJersey } from '@/types/player'
 import { X, Plus, Trash2, Save } from 'lucide-react'
-import { getAllPlayers, updateGameScores, deleteAllGameStatistics, insertGameStatistic } from '@/lib/supabaseData'
+import { getAllPlayers, saveBoxScore, notifyDataUpdated } from '@/lib/supabaseData'
 import { PlayerOfGameSelector } from './PlayerOfGameSelector'
-import { getTeamById } from '@/config/teams'
+import { useTeams } from '@/lib/teamsContext'
 
 interface EditBoxScoreModalProps {
   game: Game | null
   isOpen: boolean
   onClose: () => void
   onSave?: () => void
+}
+
+/** A statistic row being edited. `key` is local only, for React list identity. */
+interface StatRow {
+  key: string
+  playerId: string
+  type: StatType
+  count: number
 }
 
 const STAT_TYPES: { value: StatType; label: string }[] = [
@@ -30,32 +42,42 @@ const STAT_TYPES: { value: StatType; label: string }[] = [
   { value: 'blue_card', label: 'Blue Card' },
 ]
 
-export function EditBoxScoreModal({ game, isOpen, onClose, onSave }: EditBoxScoreModalProps) {
-  const [homeScore, setHomeScore] = useState(0)
-  const [awayScore, setAwayScore] = useState(0)
-  const [statistics, setStatistics] = useState<GameStatistic[]>([])
-  const [allPlayers, setAllPlayers] = useState<(Player & { teamUUID?: string })[]>([])
+let rowCounter = 0
+const nextRowKey = () => `row-${++rowCounter}`
+
+export function EditBoxScoreModal({
+  game,
+  isOpen,
+  onClose,
+  onSave,
+}: EditBoxScoreModalProps) {
+  const { teamName } = useTeams()
+  const [rows, setRows] = useState<StatRow[]>([])
+  const [playerOfGameId, setPlayerOfGameId] = useState<string | null>(null)
+  const [allPlayers, setAllPlayers] = useState<Player[]>([])
+  const [isLoadingPlayers, setIsLoadingPlayers] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (game && isOpen) {
-      setHomeScore(game.homeScore ?? 0)
-      setAwayScore(game.awayScore ?? 0)
-      setStatistics(game.statistics || [])
-      
-      // Load ALL players from Supabase
-      const loadAllPlayers = async () => {
-        try {
-          const players = await getAllPlayers()
-          console.log('Loaded players from Supabase:', players.length)
-          setAllPlayers(players)
-        } catch (error) {
-          console.error('Error loading players:', error)
-        }
-      }
-      
-      loadAllPlayers()
-    }
+    if (!game || !isOpen) return
+
+    setError(null)
+    setPlayerOfGameId(game.playerOfGameId ?? null)
+    setRows(
+      (game.statistics ?? []).map((stat) => ({
+        key: nextRowKey(),
+        playerId: stat.playerId,
+        type: stat.type,
+        count: stat.count ?? 1,
+      }))
+    )
+
+    setIsLoadingPlayers(true)
+    getAllPlayers()
+      .then(setAllPlayers)
+      .catch(() => setError('Could not load players'))
+      .finally(() => setIsLoadingPlayers(false))
   }, [game, isOpen])
 
   useEffect(() => {
@@ -71,201 +93,90 @@ export function EditBoxScoreModal({ game, isOpen, onClose, onSave }: EditBoxScor
       document.body.style.overflow = ''
     }
   }, [isOpen, onClose])
-  
-  // Recalculate scores when statistics change on initial load
-  useEffect(() => {
-    if (statistics.length > 0 && game) {
-      // Calculate scores from goal statistics
-      let homeGoals = 0
-      let awayGoals = 0
-      
-      statistics.forEach(stat => {
-        if (stat.type === 'goal') {
-          if (stat.teamId === game.homeTeamId) {
-            homeGoals += stat.count || 1
-          } else if (stat.teamId === game.awayTeamId) {
-            awayGoals += stat.count || 1
-          }
-        }
-      })
-      
-      setHomeScore(homeGoals)
-      setAwayScore(awayGoals)
+
+  const homeTeamPlayers = useMemo(
+    () => allPlayers.filter((p) => p.teamId === game?.homeTeamId),
+    [allPlayers, game?.homeTeamId]
+  )
+  const awayTeamPlayers = useMemo(
+    () => allPlayers.filter((p) => p.teamId === game?.awayTeamId),
+    [allPlayers, game?.awayTeamId]
+  )
+  const eligiblePlayers = useMemo(
+    () => [...homeTeamPlayers, ...awayTeamPlayers],
+    [homeTeamPlayers, awayTeamPlayers]
+  )
+
+  /**
+   * Scores are derived from the goal rows rather than typed in, so the score
+   * line and the scorer list can never disagree.
+   */
+  const { homeScore, awayScore } = useMemo(() => {
+    let home = 0
+    let away = 0
+
+    for (const row of rows) {
+      if (row.type !== 'goal') continue
+      const player = allPlayers.find((p) => p.id === row.playerId)
+      if (!player) continue
+      if (player.teamId === game?.homeTeamId) home += row.count
+      else if (player.teamId === game?.awayTeamId) away += row.count
     }
-  }, [statistics.length, game?.homeTeamId, game?.awayTeamId])
+
+    return { homeScore: home, awayScore: away }
+  }, [rows, allPlayers, game?.homeTeamId, game?.awayTeamId])
 
   if (!isOpen || !game) return null
 
-  // Get team names
-  const homeTeam = getTeamById(game.homeTeamId)
-  const awayTeam = getTeamById(game.awayTeamId)
+  const homeTeamName = teamName(game.homeTeamId)
+  const awayTeamName = teamName(game.awayTeamId)
 
-  // Filter players by team
-  const homeTeamPlayers = allPlayers.filter(p => p.teamId === game.homeTeamId)
-  const awayTeamPlayers = allPlayers.filter(p => p.teamId === game.awayTeamId)
-
-  const addStatistic = () => {
-    // Find the first available player from either team
-    const firstPlayer = homeTeamPlayers[0] || awayTeamPlayers[0]
-    
+  const addRow = () => {
+    const firstPlayer = eligiblePlayers[0]
     if (!firstPlayer) {
-      alert('No active players found for either team')
+      setError('Neither team has any active players to record statistics for')
       return
     }
-    
-    const newStat: GameStatistic = {
-      id: `stat-${Date.now()}`,
-      gameId: game.id,
-      playerId: firstPlayer.id,
-      teamId: firstPlayer.teamId,
-      type: 'goal',
-      count: 1,
-      createdAt: new Date().toISOString(),
-    }
-    
-    const updated = [...statistics, newStat]
-    setStatistics(updated)
-    
-    // Auto-calculate scores from goals
-    if (!game) return
-    
-    let homeGoals = 0
-    let awayGoals = 0
-    
-    updated.forEach(stat => {
-      if (stat.type === 'goal') {
-        if (stat.teamId === game.homeTeamId) {
-          homeGoals += stat.count || 1
-        } else if (stat.teamId === game.awayTeamId) {
-          awayGoals += stat.count || 1
-        }
-      }
-    })
-    
-    setHomeScore(homeGoals)
-    setAwayScore(awayGoals)
+    setError(null)
+    setRows((current) => [
+      ...current,
+      { key: nextRowKey(), playerId: firstPlayer.id, type: 'goal', count: 1 },
+    ])
   }
 
-  const updateStatistic = (index: number, field: keyof GameStatistic, value: any) => {
-    const updated = [...statistics]
-    updated[index] = { ...updated[index], [field]: value }
-    
-    // Update teamId when playerId changes
-    if (field === 'playerId') {
-      const player = allPlayers.find(p => p.id === value)
-      if (player) {
-        updated[index].teamId = player.teamId
-      }
-    }
-    
-    setStatistics(updated)
-    
-    // Auto-calculate scores from goals
-    if (!game) return
-    
-    let homeGoals = 0
-    let awayGoals = 0
-    
-    updated.forEach(stat => {
-      if (stat.type === 'goal') {
-        if (stat.teamId === game.homeTeamId) {
-          homeGoals += stat.count || 1
-        } else if (stat.teamId === game.awayTeamId) {
-          awayGoals += stat.count || 1
-        }
-      }
-    })
-    
-    setHomeScore(homeGoals)
-    setAwayScore(awayGoals)
+  const updateRow = (key: string, changes: Partial<Omit<StatRow, 'key'>>) => {
+    setRows((current) =>
+      current.map((row) => (row.key === key ? { ...row, ...changes } : row))
+    )
   }
 
-  const deleteStatistic = (index: number) => {
-    const updated = statistics.filter((_, i) => i !== index)
-    setStatistics(updated)
-    
-    // Auto-calculate scores from goals
-    if (!game) return
-    
-    let homeGoals = 0
-    let awayGoals = 0
-    
-    updated.forEach(stat => {
-      if (stat.type === 'goal') {
-        if (stat.teamId === game.homeTeamId) {
-          homeGoals += stat.count || 1
-        } else if (stat.teamId === game.awayTeamId) {
-          awayGoals += stat.count || 1
-        }
-      }
-    })
-    
-    setHomeScore(homeGoals)
-    setAwayScore(awayGoals)
+  const removeRow = (key: string) => {
+    setRows((current) => current.filter((row) => row.key !== key))
   }
 
   const handleSave = async () => {
-    if (!game) return
-    
+    setError(null)
     setIsSaving(true)
-    
+
     try {
-      // Save game scores to Supabase
-      const scoresSuccess = await updateGameScores(game.id, homeScore, awayScore, 'completed')
-      
-      if (!scoresSuccess) {
-        alert('Failed to update game scores')
-        setIsSaving(false)
-        return
-      }
-      
-      // Delete all existing statistics for this game
-      const deleteSuccess = await deleteAllGameStatistics(game.id)
-      
-      if (!deleteSuccess) {
-        alert('Failed to delete old statistics')
-        setIsSaving(false)
-        return
-      }
-      
-      // Insert new statistics
-      for (const stat of statistics) {
-        // Find the player to get their team UUID
-        const player = allPlayers.find(p => p.id === stat.playerId)
-        const teamUUID = player?.teamUUID
-        
-        if (!teamUUID) {
-          console.error(`Could not find team UUID for player ${stat.playerId}`)
-          continue
-        }
-        
-        const insertSuccess = await insertGameStatistic(
-          game.id,
-          stat.playerId,
-          teamUUID, // Use UUID for database
-          stat.type,
-          stat.count || 1
-        )
-        
-        if (!insertSuccess) {
-          console.error(`Failed to insert statistic for player ${stat.playerId}`)
-        }
-      }
-      
-      // Trigger refresh by dispatching custom event
-      window.dispatchEvent(new Event('dataUpdated'))
-      
-      // Call onSave callback if provided
+      await saveBoxScore(game.id, {
+        homeScore,
+        awayScore,
+        status: 'completed',
+        playerOfGameId,
+        statistics: rows.map((row) => ({
+          playerId: row.playerId,
+          type: row.type,
+          count: row.count,
+        })),
+      })
+
+      notifyDataUpdated()
       onSave?.()
-      
-      // Close modal
-      setTimeout(() => {
-        setIsSaving(false)
-        onClose()
-      }, 300)
-    } catch (error) {
-      console.error('Error saving box score:', error)
-      alert('An error occurred while saving')
+      onClose()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to save box score')
+    } finally {
       setIsSaving(false)
     }
   }
@@ -290,85 +201,88 @@ export function EditBoxScoreModal({ game, isOpen, onClose, onSave }: EditBoxScor
           <X size={24} />
         </button>
 
-        <h2 id="edit-box-score-title" className="text-3xl font-bold text-center uppercase text-[#D47F7D] mb-6">
+        <h2
+          id="edit-box-score-title"
+          className="text-3xl font-bold text-center uppercase text-[#D47F7D] mb-6"
+        >
           Edit Box Score
         </h2>
 
-        {/* Score Editing */}
+        {error && (
+          <p
+            className="mb-6 px-4 py-3 bg-red-950/60 border border-red-700 rounded text-red-200 text-sm"
+            role="alert"
+          >
+            {error}
+          </p>
+        )}
+
+        {/* Score, derived from the goals recorded below */}
         <div className="bg-[#2a2a2a] p-6 rounded-lg mb-6 border border-[#444444]">
-          <h3 className="text-xl font-bold text-white mb-4">Final Score</h3>
+          <h3 className="text-xl font-bold text-white mb-1">Final Score</h3>
+          <p className="text-sm text-gray-400 mb-4">
+            Calculated from the goals recorded below.
+          </p>
           <div className="grid grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-200 mb-2">
-                {homeTeam?.name || 'Home Team'} Score
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={homeScore}
-                onChange={(e) => setHomeScore(parseInt(e.target.value) || 0)}
-                className="w-full px-4 py-2 bg-[#1a1a1a] border border-[#523232] rounded text-white text-2xl font-bold text-center focus:outline-none focus:border-[#D47F7D]"
-              />
+            <div className="text-center">
+              <p className="text-sm font-medium text-gray-200 mb-2">{homeTeamName}</p>
+              <p className="text-4xl font-black text-[#D47F7D]">{homeScore}</p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-200 mb-2">
-                {awayTeam?.name || 'Away Team'} Score
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={awayScore}
-                onChange={(e) => setAwayScore(parseInt(e.target.value) || 0)}
-                className="w-full px-4 py-2 bg-[#1a1a1a] border border-[#523232] rounded text-white text-2xl font-bold text-center focus:outline-none focus:border-[#D47F7D]"
-              />
+            <div className="text-center">
+              <p className="text-sm font-medium text-gray-200 mb-2">{awayTeamName}</p>
+              <p className="text-4xl font-black text-[#D47F7D]">{awayScore}</p>
             </div>
           </div>
         </div>
 
-        {/* Statistics Editing */}
+        {/* Statistics */}
         <div className="bg-[#2a2a2a] p-6 rounded-lg mb-6 border border-[#444444]">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold text-white">Game Statistics</h3>
             <button
-              onClick={addStatistic}
-              className="flex items-center gap-2 px-4 py-2 bg-[#D47F7D] text-black rounded hover:bg-[#c66f6d] transition-colors"
+              onClick={addRow}
+              className="flex items-center gap-2 px-4 py-2 bg-[#D47F7D] text-black font-semibold rounded hover:bg-[#c66f6d] transition-colors"
             >
               <Plus size={16} />
               Add Statistic
             </button>
           </div>
 
-          {statistics.length > 0 && (
-            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 mb-2 px-3 text-xs text-gray-300 uppercase font-semibold">
+          {rows.length > 0 && (
+            <div className="hidden sm:grid grid-cols-[1fr_10rem_5rem_2.5rem] gap-3 mb-2 px-3 text-xs text-gray-300 uppercase font-semibold">
               <div>Player</div>
-              <div className="w-40">Stat Type</div>
-              <div className="w-20 text-center">Count</div>
-              <div className="w-10"></div>
+              <div>Stat Type</div>
+              <div className="text-center">Count</div>
+              <div />
             </div>
           )}
-          
+
           <div className="space-y-3">
-            {statistics.map((stat, index) => (
-              <div key={stat.id} className="flex items-center gap-3 bg-[#1a1a1a] p-3 rounded border border-[#333333]">
+            {rows.map((row) => (
+              <div
+                key={row.key}
+                className="grid grid-cols-1 sm:grid-cols-[1fr_10rem_5rem_2.5rem] gap-3 items-center bg-[#1a1a1a] p-3 rounded border border-[#333333]"
+              >
                 <select
-                  value={stat.playerId}
-                  onChange={(e) => updateStatistic(index, 'playerId', e.target.value)}
-                  className="flex-1 px-3 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-white focus:outline-none focus:border-[#D47F7D]"
+                  value={row.playerId}
+                  onChange={(e) => updateRow(row.key, { playerId: e.target.value })}
+                  aria-label="Player"
+                  className="px-3 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-white focus:outline-none focus:border-[#D47F7D]"
                 >
                   {homeTeamPlayers.length > 0 && (
-                    <optgroup label={`${homeTeam?.name || 'Home Team'}`}>
-                      {homeTeamPlayers.map(p => (
+                    <optgroup label={homeTeamName}>
+                      {homeTeamPlayers.map((p) => (
                         <option key={p.id} value={p.id}>
-                          #{p.jerseyNumber} {p.name}
+                          #{displayJersey(p.jerseyNumber)} {p.name}
                         </option>
                       ))}
                     </optgroup>
                   )}
                   {awayTeamPlayers.length > 0 && (
-                    <optgroup label={`${awayTeam?.name || 'Away Team'}`}>
-                      {awayTeamPlayers.map(p => (
+                    <optgroup label={awayTeamName}>
+                      {awayTeamPlayers.map((p) => (
                         <option key={p.id} value={p.id}>
-                          #{p.jerseyNumber} {p.name}
+                          #{displayJersey(p.jerseyNumber)} {p.name}
                         </option>
                       ))}
                     </optgroup>
@@ -376,9 +290,12 @@ export function EditBoxScoreModal({ game, isOpen, onClose, onSave }: EditBoxScor
                 </select>
 
                 <select
-                  value={stat.type}
-                  onChange={(e) => updateStatistic(index, 'type', e.target.value as StatType)}
-                  className="w-40 px-3 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-white focus:outline-none focus:border-[#D47F7D]"
+                  value={row.type}
+                  onChange={(e) =>
+                    updateRow(row.key, { type: e.target.value as StatType })
+                  }
+                  aria-label="Statistic type"
+                  className="px-3 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-white focus:outline-none focus:border-[#D47F7D]"
                 >
                   {STAT_TYPES.map(({ value, label }) => (
                     <option key={value} value={value}>
@@ -389,48 +306,49 @@ export function EditBoxScoreModal({ game, isOpen, onClose, onSave }: EditBoxScor
 
                 <input
                   type="number"
-                  min="1"
-                  value={stat.count || 1}
-                  onChange={(e) => updateStatistic(index, 'count', parseInt(e.target.value) || 1)}
-                  className="w-20 px-3 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-white text-center focus:outline-none focus:border-[#D47F7D]"
-                  title="Count (e.g., 2 if player scored 2 goals)"
-                  placeholder="1"
+                  min={1}
+                  value={row.count}
+                  onChange={(e) =>
+                    updateRow(row.key, {
+                      count: Math.max(1, parseInt(e.target.value) || 1),
+                    })
+                  }
+                  aria-label="Count"
+                  title="How many, e.g. 2 if the player scored twice"
+                  className="px-3 py-2 bg-[#2a2a2a] border border-[#523232] rounded text-white text-center focus:outline-none focus:border-[#D47F7D]"
                 />
 
                 <button
-                  onClick={() => deleteStatistic(index)}
-                  className="p-2 text-red-400 hover:bg-red-400/10 rounded transition-colors"
+                  onClick={() => removeRow(row.key)}
+                  className="p-2 text-red-400 hover:bg-red-400/10 rounded transition-colors justify-self-end"
                   aria-label="Delete statistic"
                 >
                   <Trash2 size={18} />
                 </button>
               </div>
             ))}
-            
-            {statistics.length === 0 && (
+
+            {rows.length === 0 && (
               <p className="text-gray-300 text-center py-4">
-                No statistics added yet. Click "Add Statistic" to begin.
+                No statistics recorded yet. Use &quot;Add Statistic&quot; to begin.
               </p>
             )}
           </div>
         </div>
 
-        {/* Player of the Game Selection */}
         <div className="mb-6">
           <PlayerOfGameSelector
-            game={game}
-            onPlayerSelected={(playerId) => {
-              // Optional: Update local state if needed
-              console.log('Player of Game selected:', playerId)
-            }}
+            players={eligiblePlayers}
+            selectedPlayerId={playerOfGameId}
+            onChange={setPlayerOfGameId}
+            isLoading={isLoadingPlayers}
           />
         </div>
 
-        {/* Save Button */}
         <div className="flex justify-end gap-4">
           <button
             onClick={onClose}
-            className="px-6 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+            className="px-6 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors disabled:opacity-50"
             disabled={isSaving}
           >
             Cancel
@@ -448,4 +366,3 @@ export function EditBoxScoreModal({ game, isOpen, onClose, onSave }: EditBoxScor
     </div>
   )
 }
-

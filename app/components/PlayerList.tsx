@@ -1,14 +1,13 @@
 /**
- * PlayerList component for YM JAX Soccer League
- * Displays a team's roster with player names and jersey numbers
+ * A team's roster.
  */
 
 'use client'
 
-import { Player } from '@/types/player'
+import { useState } from 'react'
+import { Player, displayJersey } from '@/types/player'
 import { Pencil, Trash2 } from 'lucide-react'
-import { deleteLocalPlayer } from '@/lib/localStore'
-import { triggerDataRefresh } from '@/lib/ClientDataProvider'
+import { deletePlayer, notifyDataUpdated } from '@/lib/supabaseData'
 
 interface PlayerListProps {
   players: Player[]
@@ -24,11 +23,11 @@ export function PlayerList({ players, onEditPlayer }: PlayerListProps) {
     )
   }
   
-  // Sort players: TBD at end, then by number
+  // Numbered players first, ascending; unnumbered (TBD) players last.
   const sortedPlayers = [...players].sort((a, b) => {
-    const aNum = a.jerseyNumber === 'TBD' ? 999 : a.jerseyNumber
-    const bNum = b.jerseyNumber === 'TBD' ? 999 : b.jerseyNumber
-    return aNum - bNum
+    const aNum = a.jerseyNumber ?? Number.MAX_SAFE_INTEGER
+    const bNum = b.jerseyNumber ?? Number.MAX_SAFE_INTEGER
+    return aNum - bNum || a.name.localeCompare(b.name)
   })
   
   return (
@@ -50,19 +49,25 @@ interface PlayerCardProps {
 }
 
 function PlayerCard({ player, onEdit }: PlayerCardProps) {
-  const displayNumber = player.jerseyNumber === 'TBD' ? 'TBD' : player.jerseyNumber
-  
+  const [isDeleting, setIsDeleting] = useState(false)
+  const displayNumber = displayJersey(player.jerseyNumber)
+
   const handleDelete = async () => {
-    if (confirm(`Delete player ${player.name}?`)) {
-      const success = deleteLocalPlayer(player.id)
-      if (success) {
-        triggerDataRefresh()
-      } else {
-        alert('Failed to delete player')
-      }
+    if (!confirm(`Delete player ${player.name}? This also removes their statistics.`)) {
+      return
+    }
+
+    setIsDeleting(true)
+    try {
+      await deletePlayer(player.id)
+      notifyDataUpdated()
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to delete player')
+    } finally {
+      setIsDeleting(false)
     }
   }
-  
+
   return (
     <div className="relative p-4 border border-[#523232] rounded-lg shadow-league hover:border-[#D47F7D] transition-colors">
       <div className="flex items-center justify-between">
@@ -95,7 +100,8 @@ function PlayerCard({ player, onEdit }: PlayerCardProps) {
           </button>
           <button
             onClick={handleDelete}
-            className="p-1.5 bg-red-600/90 hover:bg-red-600 rounded transition-colors"
+            disabled={isDeleting}
+            className="p-1.5 bg-red-600/90 hover:bg-red-600 rounded transition-colors disabled:opacity-50"
             aria-label="Delete player"
             title="Delete Player"
           >

@@ -1,9 +1,36 @@
 /**
- * Supabase Awards Data Functions
- * Functions for managing awards, nominees, and votes
+ * Awards, nominees and voting.
+ *
+ * Reads use the anon Supabase client. Every write goes through a server route
+ * -- admin actions through /api/admin/*, public votes through /api/votes --
+ * because the browser has no key that can write.
  */
 
-import { supabase, supabaseAdmin, Award, AwardNominee, AwardVote, Player } from './supabase'
+import { supabase, Award, AwardNominee, Player } from './supabase'
+
+/** Calls a route and returns the parsed body, throwing the server's message. */
+async function apiRequest<T>(
+  path: string,
+  method: string,
+  body?: unknown
+): Promise<T> {
+  const response = await fetch(path, {
+    method,
+    ...(body === undefined
+      ? {}
+      : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  })
+
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(
+      response.status === 401
+        ? 'Your admin session has expired. Please log in again.'
+        : payload.error || `Request failed (${response.status})`
+    )
+  }
+  return payload as T
+}
 
 /**
  * Extended interfaces for awards with related data
@@ -117,137 +144,105 @@ export async function getAwardsWithNominees(voterIdentifier?: string): Promise<A
 }
 
 /**
- * Create a new award (Admin only)
+ * Create an award. Season defaults to the league's current season server-side.
  */
-export async function createAward(award: Omit<Award, 'id' | 'created_at' | 'updated_at'>): Promise<Award | null> {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('awards')
-      .insert(award)
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  } catch (error) {
-    console.error('Error creating award:', error)
-    return null
-  }
+export async function createAward(award: {
+  name: string
+  description?: string
+  season?: string
+  is_active?: boolean
+  voting_start_date?: string | null
+  voting_end_date?: string | null
+}): Promise<Award> {
+  const { award: created } = await apiRequest<{ award: Award }>(
+    '/api/admin/awards',
+    'POST',
+    {
+      name: award.name,
+      description: award.description,
+      season: award.season,
+      isActive: award.is_active,
+      votingStartDate: award.voting_start_date,
+      votingEndDate: award.voting_end_date,
+    }
+  )
+  return created
 }
 
 /**
- * Update an award (Admin only)
+ * Update an award.
  */
-export async function updateAward(id: string, updates: Partial<Award>): Promise<Award | null> {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('awards')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  } catch (error) {
-    console.error('Error updating award:', error)
-    return null
-  }
+export async function updateAward(
+  id: string,
+  updates: Partial<Award>
+): Promise<Award> {
+  const { award } = await apiRequest<{ award: Award }>(
+    `/api/admin/awards/${id}`,
+    'PATCH',
+    {
+      name: updates.name,
+      description: updates.description,
+      season: updates.season,
+      isActive: updates.is_active,
+      votingStartDate: updates.voting_start_date,
+      votingEndDate: updates.voting_end_date,
+    }
+  )
+  return award
 }
 
 /**
- * Delete an award (Admin only)
+ * Delete an award along with its nominees and votes.
  */
-export async function deleteAward(id: string): Promise<boolean> {
-  try {
-    const { error } = await supabaseAdmin
-      .from('awards')
-      .delete()
-      .eq('id', id)
-
-    if (error) throw error
-    return true
-  } catch (error) {
-    console.error('Error deleting award:', error)
-    return false
-  }
+export async function deleteAward(id: string): Promise<void> {
+  await apiRequest(`/api/admin/awards/${id}`, 'DELETE')
 }
 
 /**
- * Add a nominee to an award (Admin only)
+ * Nominate a player for an award.
  */
-export async function addNominee(awardId: string, playerId: string): Promise<AwardNominee | null> {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('award_nominees')
-      .insert({ award_id: awardId, player_id: playerId })
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  } catch (error) {
-    console.error('Error adding nominee:', error)
-    return null
-  }
+export async function addNominee(
+  awardId: string,
+  playerId: string
+): Promise<AwardNominee> {
+  const { nominee } = await apiRequest<{ nominee: AwardNominee }>(
+    `/api/admin/awards/${awardId}/nominees`,
+    'POST',
+    { playerId }
+  )
+  return nominee
 }
 
 /**
- * Remove a nominee from an award (Admin only)
+ * Remove a nominee and any votes cast for them.
  */
-export async function removeNominee(nomineeId: string): Promise<boolean> {
-  try {
-    const { error } = await supabaseAdmin
-      .from('award_nominees')
-      .delete()
-      .eq('id', nomineeId)
-
-    if (error) throw error
-    return true
-  } catch (error) {
-    console.error('Error removing nominee:', error)
-    return false
-  }
+export async function removeNominee(nomineeId: string): Promise<void> {
+  await apiRequest(`/api/admin/nominees/${nomineeId}`, 'DELETE')
 }
 
 /**
- * Submit a vote for a nominee
+ * Cast a vote.
+ *
+ * Returns null on success, or a message to show the voter. Duplicate votes are
+ * rejected by a database constraint, so the "you already voted" case comes back
+ * as a real error rather than a silent no-op.
  */
 export async function submitVote(
   awardId: string,
   nomineeId: string,
   voterIdentifier: string,
   voterName?: string
-): Promise<boolean> {
+): Promise<string | null> {
   try {
-    // Check if user has already voted for this award
-    const { data: existingVote } = await supabase
-      .from('award_votes')
-      .select('id')
-      .eq('award_id', awardId)
-      .eq('voter_identifier', voterIdentifier)
-      .single()
-
-    if (existingVote) {
-      console.error('User has already voted for this award')
-      return false
-    }
-
-    // Submit the vote
-    const { error } = await supabase
-      .from('award_votes')
-      .insert({
-        award_id: awardId,
-        nominee_id: nomineeId,
-        voter_identifier: voterIdentifier,
-        voter_name: voterName
-      })
-
-    if (error) throw error
-    return true
+    await apiRequest('/api/votes', 'POST', {
+      awardId,
+      nomineeId,
+      voterIdentifier,
+      voterName,
+    })
+    return null
   } catch (error) {
-    console.error('Error submitting vote:', error)
-    return false
+    return error instanceof Error ? error.message : 'Failed to submit vote'
   }
 }
 

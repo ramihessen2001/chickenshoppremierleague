@@ -1,6 +1,5 @@
 /**
- * StatCategory component for YM JAX Soccer League
- * Displays a single statistic category (goals, assists, etc.) by team
+ * One statistic category (goals, assists, ...) side by side for both teams.
  */
 
 import { GameStatistic } from '@/types/statistic'
@@ -42,7 +41,7 @@ export function StatCategory({
             <ul className="space-y-2">
               {homeStats.map(stat => {
                 const playerName = stat.playerName || 'Unknown Player'
-                const jerseyNumber = stat.jerseyNumber || 0
+                const jerseyNumber = stat.jerseyNumber ?? null
                 const count = stat.count || 1
                 const isPlayerOfGame = stat.playerId === playerOfGameId
                 
@@ -70,7 +69,7 @@ export function StatCategory({
             <ul className="space-y-2">
               {awayStats.map(stat => {
                 const playerName = stat.playerName || 'Unknown Player'
-                const jerseyNumber = stat.jerseyNumber || 0
+                const jerseyNumber = stat.jerseyNumber ?? null
                 const count = stat.count || 1
                 const isPlayerOfGame = stat.playerId === playerOfGameId
                 

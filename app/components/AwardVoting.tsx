@@ -69,24 +69,25 @@ export function AwardVoting() {
 
   const submitVoteWithName = async (awardId: string, nomineeId: string, name: string) => {
     setIsSubmitting(true)
-    const success = await submitVote(awardId, nomineeId, voterIdentifier, name)
-    
-    if (success) {
-      // Save the name for future votes
+
+    // submitVote returns null on success, or a message explaining the refusal
+    // (already voted, voting closed, and so on).
+    const failure = await submitVote(awardId, nomineeId, voterIdentifier, name)
+
+    if (failure === null) {
       localStorage.setItem('voter_name', name)
       setVoterName(name)
-      
-      // Refresh awards to update vote counts and voting status
+
       await fetchAwards(voterIdentifier)
-      // Clear selection for this award
+
       const newSelections = { ...selectedNominees }
       delete newSelections[awardId]
       setSelectedNominees(newSelections)
-      alert('Vote submitted successfully!')
+      alert('Vote submitted. Thanks!')
     } else {
-      alert('Failed to submit vote. You may have already voted for this award.')
+      alert(failure)
     }
-    
+
     setIsSubmitting(false)
     setShowNamePrompt(false)
     setPendingVote(null)

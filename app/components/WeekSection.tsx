@@ -1,16 +1,16 @@
 /**
- * WeekSection component for YM JAX Soccer League
- * Displays all games for a single week
+ * All games for a single week of the schedule.
  */
 
 'use client'
 
 import { Game } from '@/types/game'
-import { getTeamById } from '@/config/teams'
+import { displayJersey } from '@/types/player'
+import { useTeams } from '@/lib/teamsContext'
+import { LEAGUE } from '@/config/league'
 import { formatDate, formatTime } from '@/lib/dateUtils'
 import { Pencil, Edit, Plus, Trash2, Trophy } from 'lucide-react'
-import { deleteLocalGame } from '@/lib/localStore'
-import { triggerDataRefresh } from '@/lib/ClientDataProvider'
+import { deleteGame, notifyDataUpdated } from '@/lib/supabaseData'
 import Image from 'next/image'
 
 interface WeekSectionProps {
@@ -24,38 +24,38 @@ interface WeekSectionProps {
 }
 
 export function WeekSection({ weekNumber, games, isCurrentWeek, onGameClick, onEditBoxScore, onEditGame, onAddGame }: WeekSectionProps) {
+  const label = weekNumber === 0 ? 'Playoffs' : `Week ${weekNumber}`
+
   return (
     <div className={`mb-8 p-6 rounded-lg border-2 ${
-      isCurrentWeek 
-        ? 'border-[#D47F7D] bg-[#D47F7D]/5' 
+      isCurrentWeek
+        ? 'border-[#D47F7D] bg-[#D47F7D]/5'
         : 'border-[#523232]'
     }`}>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <h3 className="text-2xl font-bold uppercase text-black">
-            Day {weekNumber}
-          </h3>
+          <h3 className="text-2xl font-bold uppercase text-black">{label}</h3>
           {isCurrentWeek && (
             <span className="px-3 py-1 text-sm font-semibold bg-[#D47F7D] text-black rounded-full">
-              TODAY
+              Current
             </span>
           )}
         </div>
-        
+
         {onAddGame && (
           <button
             onClick={onAddGame}
             className="flex items-center gap-2 px-4 py-2 bg-[#D47F7D] text-black rounded hover:bg-[#c66f6d] transition-colors text-sm font-semibold"
-            aria-label={`Add game to day ${weekNumber}`}
+            aria-label={`Add game to ${label}`}
           >
             <Plus size={16} />
             Add Game
           </button>
         )}
       </div>
-      
+
       {games.length === 0 ? (
-        <p className="text-[#B7853E]">No games scheduled for this day</p>
+        <p className="text-[#B7853E]">No games scheduled for this week</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {games.map(game => (
@@ -81,42 +81,41 @@ interface ScheduleGameCardProps {
 }
 
 function ScheduleGameCard({ game, onClick, onEditBoxScore, onEditGame }: ScheduleGameCardProps) {
-  const homeTeam = getTeamById(game.homeTeamId)
-  const awayTeam = getTeamById(game.awayTeamId)
-  
-  if (!homeTeam || !awayTeam) return null
-  
+  const { teamName } = useTeams()
+  const homeTeamName = teamName(game.homeTeamId)
+  const awayTeamName = teamName(game.awayTeamId)
+
   const isCompleted = game.status === 'completed' && game.homeScore !== null && game.awayScore !== null
-  
+
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (confirm(`Delete this game (${homeTeam.name} vs ${awayTeam.name})?`)) {
-      const success = deleteLocalGame(game.id)
-      if (success) {
-        triggerDataRefresh()
-      } else {
-        alert('Failed to delete game')
-      }
+    if (!confirm(`Delete this game (${homeTeamName} vs ${awayTeamName})?`)) return
+
+    try {
+      await deleteGame(game.id)
+      notifyDataUpdated()
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to delete game')
     }
   }
-  
+
   return (
     <div className="relative">
       <button
         onClick={onClick}
         className="block w-full p-4 border border-[#523232] rounded-lg shadow-league hover:border-[#D47F7D] transition-colors text-left"
-        aria-label={`View box score for ${homeTeam.name} vs ${awayTeam.name}`}
+        aria-label={`View box score for ${homeTeamName} vs ${awayTeamName}`}
       >
         {/* Teams and score */}
         <div className="mb-3">
           <div className="flex justify-between items-center mb-1">
-            <span className="font-semibold text-black">{homeTeam.name}</span>
+            <span className="font-semibold text-black">{homeTeamName}</span>
             {isCompleted && (
               <span className="text-xl font-black text-[#D47F7D]">{game.homeScore}</span>
             )}
           </div>
           <div className="flex justify-between items-center">
-            <span className="font-semibold text-black">{awayTeam.name}</span>
+            <span className="font-semibold text-black">{awayTeamName}</span>
             {isCompleted && (
               <span className="text-xl font-black text-[#D47F7D]">{game.awayScore}</span>
             )}
@@ -147,8 +146,8 @@ function ScheduleGameCard({ game, onClick, onEditBoxScore, onEditGame }: Schedul
           <div className="mt-4 pt-4 border-t border-[#B7853E]/30">
             <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg">
               <Image
-                src="/images/puro_logo.png"
-                alt="Puro"
+                src={LEAGUE.manOfTheMatch.badgeImageUrl}
+                alt=""
                 width={45}
                 height={45}
                 className="rounded-full"
@@ -156,10 +155,10 @@ function ScheduleGameCard({ game, onClick, onEditBoxScore, onEditGame }: Schedul
               <div className="flex-1">
                 <p className="text-xs text-black font-bold uppercase flex items-center gap-1.5">
                   <Trophy size={13} className="text-black" />
-                  Puro Man of The Match
+                  {LEAGUE.manOfTheMatch.label}
                 </p>
                 <p className="text-sm font-black text-black mt-0.5">
-                  #{game.playerOfGame.jerseyNumber} {game.playerOfGame.name}
+                  #{displayJersey(game.playerOfGame.jerseyNumber)} {game.playerOfGame.name}
                 </p>
               </div>
             </div>

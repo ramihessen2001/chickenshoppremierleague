@@ -1,6 +1,5 @@
 /**
- * AdminBanner component for YM JAX Soccer League
- * Persistent banner shown when in admin mode
+ * Persistent banner shown while an admin session is active.
  */
 
 'use client'

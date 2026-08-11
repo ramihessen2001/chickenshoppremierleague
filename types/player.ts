@@ -1,16 +1,24 @@
 /**
- * Player type definitions for YM Soccer League
- * Represents an individual player on a team
+ * Player types.
  */
 
 export interface Player {
-  id: string                    // Unique identifier
-  name: string                  // Full name (e.g., "Omar Helmy")
-  jerseyNumber: number | 'TBD'  // Jersey number (0-999) or 'TBD' if not assigned
-  teamId: string                // Foreign key to Team.id
-  isActive: boolean             // Active roster vs inactive
-  position?: string             // Optional: 'Forward', 'Midfielder', 'Defender', 'Goalkeeper'
-  createdAt: string             // ISO 8601 timestamp
-  updatedAt: string             // ISO 8601 timestamp
+  id: string
+  name: string
+  /** Null when no shirt number has been assigned yet -- displayed as "TBD". */
+  jerseyNumber: number | null
+  /** Team slug in UI code, team UUID in write payloads. */
+  teamId: string
+  isActive: boolean
+  /** Forward | Midfielder | Defender | Goalkeeper */
+  position?: string
+  createdAt: string
+  updatedAt: string
 }
 
+/** How a shirt number should read on screen. */
+export function displayJersey(jerseyNumber: number | null | undefined): string {
+  return jerseyNumber === null || jerseyNumber === undefined
+    ? 'TBD'
+    : String(jerseyNumber)
+}

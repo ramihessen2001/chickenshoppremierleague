@@ -3,12 +3,14 @@
  * Used to highlight the "Puro Man of The Match"
  */
 
+import { displayJersey } from '@/types/player'
+
 import Image from 'next/image'
 import { Trophy } from 'lucide-react'
 
 interface PuroPlayerBadgeProps {
   playerName: string
-  jerseyNumber: number
+  jerseyNumber: number | null
   isPlayerOfGame?: boolean
   className?: string
 }
@@ -22,7 +24,7 @@ export function PuroPlayerBadge({
   if (!isPlayerOfGame) {
     return (
       <span className={className}>
-        #{jerseyNumber} {playerName}
+        #{displayJersey(jerseyNumber)} {playerName}
       </span>
     )
   }
@@ -30,7 +32,7 @@ export function PuroPlayerBadge({
   return (
     <span className={`inline-flex items-center gap-2 ${className}`}>
       <span className="font-bold text-[#FFD700]">
-        #{jerseyNumber} {playerName}
+        #{displayJersey(jerseyNumber)} {playerName}
       </span>
       <Trophy size={16} className="text-[#FFD700]" />
     </span>

@@ -1,6 +1,5 @@
 /**
- * Award Management Component
- * Admin interface for creating and managing awards and nominees
+ * Admin interface for creating awards, nominating players and reading results.
  */
 
 'use client'
@@ -18,11 +17,12 @@ import {
   getAwardVoteResults
 } from '@/lib/supabaseAwards'
 import { getAllPlayersWithStats } from '@/lib/supabaseData'
+import { displayJersey } from '@/types/player'
 
 interface PlayerStats {
   id: string
   name: string
-  jerseyNumber: number
+  jerseyNumber: number | null
   team: {
     id: string
     name: string
@@ -46,11 +46,11 @@ export function AwardManagement() {
     voterNames: string[]
   }>>([])
 
-  // Form state for creating/editing awards
+  // Form state for creating awards. Season is deliberately absent: the server
+  // stamps each award with the season from league_config.
   const [awardForm, setAwardForm] = useState({
     name: '',
     description: '',
-    season: '2025 Winter',
     is_active: true
   })
 
@@ -83,40 +83,35 @@ export function AwardManagement() {
       return
     }
 
-    const newAward = await createAward(awardForm)
-    if (newAward) {
+    try {
+      const newAward = await createAward(awardForm)
       setAwards([newAward, ...awards])
       setShowCreateModal(false)
-      setAwardForm({
-        name: '',
-        description: '',
-        season: '2025 Winter',
-        is_active: true
-      })
-      alert('Award created successfully!')
-    } else {
-      alert('Failed to create award')
+      setAwardForm({ name: '', description: '', is_active: true })
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to create award')
     }
   }
 
   const handleToggleActive = async (award: Award) => {
-    const updated = await updateAward(award.id, { is_active: !award.is_active })
-    if (updated) {
-      setAwards(awards.map(a => a.id === award.id ? updated : a))
+    try {
+      const updated = await updateAward(award.id, { is_active: !award.is_active })
+      setAwards(awards.map(a => (a.id === award.id ? updated : a)))
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to update award')
     }
   }
 
   const handleDeleteAward = async (awardId: string) => {
-    if (!confirm('Are you sure you want to delete this award? This will also delete all nominees and votes.')) {
+    if (!confirm('Delete this award? Its nominees and votes are deleted too.')) {
       return
     }
 
-    const success = await deleteAward(awardId)
-    if (success) {
+    try {
+      await deleteAward(awardId)
       setAwards(awards.filter(a => a.id !== awardId))
-      alert('Award deleted successfully!')
-    } else {
-      alert('Failed to delete award')
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to delete award')
     }
   }
 
@@ -157,18 +152,16 @@ export function AwardManagement() {
       return
     }
 
-    const nominee = await addNominee(selectedAward.id, selectedPlayerId)
-    if (nominee) {
+    try {
+      const nominee = await addNominee(selectedAward.id, selectedPlayerId)
       const player = players.find(p => p.id === selectedPlayerId)
-      setNominees([...nominees, {
-        id: nominee.id,
-        player_id: selectedPlayerId,
-        playerName: player?.name || ''
-      }])
+      setNominees([
+        ...nominees,
+        { id: nominee.id, player_id: selectedPlayerId, playerName: player?.name || '' },
+      ])
       setSelectedPlayerId('')
-      alert('Nominee added successfully!')
-    } else {
-      alert('Failed to add nominee')
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to add nominee')
     }
   }
 
@@ -177,12 +170,11 @@ export function AwardManagement() {
       return
     }
 
-    const success = await removeNominee(nomineeId)
-    if (success) {
+    try {
+      await removeNominee(nomineeId)
       setNominees(nominees.filter(n => n.id !== nomineeId))
-      alert('Nominee removed successfully!')
-    } else {
-      alert('Failed to remove nominee')
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to remove nominee')
     }
   }
 
@@ -329,17 +321,10 @@ export function AwardManagement() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Season
-                </label>
-                <input
-                  type="text"
-                  value={awardForm.season}
-                  onChange={(e) => setAwardForm({ ...awardForm, season: e.target.value })}
-                  className="w-full px-4 py-2 bg-[#0a0a0a] border border-[#523232] rounded-lg text-white focus:border-[#D47F7D] focus:outline-none"
-                />
-              </div>
+              <p className="text-sm text-gray-400">
+                The award is stamped with the league&apos;s current season
+                automatically.
+              </p>
 
               <div className="flex items-center gap-2">
                 <input
@@ -401,7 +386,7 @@ export function AwardManagement() {
                   <option value="">Select a player...</option>
                   {players.map(player => (
                     <option key={player.id} value={player.id}>
-                      #{player.jerseyNumber} {player.name} ({player.team?.name || 'No Team'})
+                      #{displayJersey(player.jerseyNumber)} {player.name} ({player.team?.name || 'No Team'})
                     </option>
                   ))}
                 </select>

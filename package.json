@@ -1,12 +1,14 @@
 {
-  "name": "nextjs",
-  "version": "0.1.0",
+  "name": "cspl-league-website",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "seed": "node database/seed.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.89.0",
@@ -15,7 +17,8 @@
     "lucide-react": "^0.562.0",
     "next": "16.1.0",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
