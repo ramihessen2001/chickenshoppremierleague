@@ -1,20 +1,19 @@
 /**
- * A team's page: crest, roster and fixtures.
+ * A team's page: crest and name, then roster and fixtures side by side.
  */
 
 'use client'
 
 import { useState } from 'react'
 import Image from 'next/image'
-import Link from 'next/link'
+import { Plus } from 'lucide-react'
 import { Team } from '@/types/team'
 import { Game } from '@/types/game'
+import { Player } from '@/types/player'
 import { PlayerList } from './PlayerList'
 import { TeamSchedule } from './TeamSchedule'
 import { EditPlayerModal } from './EditPlayerModal'
 import { useAdmin } from '@/lib/adminContext'
-import { ArrowLeft, Plus } from 'lucide-react'
-import { Player } from '@/types/player'
 
 interface TeamRosterProps {
   team: Team
@@ -25,104 +24,82 @@ export function TeamRoster({ team, games = [] }: TeamRosterProps) {
   const { isAdmin } = useAdmin()
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  
-  const handleAddPlayer = () => {
-    setSelectedPlayer(null)
-    setIsEditModalOpen(true)
-  }
-  
-  const handleEditPlayer = (player: Player) => {
+
+  const openFor = (player: Player | null) => {
     setSelectedPlayer(player)
     setIsEditModalOpen(true)
   }
-  
-  const handleCloseModal = () => {
-    setIsEditModalOpen(false)
-    setTimeout(() => setSelectedPlayer(null), 200)
-  }
-  
+
+  const activeCount = team.roster.filter((p) => p.isActive).length
+
   return (
     <>
-      <div className="w-full py-12 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Back button */}
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-[#D47F7D] hover:text-[#D47F7D]/80 transition-colors mb-8"
-            aria-label="Back to homepage"
-          >
-            <ArrowLeft size={20} />
-            <span className="font-semibold">Back to Home</span>
-          </Link>
-          
-          {/* Team header */}
-          <div className="flex flex-col sm:flex-row items-center gap-6 mb-12">
-            <div className="relative w-42 h-42 sm:w-52 sm:h-52">
+      <header className="border-b border-hairline">
+        <div className="mx-auto max-w-6xl px-5 pt-14 pb-10 sm:px-8 sm:pt-20 sm:pb-12">
+          <div className="flex flex-wrap items-center justify-between gap-6">
+            <div className="flex min-w-0 items-center gap-5">
               <Image
                 src={team.logoUrl}
-                alt={`${team.name} logo`}
-                fill
-                sizes="(max-width: 768px) 168px, 208px"
-                className="object-contain"
+                alt=""
+                width={72}
+                height={72}
+                className="h-16 w-16 shrink-0 object-contain sm:h-[72px] sm:w-[72px]"
+                priority
               />
+              <div className="min-w-0">
+                <h1 className="truncate text-[2rem] font-semibold text-ink sm:text-[2.75rem]">
+                  {team.name}
+                </h1>
+                <p className="tabular mt-1.5 text-[15px] text-ink-secondary">
+                  {activeCount} {activeCount === 1 ? 'player' : 'players'}
+                </p>
+              </div>
             </div>
-            <div className="text-center sm:text-left flex-1">
-              <h1 className="text-4xl sm:text-5xl font-black text-black mb-2">
-                {team.name.toUpperCase()}
-              </h1>
-              <p className="text-xl text-gray-700">
-                {team.roster.length} {team.roster.length === 1 ? 'Player' : 'Players'}
-              </p>
-            </div>
-            
+
             {isAdmin && (
               <button
-                onClick={handleAddPlayer}
-                className="flex items-center gap-2 px-4 py-2 bg-[#D47F7D] text-white rounded hover:bg-[#c66f6d] transition-colors font-semibold"
+                onClick={() => openFor(null)}
+                className="inline-flex items-center gap-1.5 rounded-pill bg-surface-inverse px-4 py-2 text-[13px] font-medium text-ink-inverse transition-opacity hover:opacity-85"
               >
-                <Plus size={18} />
-                Add Player
+                <Plus size={15} />
+                Add player
               </button>
             )}
           </div>
-          
-          {/* Gold divider */}
-          <div className="h-px bg-gradient-to-r from-transparent via-[#B8860B] to-transparent mb-8" />
-          
-          {/* Two column layout for larger screens */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-            {/* Left column: Roster */}
-            <div>
-              <h2 className="text-2xl sm:text-3xl font-bold uppercase mb-6 text-[#D47F7D]">
-                Team Roster
-              </h2>
-              
-              <PlayerList 
-                players={team.roster} 
-                onEditPlayer={isAdmin ? handleEditPlayer : undefined}
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
+        <div className="grid gap-14 lg:grid-cols-[1fr_22rem] lg:gap-16">
+          <section aria-labelledby="roster-heading">
+            <h2 id="roster-heading" className="eyebrow">
+              Roster
+            </h2>
+            <div className="mt-5">
+              <PlayerList
+                players={team.roster}
+                onEditPlayer={isAdmin ? openFor : undefined}
               />
             </div>
-            
-            {/* Right column: Schedule */}
-            <div>
-              <h2 className="text-2xl sm:text-3xl font-bold uppercase mb-6 text-[#523232]">
-                Team Schedule
-              </h2>
-              
+          </section>
+
+          <section aria-labelledby="team-schedule-heading">
+            <h2 id="team-schedule-heading" className="eyebrow">
+              Fixtures
+            </h2>
+            <div className="mt-5">
               <TeamSchedule teamId={team.id} games={games} />
             </div>
-          </div>
+          </section>
         </div>
       </div>
-      
-      {/* Edit Player Modal */}
-      <EditPlayerModal 
-        player={selectedPlayer} 
-        isOpen={isEditModalOpen} 
-        onClose={handleCloseModal}
+
+      <EditPlayerModal
+        player={selectedPlayer}
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
         defaultTeamId={team.id}
       />
     </>
   )
 }
-

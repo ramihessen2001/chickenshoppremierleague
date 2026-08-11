@@ -1,8 +1,10 @@
 /**
- * One statistic category (goals, assists, ...) side by side for both teams.
+ * One statistic category (goals, assists, …) with each team's contributors
+ * side by side. Renders nothing when neither team recorded any.
  */
 
 import { GameStatistic } from '@/types/statistic'
+import { displayJersey } from '@/types/player'
 import { PuroPlayerBadge } from './PuroPlayerBadge'
 
 interface StatCategoryProps {
@@ -14,81 +16,76 @@ interface StatCategoryProps {
   playerOfGameId?: string | null
 }
 
-export function StatCategory({ 
-  title, 
-  homeTeamName, 
-  awayTeamName, 
-  homeStats, 
+export function StatCategory({
+  title,
+  homeTeamName,
+  awayTeamName,
+  homeStats,
   awayStats,
-  playerOfGameId 
+  playerOfGameId,
 }: StatCategoryProps) {
-  // Don't render if no stats for either team
-  if (homeStats.length === 0 && awayStats.length === 0) {
-    return null
-  }
-  
+  if (homeStats.length === 0 && awayStats.length === 0) return null
+
   return (
-    <div>
-      <h3 className="text-xl font-bold uppercase text-[#D47F7D] mb-4">{title}</h3>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Home team stats */}
-        <div>
-          <h4 className="text-lg font-semibold text-white mb-3">{homeTeamName}</h4>
-          {homeStats.length === 0 ? (
-            <p className="text-gray-400 text-sm">None</p>
-          ) : (
-            <ul className="space-y-2">
-              {homeStats.map(stat => {
-                const playerName = stat.playerName || 'Unknown Player'
-                const jerseyNumber = stat.jerseyNumber ?? null
-                const count = stat.count || 1
-                const isPlayerOfGame = stat.playerId === playerOfGameId
-                
-                return (
-                  <li key={stat.id} className="text-white">
-                    <PuroPlayerBadge
-                      playerName={playerName}
-                      jerseyNumber={jerseyNumber}
-                      isPlayerOfGame={isPlayerOfGame}
-                    />
-                    {count > 1 && <span className="text-[#D47F7D] ml-2">×{count}</span>}
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
-        
-        {/* Away team stats */}
-        <div>
-          <h4 className="text-lg font-semibold text-white mb-3">{awayTeamName}</h4>
-          {awayStats.length === 0 ? (
-            <p className="text-gray-400 text-sm">None</p>
-          ) : (
-            <ul className="space-y-2">
-              {awayStats.map(stat => {
-                const playerName = stat.playerName || 'Unknown Player'
-                const jerseyNumber = stat.jerseyNumber ?? null
-                const count = stat.count || 1
-                const isPlayerOfGame = stat.playerId === playerOfGameId
-                
-                return (
-                  <li key={stat.id} className="text-white">
-                    <PuroPlayerBadge
-                      playerName={playerName}
-                      jerseyNumber={jerseyNumber}
-                      isPlayerOfGame={isPlayerOfGame}
-                    />
-                    {count > 1 && <span className="text-[#D47F7D] ml-2">×{count}</span>}
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
+    <section className="border-b border-hairline py-6 last:border-0">
+      <h3 className="eyebrow">{title}</h3>
+
+      <div className="mt-4 grid gap-x-10 gap-y-6 sm:grid-cols-2">
+        <TeamColumn
+          teamName={homeTeamName}
+          stats={homeStats}
+          playerOfGameId={playerOfGameId}
+        />
+        <TeamColumn
+          teamName={awayTeamName}
+          stats={awayStats}
+          playerOfGameId={playerOfGameId}
+        />
       </div>
-    </div>
+    </section>
   )
 }
 
+function TeamColumn({
+  teamName,
+  stats,
+  playerOfGameId,
+}: {
+  teamName: string
+  stats: GameStatistic[]
+  playerOfGameId?: string | null
+}) {
+  return (
+    <div>
+      <p className="text-[13px] font-medium text-ink-secondary">{teamName}</p>
+
+      {stats.length === 0 ? (
+        <p className="mt-2 text-[14px] text-ink-tertiary">—</p>
+      ) : (
+        <ul className="mt-2 space-y-1.5">
+          {stats.map((stat) => (
+            <li key={stat.id} className="flex items-baseline gap-2 text-[14px]">
+              <span className="tabular w-7 shrink-0 text-ink-tertiary">
+                {displayJersey(stat.jerseyNumber)}
+              </span>
+              <span className="min-w-0 flex-1 text-ink">
+                <PuroPlayerBadge
+                  playerName={stat.playerName ?? 'Unknown player'}
+                  jerseyNumber={stat.jerseyNumber ?? null}
+                  isPlayerOfGame={
+                    playerOfGameId != null && stat.playerId === playerOfGameId
+                  }
+                />
+              </span>
+              {(stat.count ?? 1) > 1 && (
+                <span className="tabular shrink-0 text-ink-secondary">
+                  ×{stat.count}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}

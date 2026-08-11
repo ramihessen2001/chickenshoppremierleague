@@ -1,171 +1,149 @@
 /**
- * The whole season's schedule, grouped by week, with a playoff section if any
- * playoff games exist.
+ * The whole season, week by week, with a playoff section when one exists.
  */
 
 'use client'
 
 import { useState } from 'react'
+import { Plus } from 'lucide-react'
 import { Game } from '@/types/game'
 import { WeekSection } from './WeekSection'
+import { PageHeader } from './PageHeader'
 import { BoxScoreModal } from './BoxScoreModal'
 import { EditBoxScoreModal } from './EditBoxScoreModal'
 import { EditGameModal } from './EditGameModal'
 import { useAdmin } from '@/lib/adminContext'
 import { getGameById } from '@/lib/supabaseData'
-import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
 
 interface FullScheduleProps {
   games: Game[]
   currentWeek: number
   totalWeeks: number
+  season?: string | null
 }
 
-export function FullSchedule({ games, currentWeek, totalWeeks }: FullScheduleProps) {
+export function FullSchedule({
+  games,
+  currentWeek,
+  totalWeeks,
+  season,
+}: FullScheduleProps) {
   const { isAdmin } = useAdmin()
-  const [selectedGame, setSelectedGame] = useState<Game | null>(null)
-  const [selectedGameWithStats, setSelectedGameWithStats] = useState<Game | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isEditBoxScoreModalOpen, setIsEditBoxScoreModalOpen] = useState(false)
-  const [isEditGameModalOpen, setIsEditGameModalOpen] = useState(false)
-  const [newGameWeek, setNewGameWeek] = useState<number | undefined>(undefined)
-  
-  const handleGameClick = async (game: Game) => {
-    // Load full game with statistics from Supabase for viewing
-    const fullGame = await getGameById(game.id)
-    
-    if (fullGame) {
-      setSelectedGame(fullGame)
-      setIsModalOpen(true)
+  const [gameForView, setGameForView] = useState<Game | null>(null)
+  const [gameForBoxScore, setGameForBoxScore] = useState<Game | null>(null)
+  const [gameForDetails, setGameForDetails] = useState<Game | null>(null)
+  const [newGameWeek, setNewGameWeek] = useState<number | undefined>()
+  const [isViewOpen, setIsViewOpen] = useState(false)
+  const [isBoxScoreOpen, setIsBoxScoreOpen] = useState(false)
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+
+  const handleView = async (game: Game) => {
+    const full = await getGameById(game.id)
+    if (full) {
+      setGameForView(full)
+      setIsViewOpen(true)
     }
   }
-  
+
   const handleEditBoxScore = async (game: Game) => {
-    // Load full game with statistics from Supabase for editing
-    const fullGame = await getGameById(game.id)
-    
-    if (fullGame) {
-      setSelectedGameWithStats(fullGame)
-      setIsEditBoxScoreModalOpen(true)
+    const full = await getGameById(game.id)
+    if (full) {
+      setGameForBoxScore(full)
+      setIsBoxScoreOpen(true)
     }
   }
-  
+
   const handleEditGame = (game: Game) => {
-    setSelectedGame(game)
-    setIsEditGameModalOpen(true)
-  }
-  
-  const handleAddGame = (weekNumber: number) => {
-    setSelectedGame(null)
-    setNewGameWeek(weekNumber)
-    setIsEditGameModalOpen(true)
-  }
-  
-  const handleCloseModal = () => {
-    setIsModalOpen(false)
-    setTimeout(() => setSelectedGame(null), 200)
-  }
-  
-  const handleCloseEditBoxScoreModal = () => {
-    setIsEditBoxScoreModalOpen(false)
-    setTimeout(() => {
-      setSelectedGame(null)
-      setSelectedGameWithStats(null)
-    }, 200)
-  }
-  
-  const handleCloseEditGameModal = () => {
-    setIsEditGameModalOpen(false)
+    setGameForDetails(game)
     setNewGameWeek(undefined)
-    setTimeout(() => setSelectedGame(null), 200)
+    setIsDetailsOpen(true)
   }
-  
-  // Group games by week
-  const gamesByWeek = new Map<number, Game[]>()
-  games.forEach(game => {
-    if (!gamesByWeek.has(game.weekNumber)) {
-      gamesByWeek.set(game.weekNumber, [])
-    }
-    gamesByWeek.get(game.weekNumber)!.push(game)
-  })
-  
-  // Sort games within each week by date
-  gamesByWeek.forEach(weekGames => {
-    weekGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-  })
-  
+
+  const handleAddGame = (weekNumber: number) => {
+    setGameForDetails(null)
+    setNewGameWeek(weekNumber)
+    setIsDetailsOpen(true)
+  }
+
+  // Group by week, each week ordered by date then kickoff.
+  const byWeek = new Map<number, Game[]>()
+  for (const game of games) {
+    if (!byWeek.has(game.weekNumber)) byWeek.set(game.weekNumber, [])
+    byWeek.get(game.weekNumber)!.push(game)
+  }
+  for (const weekGames of byWeek.values()) {
+    weekGames.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
+  }
+
+  const playoffGames = byWeek.get(0) ?? []
+  const hasAnyGames = games.length > 0
+
   return (
     <>
-      <div className="w-full py-12 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Back button */}
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-[#D47F7D] hover:text-[#D47F7D]/80 transition-colors mb-8"
-            aria-label="Back to homepage"
-          >
-            <ArrowLeft size={20} />
-            <span className="font-semibold">Back to Home</span>
-          </Link>
-          
-          {/* Page header */}
-          <div className="text-center mb-12">
-            <h1 className="text-4xl sm:text-5xl font-black text-black mb-4">
-              FULL SEASON SCHEDULE
-            </h1>
-            <p className="text-xl text-[#B7853E]">
-              {totalWeeks} weeks • Currently week {currentWeek}
-            </p>
-          </div>
-          
-          {/* Gold divider */}
-          <div className="h-px bg-gradient-to-r from-transparent via-[#B8860B] to-transparent mb-12" />
-          
-          {/* One section per week, then playoffs (week 0) at the end if the
-              bracket has been scheduled. */}
-          <div className="space-y-6">
-            {Array.from({ length: totalWeeks }, (_, i) => i + 1).map(week => (
-              <WeekSection
-                key={week}
-                weekNumber={week}
-                games={gamesByWeek.get(week) || []}
-                isCurrentWeek={week === currentWeek}
-                onGameClick={handleGameClick}
-                onEditBoxScore={isAdmin ? handleEditBoxScore : undefined}
-                onEditGame={isAdmin ? handleEditGame : undefined}
-                onAddGame={isAdmin ? () => handleAddGame(week) : undefined}
-              />
-            ))}
-
-            {(gamesByWeek.get(0)?.length ?? 0) > 0 && (
-              <WeekSection
-                weekNumber={0}
-                games={gamesByWeek.get(0)!}
-                isCurrentWeek={false}
-                onGameClick={handleGameClick}
-                onEditBoxScore={isAdmin ? handleEditBoxScore : undefined}
-                onEditGame={isAdmin ? handleEditGame : undefined}
-                onAddGame={isAdmin ? () => handleAddGame(0) : undefined}
-              />
-            )}
-          </div>
-        </div>
-      </div>
-      
-      {/* Box Score Modal */}
-      <BoxScoreModal game={selectedGame} isOpen={isModalOpen} onClose={handleCloseModal} />
-      
-      {/* Edit Box Score Modal */}
-      <EditBoxScoreModal
-        game={selectedGameWithStats}
-        isOpen={isEditBoxScoreModalOpen}
-        onClose={handleCloseEditBoxScoreModal}
+      <PageHeader
+        eyebrow={season ?? undefined}
+        title="Schedule"
+        description={
+          hasAnyGames
+            ? `${totalWeeks} weeks. Currently week ${currentWeek}.`
+            : 'No fixtures have been added yet.'
+        }
+        actions={
+          isAdmin ? (
+            <button
+              onClick={() => handleAddGame(currentWeek)}
+              className="inline-flex items-center gap-1.5 rounded-pill bg-surface-inverse px-4 py-2 text-[13px] font-medium text-ink-inverse transition-opacity hover:opacity-85"
+            >
+              <Plus size={15} />
+              Add game
+            </button>
+          ) : undefined
+        }
       />
-      
-      {/* Edit Game Modal */}
-      <EditGameModal game={selectedGame} isOpen={isEditGameModalOpen} onClose={handleCloseEditGameModal} defaultWeek={newGameWeek} />
+
+      <div className="mx-auto max-w-6xl px-5 pb-20 sm:px-8">
+        {Array.from({ length: totalWeeks }, (_, i) => i + 1).map((week) => (
+          <WeekSection
+            key={week}
+            weekNumber={week}
+            games={byWeek.get(week) ?? []}
+            isCurrentWeek={week === currentWeek}
+            onGameClick={handleView}
+            onEditBoxScore={isAdmin ? handleEditBoxScore : undefined}
+            onEditGame={isAdmin ? handleEditGame : undefined}
+            onAddGame={isAdmin ? () => handleAddGame(week) : undefined}
+          />
+        ))}
+
+        {playoffGames.length > 0 && (
+          <WeekSection
+            weekNumber={0}
+            games={playoffGames}
+            isCurrentWeek={false}
+            onGameClick={handleView}
+            onEditBoxScore={isAdmin ? handleEditBoxScore : undefined}
+            onEditGame={isAdmin ? handleEditGame : undefined}
+            onAddGame={isAdmin ? () => handleAddGame(0) : undefined}
+          />
+        )}
+      </div>
+
+      <BoxScoreModal
+        game={gameForView}
+        isOpen={isViewOpen}
+        onClose={() => setIsViewOpen(false)}
+      />
+      <EditBoxScoreModal
+        game={gameForBoxScore}
+        isOpen={isBoxScoreOpen}
+        onClose={() => setIsBoxScoreOpen(false)}
+      />
+      <EditGameModal
+        game={gameForDetails}
+        isOpen={isDetailsOpen}
+        onClose={() => setIsDetailsOpen(false)}
+        defaultWeek={newGameWeek}
+      />
     </>
   )
 }
-

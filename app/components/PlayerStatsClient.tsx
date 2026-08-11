@@ -1,32 +1,31 @@
 /**
- * Player statistics table, with team filtering, search and sorting.
+ * Player statistics: one sortable table, filterable by team and searchable.
+ *
+ * Previously this rendered a desktop table and a separate mobile card list with
+ * the same data duplicated in both. Now it is a single table that scrolls
+ * horizontally on narrow screens.
  */
 
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
-import { fallbackTeamLogo } from '@/config/league'
-import Link from 'next/link'
+import { ArrowUp, ArrowDown, Search, Star } from 'lucide-react'
 import { getAllPlayersWithStats } from '@/lib/supabaseData'
 import { useTeams } from '@/lib/teamsContext'
 import { displayJersey } from '@/types/player'
-import { Search, Filter, Trophy, Target, Users, ChevronLeft, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { fallbackTeamLogo } from '@/config/league'
 import { useAdmin } from '@/lib/adminContext'
 import { AwardVoting } from './AwardVoting'
 import { AwardManagement } from './AwardManagement'
+import { PageHeader } from './PageHeader'
 
 interface PlayerStats {
   id: string
   name: string
   jerseyNumber: number | null
   position: string | null
-  team: {
-    id: string
-    name: string
-    slug: string
-    logoUrl: string
-  } | null
+  team: { id: string; name: string; slug: string; logoUrl: string } | null
   goals: number
   assists: number
   saves: number
@@ -37,15 +36,18 @@ interface PlayerStats {
 type SortField = 'name' | 'team' | 'goals' | 'assists' | 'saves'
 type SortOrder = 'asc' | 'desc'
 
+/** Numeric columns sort high-to-low first, which is what you want from a stat. */
+const NUMERIC_FIELDS: SortField[] = ['goals', 'assists', 'saves']
+
 export function PlayerStatsClient() {
   const { isAdmin } = useAdmin()
   const { teams } = useTeams()
   const [players, setPlayers] = useState<PlayerStats[]>([])
-  const [selectedTeam, setSelectedTeam] = useState<string>('all')
-  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [selectedTeam, setSelectedTeam] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-  const [sortField, setSortField] = useState<SortField>('name')
-  const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
+  const [sortField, setSortField] = useState<SortField>('goals')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
 
   useEffect(() => {
     let cancelled = false
@@ -63,12 +65,6 @@ export function PlayerStatsClient() {
     }
   }, [])
 
-  /**
-   * The visible rows are derived from the player list plus the current filters,
-   * so they are computed rather than stored. Keeping them in state meant every
-   * keystroke triggered a second render pass, and left two sources of truth
-   * that could disagree.
-   */
   const filteredPlayers = useMemo(() => {
     let result = players
 
@@ -101,9 +97,11 @@ export function PlayerStatsClient() {
       }
     }
 
-    return [...result].sort((a, b) =>
-      sortOrder === 'asc' ? compare(a, b) : -compare(a, b)
-    )
+    return [...result].sort((a, b) => {
+      const primary = sortOrder === 'asc' ? compare(a, b) : -compare(a, b)
+      // Ties fall back to name so the order stays stable between renders.
+      return primary || a.name.localeCompare(b.name)
+    })
   }, [players, selectedTeam, searchQuery, sortField, sortOrder])
 
   const handleSort = (field: SortField) => {
@@ -111,305 +109,208 @@ export function PlayerStatsClient() {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
     } else {
       setSortField(field)
-      setSortOrder('asc')
+      setSortOrder(NUMERIC_FIELDS.includes(field) ? 'desc' : 'asc')
     }
-  }
-
-  /** Sort indicator for a column header. */
-  const sortIcon = (field: SortField) => {
-    if (sortField !== field) {
-      return <ArrowUpDown size={14} className="inline ml-1 opacity-50" />
-    }
-    return sortOrder === 'asc' ? (
-      <ArrowUp size={14} className="inline ml-1" />
-    ) : (
-      <ArrowDown size={14} className="inline ml-1" />
-    )
   }
 
   if (isLoading) {
     return (
-      <div className="w-full min-h-screen flex items-center justify-center">
-        <p className="text-white text-xl">Loading player statistics...</p>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <p className="text-[15px] text-ink-tertiary">Loading…</p>
       </div>
     )
   }
 
   return (
-    <div className="w-full min-h-screen pb-12">
-      {/* Header */}
-      <section className="py-8 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto">
-          <Link 
-            href="/"
-            className="inline-flex items-center gap-2 text-[#D47F7D] hover:text-[#B8860B] transition-colors mb-4"
+    <>
+      <PageHeader
+        title="Players"
+        description="Season totals for every player in the league."
+      />
+
+      <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
+        <section className="mb-14">
+          {isAdmin ? <AwardManagement /> : <AwardVoting />}
+        </section>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-0 flex-1 sm:max-w-xs">
+            <Search
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary"
+            />
+            <input
+              type="search"
+              placeholder="Search players"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Search players"
+              className="w-full rounded-pill border border-hairline-strong bg-surface py-2 pl-9 pr-4 text-[14px] text-ink placeholder:text-ink-tertiary focus:border-ink focus:outline-none"
+            />
+          </div>
+
+          <select
+            value={selectedTeam}
+            onChange={(e) => setSelectedTeam(e.target.value)}
+            aria-label="Filter by team"
+            className="rounded-pill border border-hairline-strong bg-surface px-4 py-2 text-[14px] text-ink focus:border-ink focus:outline-none"
           >
-            <ChevronLeft size={20} />
-            <span>Back to Home</span>
-          </Link>
-          <h1 className="text-3xl sm:text-4xl font-black uppercase text-black mb-2">
-            Player Statistics
-          </h1>
-          <p className="text-gray-400">
-            View all player stats across the league
+            <option value="all">All teams</option>
+            {teams.map((team) => (
+              <option key={team.slug} value={team.slug}>
+                {team.name}
+              </option>
+            ))}
+          </select>
+
+          <p className="tabular ml-auto text-[13px] text-ink-tertiary">
+            {filteredPlayers.length}{' '}
+            {filteredPlayers.length === 1 ? 'player' : 'players'}
           </p>
         </div>
-      </section>
 
-      {/* Award Voting Section */}
-      <section className="px-4 sm:px-6 mb-8">
-        <div className="max-w-7xl mx-auto">
-          {isAdmin ? <AwardManagement /> : <AwardVoting />}
-        </div>
-      </section>
-
-      {/* Filters */}
-      <section className="px-4 sm:px-6 mb-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-[#1a1a1a] border border-[#523232] rounded-lg p-6">
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Search */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  <Search size={16} className="inline mr-2" />
-                  Search Player
-                </label>
-                <input
-                  type="text"
-                  placeholder="Search by name or jersey number..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-4 py-2 bg-[#0a0a0a] border border-[#523232] rounded-lg text-white placeholder-gray-500 focus:border-[#D47F7D] focus:outline-none"
-                />
-              </div>
-
-              {/* Team Filter */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  <Filter size={16} className="inline mr-2" />
-                  Filter by Team
-                </label>
-                <select
-                  value={selectedTeam}
-                  onChange={(e) => setSelectedTeam(e.target.value)}
-                  className="w-full px-4 py-2 bg-[#0a0a0a] border border-[#523232] rounded-lg text-white focus:border-[#D47F7D] focus:outline-none"
-                >
-                  <option value="all">All Teams</option>
-                  {teams.map(team => (
-                    <option key={team.slug} value={team.slug}>
-                      {team.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Results count */}
-            <div className="mt-4 text-sm text-gray-400">
-              Showing {filteredPlayers.length} player{filteredPlayers.length !== 1 ? 's' : ''}
-            </div>
+        {filteredPlayers.length === 0 ? (
+          <div className="mt-8 rounded-lg border border-dashed border-hairline-strong px-6 py-16 text-center">
+            <p className="text-[15px] text-ink-secondary">
+              {players.length === 0
+                ? 'No players have been added yet.'
+                : 'No players match those filters.'}
+            </p>
           </div>
-        </div>
-      </section>
-
-      {/* Stats Table */}
-      <section className="px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto">
-          {filteredPlayers.length === 0 ? (
-            <div className="bg-[#1a1a1a] border border-[#523232] rounded-lg p-12 text-center">
-              <Users size={48} className="mx-auto text-gray-500 mb-4" />
-              <p className="text-gray-400">No players found matching your criteria</p>
-            </div>
-          ) : (
-            <div className="bg-[#1a1a1a] border border-[#523232] rounded-lg overflow-hidden">
-              {/* Desktop Table */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-[#0a0a0a] border-b border-[#523232]">
-                    <tr>
-                      <th 
-                        className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider cursor-pointer hover:text-[#D47F7D] transition-colors"
-                        onClick={() => handleSort('name')}
-                      >
-                        Player
-                      {sortIcon('name')}
-                      </th>
-                      <th 
-                        className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider cursor-pointer hover:text-[#D47F7D] transition-colors"
-                        onClick={() => handleSort('team')}
-                      >
-                        Team
-                      {sortIcon('team')}
-                      </th>
-                      <th 
-                        className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider cursor-pointer hover:text-[#D47F7D] transition-colors"
-                        onClick={() => handleSort('goals')}
-                      >
-                        <Trophy size={14} className="inline mr-1" />
-                        Goals
-                      {sortIcon('goals')}
-                      </th>
-                      <th 
-                        className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider cursor-pointer hover:text-[#D47F7D] transition-colors"
-                        onClick={() => handleSort('assists')}
-                      >
-                        <Target size={14} className="inline mr-1" />
-                        Assists
-                      {sortIcon('assists')}
-                      </th>
-                      <th 
-                        className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider cursor-pointer hover:text-[#D47F7D] transition-colors"
-                        onClick={() => handleSort('saves')}
-                      >
-                        Saves
-                      {sortIcon('saves')}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#523232]">
-                    {filteredPlayers.map((player) => (
-                      <tr 
-                        key={player.id}
-                        className="hover:bg-[#0a0a0a] transition-colors"
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-[#523232] flex items-center justify-center font-bold text-white flex-shrink-0">
-                              #{displayJersey(player.jerseyNumber)}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-white">
-                                {player.name}
-                              </span>
-                              {/* Display Puro logos for Man of The Match awards */}
-                              {player.manOfTheMatchCount > 0 && (
-                                <div className="flex items-center gap-1">
-                                  {Array.from({ length: player.manOfTheMatchCount }).map((_, index) => (
-                                    <Image
-                                      key={index}
-                                      src="/images/puro_white.png"
-                                      alt="Man of The Match"
-                                      width={36}
-                                      height={36}
-                                      className="rounded-full"
-                                      title={`Man of The Match x${player.manOfTheMatchCount}`}
-                                    />
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {player.team && (
-                            <div className="flex items-center gap-2">
-                              <Image
-                                src={
-                                player.team.logoUrl || fallbackTeamLogo(player.team.slug)
-                              }
-                                alt={player.team.name}
-                                width={24}
-                                height={24}
-                                className="rounded"
-                              />
-                              <span className="text-gray-300">{player.team.name}</span>
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-white font-bold">
-                          {player.goals}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-white font-bold">
-                          {player.assists}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-white font-bold">
-                          {player.saves}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile Cards */}
-              <div className="md:hidden divide-y divide-[#523232]">
+        ) : (
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full min-w-[42rem] border-collapse">
+              <thead>
+                <tr className="border-b border-hairline-strong">
+                  {(
+                    [
+                      ['name', 'Player', 'left'],
+                      ['team', 'Team', 'left'],
+                      ['goals', 'Goals', 'right'],
+                      ['assists', 'Assists', 'right'],
+                      ['saves', 'Saves', 'right'],
+                    ] as [SortField, string, 'left' | 'right'][]
+                  ).map(([field, label, align]) => (
+                    <SortableHeader
+                      key={field}
+                      field={field}
+                      label={label}
+                      align={align}
+                      sortField={sortField}
+                      sortOrder={sortOrder}
+                      onSort={handleSort}
+                    />
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
                 {filteredPlayers.map((player) => (
-                  <div key={player.id} className="p-4">
-                    <div className="flex items-start gap-4 mb-4">
-                      <div className="w-12 h-12 rounded-full bg-[#523232] flex items-center justify-center font-bold text-white flex-shrink-0">
-                        #{displayJersey(player.jerseyNumber)}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-bold text-white text-lg">
-                            {player.name}
-                          </h3>
-                          {/* Display Puro logos for Man of The Match awards */}
-                          {player.manOfTheMatchCount > 0 && (
-                            <div className="flex items-center gap-1">
-                              {Array.from({ length: player.manOfTheMatchCount }).map((_, index) => (
-                                <Image
-                                  key={index}
-                                  src="/images/puro_white.png"
-                                  alt="Man of The Match"
-                                  width={32}
-                                  height={32}
-                                  className="rounded-full"
-                                  title={`Man of The Match x${player.manOfTheMatchCount}`}
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        {player.team && (
-                          <div className="flex items-center gap-2 text-sm text-gray-400">
-                            <Image
-                              src={
-                                player.team.logoUrl || fallbackTeamLogo(player.team.slug)
-                              }
-                              alt={player.team.name}
-                              width={20}
-                              height={20}
-                              className="rounded"
-                            />
-                            <span>{player.team.name}</span>
-                            {player.position && (
-                              <>
-                                <span>•</span>
-                                <span>{player.position}</span>
-                              </>
-                            )}
-                          </div>
+                  <tr
+                    key={player.id}
+                    className="border-b border-hairline transition-colors hover:bg-surface-hover"
+                  >
+                    <td className="py-3 pr-4">
+                      <div className="flex items-center gap-3">
+                        <span className="tabular w-7 shrink-0 text-[13px] text-ink-tertiary">
+                          {displayJersey(player.jerseyNumber)}
+                        </span>
+                        <span className="text-[14px] text-ink">{player.name}</span>
+                        {player.manOfTheMatchCount > 0 && (
+                          <span
+                            className="inline-flex shrink-0 items-center gap-0.5 text-[12px] text-ink-tertiary"
+                            title={`Man of the match ×${player.manOfTheMatchCount}`}
+                          >
+                            <Star size={11} className="fill-gold text-gold" />
+                            <span className="tabular">{player.manOfTheMatchCount}</span>
+                          </span>
                         )}
                       </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-4 gap-4 text-center">
-                      <div>
-                        <div className="text-xs text-gray-400 mb-1">GP</div>
-                        <div className="text-lg font-bold text-white">{player.gamesPlayed}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-400 mb-1">Goals</div>
-                        <div className="text-lg font-bold text-white">{player.goals}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-400 mb-1">Assists</div>
-                        <div className="text-lg font-bold text-white">{player.assists}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-400 mb-1">Saves</div>
-                        <div className="text-lg font-bold text-white">{player.saves}</div>
-                      </div>
-                    </div>
-                  </div>
+                    </td>
+
+                    <td className="py-3 pr-4">
+                      {player.team ? (
+                        <div className="flex items-center gap-2">
+                          <Image
+                            src={
+                              player.team.logoUrl || fallbackTeamLogo(player.team.slug)
+                            }
+                            alt=""
+                            width={18}
+                            height={18}
+                            className="h-[18px] w-[18px] shrink-0 object-contain"
+                          />
+                          <span className="text-[14px] text-ink-secondary">
+                            {player.team.name}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[14px] text-ink-tertiary">—</span>
+                      )}
+                    </td>
+
+                    <StatCell value={player.goals} />
+                    <StatCell value={player.assists} />
+                    <StatCell value={player.saves} />
+                  </tr>
                 ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-    </div>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
   )
 }
 
+/** A zero is greyed so the eye lands on players who actually contributed. */
+function StatCell({ value }: { value: number }) {
+  return (
+    <td className="py-3 text-right">
+      <span
+        className={`tabular text-[14px] ${
+          value === 0 ? 'text-ink-tertiary' : 'font-medium text-ink'
+        }`}
+      >
+        {value}
+      </span>
+    </td>
+  )
+}
+
+/** A clickable column header that reports the current sort to assistive tech. */
+function SortableHeader({
+  field,
+  label,
+  align,
+  sortField,
+  sortOrder,
+  onSort,
+}: {
+  field: SortField
+  label: string
+  align: 'left' | 'right'
+  sortField: SortField
+  sortOrder: SortOrder
+  onSort: (field: SortField) => void
+}) {
+  const isActive = sortField === field
+
+  return (
+    <th
+      scope="col"
+      aria-sort={isActive ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className={align === 'right' ? 'text-right' : 'text-left'}
+    >
+      <button
+        onClick={() => onSort(field)}
+        className={`inline-flex items-center gap-1 py-3 text-[12px] font-semibold uppercase tracking-wider transition-colors hover:text-ink ${
+          isActive ? 'text-ink' : 'text-ink-tertiary'
+        }`}
+      >
+        {label}
+        {isActive &&
+          (sortOrder === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+      </button>
+    </th>
+  )
+}

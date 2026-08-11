@@ -78,8 +78,8 @@ export default function TeamPage() {
     return (
       <div className="w-full min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#523232] mx-auto mb-4" />
-          <p className="text-gray-700">Loading team...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-hairline-strong mx-auto mb-4" />
+          <p className="text-ink-secondary">Loading team...</p>
         </div>
       </div>
     )
@@ -89,8 +89,8 @@ export default function TeamPage() {
     return (
       <div className="w-full min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-black mb-4">Team Not Found</h1>
-          <p className="text-gray-700">
+          <h1 className="text-4xl font-bold text-ink mb-4">Team Not Found</h1>
+          <p className="text-ink-secondary">
             There is no team with the id &quot;{teamId}&quot;.
           </p>
         </div>

@@ -71,13 +71,14 @@ function LeaderColumn({
 
   const counts = [...byCount.keys()].sort((a, b) => b - a).slice(0, 5)
 
-  let running = 1
-  const rows = counts.map((count) => {
+  const rows: { count: number; players: LeaderboardEntry['player'][]; rank: number }[] =
+    []
+  let nextRank = 1
+  for (const count of counts) {
     const players = byCount.get(count)!
-    const rank = running
-    running += players.length
-    return { count, players, rank }
-  })
+    rows.push({ count, players, rank: nextRank })
+    nextRank += players.length // a tie pushes the next rank past the whole group
+  }
 
   return (
     <div>

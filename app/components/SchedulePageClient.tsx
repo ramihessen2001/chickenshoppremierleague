@@ -1,77 +1,58 @@
 /**
- * SchedulePageClient - Client-side wrapper for schedule with real-time data from Supabase
+ * Schedule page: loads the season and hands it to FullSchedule to render.
  */
 
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { FullSchedule } from '@/app/components/FullSchedule'
 import { getAllGames, getLeagueConfig } from '@/lib/supabaseData'
 import { Game } from '@/types/game'
 
 export function SchedulePageClient() {
   const [games, setGames] = useState<Game[]>([])
-  const [currentWeek, setCurrentWeek] = useState<number>(1)
-  const [totalWeeks, setTotalWeeks] = useState<number>(12)
+  const [currentWeek, setCurrentWeek] = useState(1)
+  const [totalWeeks, setTotalWeeks] = useState(10)
+  const [season, setSeason] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
-      setIsLoading(true)
-      
-      // Fetch league config
-      const config = await getLeagueConfig()
+      const [config, allGames] = await Promise.all([getLeagueConfig(), getAllGames()])
       if (config) {
         setCurrentWeek(config.current_week)
         setTotalWeeks(config.total_weeks)
+        setSeason(config.season)
       }
-      
-      // Fetch all games from Supabase
-      const allGames = await getAllGames()
       setGames(allGames)
     } catch (error) {
       console.error('Error fetching schedule:', error)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchData()
-    
-    // Listen for data updates (custom event for when games are edited)
-    const handleDataUpdate = () => {
-      fetchData()
-    }
-    
-    window.addEventListener('dataUpdated', handleDataUpdate)
-    
-    return () => {
-      window.removeEventListener('dataUpdated', handleDataUpdate)
-    }
-  }, [])
+    const handleUpdate = () => fetchData()
+    window.addEventListener('dataUpdated', handleUpdate)
+    return () => window.removeEventListener('dataUpdated', handleUpdate)
+  }, [fetchData])
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-[#A0CAC9] via-[#A0CAC9] to-[#FFE0AF] py-12 flex items-center justify-center">
-        <p className="text-black text-xl">Loading schedule...</p>
-      </main>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <p className="text-[15px] text-ink-tertiary">Loading…</p>
+      </div>
     )
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#A0CAC9] via-[#A0CAC9] to-[#FFE0AF] py-12">
-      <div className="max-w-7xl mx-auto px-6">
-        <h1 className="text-4xl font-extrabold text-black uppercase text-center mb-10">
-          Full Season Schedule
-        </h1>
-        <FullSchedule 
-          games={games} 
-          currentWeek={currentWeek}
-          totalWeeks={totalWeeks}
-        />
-      </div>
-    </main>
+    <FullSchedule
+      games={games}
+      currentWeek={currentWeek}
+      totalWeeks={totalWeeks}
+      season={season}
+    />
   )
 }
-

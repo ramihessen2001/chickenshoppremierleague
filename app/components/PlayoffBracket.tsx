@@ -1,35 +1,30 @@
 /**
  * Playoff bracket.
  *
- * Rounds, matchups and seeds all come from the database. The previous version
- * hardcoded last season's seeds by team slug and printed fixed round dates
- * ("Play-In Round - January 4th"), so it went stale the moment the season
- * ended. Round dates are now derived from the games in each round.
+ * Rounds, matchups and dates all come from the database. The final is rendered
+ * separately by ChampionshipGameCard, so it is skipped here.
  */
 
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
-import { Trophy, Calendar, Clock, Pencil } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import { useAdmin } from '@/lib/adminContext'
 import { useTeams } from '@/lib/teamsContext'
-import { LEAGUE } from '@/config/league'
 import { EditBoxScoreModal } from './EditBoxScoreModal'
 import { BoxScoreModal } from './BoxScoreModal'
 import { Game } from '@/types/game'
 import { getPlayoffGames, getGameById } from '@/lib/supabaseData'
-import { formatDate } from '@/lib/dateUtils'
-import { displayJersey } from '@/types/player'
+import { formatDate, formatTime } from '@/lib/dateUtils'
 
-/** Rounds in the order they should appear, earliest first. */
-const ROUND_ORDER = ['play-in', 'quarterfinal', 'semifinal', 'final'] as const
+/** Rounds in the order they are played. */
+const ROUND_ORDER = ['play-in', 'quarterfinal', 'semifinal'] as const
 
 const ROUND_LABELS: Record<string, string> = {
-  'play-in': 'Play-In Round',
+  'play-in': 'Play-in',
   quarterfinal: 'Quarterfinals',
   semifinal: 'Semifinals',
-  final: 'Championship Final',
 }
 
 export function PlayoffBracket() {
@@ -38,11 +33,11 @@ export function PlayoffBracket() {
   const [playoffGames, setPlayoffGames] = useState<Game[]>([])
   const [gameForEdit, setGameForEdit] = useState<Game | null>(null)
   const [gameForView, setGameForView] = useState<Game | null>(null)
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isViewOpen, setIsViewOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
-  const loadPlayoffGames = useCallback(async () => {
+  const load = useCallback(async () => {
     setIsLoading(true)
     try {
       setPlayoffGames(await getPlayoffGames())
@@ -52,236 +47,188 @@ export function PlayoffBracket() {
   }, [])
 
   useEffect(() => {
-    loadPlayoffGames()
-    const handleUpdate = () => loadPlayoffGames()
+    load()
+    const handleUpdate = () => load()
     window.addEventListener('dataUpdated', handleUpdate)
     return () => window.removeEventListener('dataUpdated', handleUpdate)
-  }, [loadPlayoffGames])
+  }, [load])
 
-  const handleView = async (game: Game) => {
-    const full = await getGameById(game.id)
-    if (full) {
+  const open = async (game: Game, edit: boolean) => {
+    const full = (await getGameById(game.id)) ?? game
+    if (edit) {
+      setGameForEdit(full)
+      setIsEditOpen(true)
+    } else {
       setGameForView(full)
-      setIsViewModalOpen(true)
+      setIsViewOpen(true)
     }
   }
 
-  const handleEdit = async (game: Game) => {
-    const full = await getGameById(game.id)
-    setGameForEdit(full ?? game)
-    setIsEditModalOpen(true)
+  // The final has its own section, so it is excluded here. Unrecognised round
+  // names are still shown rather than silently dropped.
+  const byRound = new Map<string, Game[]>()
+  for (const game of playoffGames) {
+    const round = game.playoffRound || 'other'
+    if (round === 'final') continue
+    if (!byRound.has(round)) byRound.set(round, [])
+    byRound.get(round)!.push(game)
   }
 
-  /**
-   * Groups games by round, keeping ROUND_ORDER first and appending any
-   * unrecognised round names so nothing silently disappears from the bracket.
-   */
-  const rounds = (() => {
-    const byRound = new Map<string, Game[]>()
-    for (const game of playoffGames) {
-      const round = game.playoffRound || 'other'
-      if (!byRound.has(round)) byRound.set(round, [])
-      byRound.get(round)!.push(game)
-    }
+  const known = ROUND_ORDER.filter((round) => byRound.has(round))
+  const extra = [...byRound.keys()].filter(
+    (round) => !ROUND_ORDER.includes(round as (typeof ROUND_ORDER)[number])
+  )
+  const rounds = [...known, ...extra]
 
-    const known = ROUND_ORDER.filter((round) => byRound.has(round))
-    const extra = [...byRound.keys()].filter(
-      (round) => !ROUND_ORDER.includes(round as (typeof ROUND_ORDER)[number])
-    )
+  if (isLoading || rounds.length === 0) return null
 
-    return [...known, ...extra].map((round) => ({
-      round,
-      label: ROUND_LABELS[round] ?? 'Playoffs',
-      games: byRound.get(round)!,
-    }))
-  })()
-
-  if (isLoading) {
-    return (
-      <section className="py-12 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto text-center">
-          <p className="text-black">Loading playoff bracket...</p>
-        </div>
-      </section>
-    )
-  }
-
-  if (playoffGames.length === 0) return null
-
-  /** "Oct 12" or "Oct 12 – Oct 14" for the games in a round. */
-  const roundDateLabel = (games: Game[]): string => {
+  /** "Oct 12" or "Oct 12 – Oct 14" across the games in a round. */
+  const roundDates = (games: Game[]) => {
     const dates = [...new Set(games.map((g) => g.date))].filter(Boolean).sort()
     if (dates.length === 0) return ''
     if (dates.length === 1) return formatDate(dates[0])
     return `${formatDate(dates[0])} – ${formatDate(dates[dates.length - 1])}`
   }
 
-  const GameCard = ({ game }: { game: Game }) => {
-    const hasScores = game.homeScore !== null && game.awayScore !== null
-    const homeName = teamName(game.homeTeamId)
-    const awayName = teamName(game.awayTeamId)
-
-    const winner = !hasScores
-      ? undefined
-      : game.homeScore! > game.awayScore!
-        ? game.homeTeamId
-        : game.awayScore! > game.homeScore!
-          ? game.awayTeamId
-          : undefined
-
-    const TeamRow = ({
-      slug,
-      name,
-      score,
-    }: {
-      slug: string
-      name: string
-      score: number | null
-    }) => (
-      <div
-        className={`flex items-center justify-between p-3 rounded-lg ${
-          winner && winner === slug
-            ? 'bg-green-900/30 border border-green-700'
-            : 'bg-[#0a0a0a]'
+  const Side = ({
+    slug,
+    name,
+    score,
+    won,
+    played,
+  }: {
+    slug: string
+    name: string
+    score: number | null
+    won: boolean
+    played: boolean
+  }) => (
+    <div className="flex items-center gap-2.5">
+      {slug ? (
+        <Image
+          src={teamLogo(slug)}
+          alt=""
+          width={24}
+          height={24}
+          className="h-6 w-6 shrink-0 object-contain"
+        />
+      ) : (
+        <div className="h-6 w-6 shrink-0 rounded-full bg-surface-sunken" />
+      )}
+      <span
+        className={`flex-1 truncate text-[14px] ${
+          played && !won ? 'text-ink-secondary' : 'font-medium text-ink'
         }`}
       >
-        <div className="flex items-center gap-3">
-          {slug && (
-            <Image
-              src={teamLogo(slug)}
-              alt=""
-              width={32}
-              height={32}
-              className="rounded"
-            />
-          )}
-          <span className="font-bold text-white">{name}</span>
-        </div>
-        {hasScores && (
-          <span className="text-2xl font-black text-[#D47F7D]">{score}</span>
-        )}
-      </div>
-    )
-
-    return (
-      <div className="relative">
-        <button
-          onClick={() => handleView(game)}
-          className="w-full bg-[#1a1a1a] border border-[#523232] rounded-lg p-4 shadow-league hover:border-[#D47F7D] transition-colors text-left cursor-pointer"
-          aria-label={`View box score for ${homeName} versus ${awayName}`}
+        {name}
+      </span>
+      {played && (
+        <span
+          className={`tabular text-[16px] ${
+            won ? 'font-semibold text-ink' : 'text-ink-secondary'
+          }`}
         >
-          <div className="flex items-center justify-center gap-3 mb-3 text-xs text-gray-400">
-            <span className="flex items-center gap-1">
-              <Calendar size={12} />
-              {formatDate(game.date)}
-            </span>
-            <span>•</span>
-            <span className="flex items-center gap-1">
-              <Clock size={12} />
-              {game.time}
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            <TeamRow slug={game.homeTeamId} name={homeName} score={game.homeScore} />
-            <div className="text-center text-xs font-bold text-gray-500">VS</div>
-            <TeamRow slug={game.awayTeamId} name={awayName} score={game.awayScore} />
-          </div>
-
-          {hasScores && (
-            <div className="mt-3 flex justify-center">
-              <span className="text-xs px-3 py-1 bg-green-900/30 text-green-400 rounded-full font-semibold">
-                FINAL
-              </span>
-            </div>
-          )}
-
-          <p className="mt-2 text-center text-xs text-gray-500">{game.location}</p>
-
-          {game.playerOfGame && (
-            <div className="mt-4 pt-4 border-t border-[#523232]">
-              <div className="flex items-center gap-3 px-4 py-3 rounded-lg">
-                <Image
-                  src={LEAGUE.manOfTheMatch.badgeImageUrl}
-                  alt=""
-                  width={50}
-                  height={50}
-                  className="rounded-full"
-                />
-                <div className="flex-1">
-                  <p className="text-xs text-white font-bold uppercase flex items-center gap-1.5">
-                    <Trophy size={14} className="text-white" />
-                    {LEAGUE.manOfTheMatch.label}
-                  </p>
-                  <p className="text-base font-black text-white mt-1">
-                    #{displayJersey(game.playerOfGame.jerseyNumber)}{' '}
-                    {game.playerOfGame.name}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </button>
-
-        {isAdmin && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              handleEdit(game)
-            }}
-            className="absolute top-2 right-2 p-2 bg-[#D47F7D]/90 hover:bg-[#D47F7D] rounded-full transition-colors"
-            aria-label="Edit playoff game"
-          >
-            <Pencil size={16} className="text-black" />
-          </button>
-        )}
-      </div>
-    )
-  }
+          {score}
+        </span>
+      )}
+    </div>
+  )
 
   return (
     <>
-      <section className="py-12 px-4 sm:px-6" aria-labelledby="playoff-bracket-title">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <Trophy size={32} className="text-[#FFD700]" />
-              <h2
-                id="playoff-bracket-title"
-                className="text-3xl sm:text-4xl font-black uppercase text-black"
-              >
-                Playoff Bracket
-              </h2>
-              <Trophy size={32} className="text-[#FFD700]" />
-            </div>
-            <p className="text-gray-700">Road to the Championship</p>
-          </div>
+      <section
+        className="mx-auto max-w-6xl px-5 py-16 sm:px-8"
+        aria-labelledby="bracket-heading"
+      >
+        <h2
+          id="bracket-heading"
+          className="text-[28px] font-semibold text-ink sm:text-[32px]"
+        >
+          Playoffs
+        </h2>
 
-          {rounds.map(({ round, label, games }) => {
-            const dateLabel = roundDateLabel(games)
-            const isFinal = round === 'final'
+        <div className="mt-10 space-y-12">
+          {rounds.map((round) => {
+            const games = byRound.get(round)!
+            const dates = roundDates(games)
 
             return (
-              <div key={round} className="mb-12">
-                <h3 className="text-xl font-bold text-center text-[#523232] uppercase mb-6">
-                  {label}
-                  {dateLabel && (
-                    <span className="block text-sm font-semibold text-gray-700 normal-case mt-1">
-                      {dateLabel}
-                    </span>
+              <div key={round}>
+                <div className="flex items-baseline gap-3">
+                  <h3 className="text-[15px] font-semibold text-ink">
+                    {ROUND_LABELS[round] ?? 'Playoffs'}
+                  </h3>
+                  {dates && (
+                    <span className="tabular text-[13px] text-ink-tertiary">{dates}</span>
                   )}
-                </h3>
-                <div
-                  className={
-                    isFinal
-                      ? 'max-w-md mx-auto'
-                      : 'grid gap-6 md:grid-cols-2 max-w-4xl mx-auto'
-                  }
-                >
-                  {games.map((game) => (
-                    <GameCard key={game.id} game={game} />
-                  ))}
                 </div>
+
+                <ul className="mt-4 grid gap-4 sm:grid-cols-2">
+                  {games.map((game) => {
+                    const played = game.homeScore !== null && game.awayScore !== null
+                    const homeName = teamName(game.homeTeamId)
+                    const awayName = teamName(game.awayTeamId)
+                    const homeWon = played && game.homeScore! > game.awayScore!
+                    const awayWon = played && game.awayScore! > game.homeScore!
+
+                    return (
+                      <li key={game.id} className="group relative">
+                        <button
+                          onClick={() => open(game, false)}
+                          className="w-full rounded-lg border border-hairline bg-surface p-5 text-left transition-colors hover:bg-surface-hover"
+                          aria-label={`${homeName} versus ${awayName}`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="tabular text-[12px] text-ink-tertiary">
+                              {formatDate(game.date)} · {formatTime(game.time)}
+                            </p>
+                            {played && (
+                              <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-tertiary">
+                                Final
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="mt-4 space-y-2.5">
+                            <Side
+                              slug={game.homeTeamId}
+                              name={homeName}
+                              score={game.homeScore}
+                              won={homeWon}
+                              played={played}
+                            />
+                            <Side
+                              slug={game.awayTeamId}
+                              name={awayName}
+                              score={game.awayScore}
+                              won={awayWon}
+                              played={played}
+                            />
+                          </div>
+
+                          {game.location && (
+                            <p className="mt-4 truncate text-[12px] text-ink-tertiary">
+                              {game.location}
+                            </p>
+                          )}
+                        </button>
+
+                        {isAdmin && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              open(game, true)
+                            }}
+                            className="absolute right-3 top-3 rounded-md p-1.5 text-ink-tertiary opacity-0 transition-opacity hover:bg-surface-sunken hover:text-ink focus-visible:opacity-100 group-hover:opacity-100"
+                            aria-label="Edit playoff game"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
               </div>
             )
           })}
@@ -290,21 +237,14 @@ export function PlayoffBracket() {
 
       <EditBoxScoreModal
         game={gameForEdit}
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false)
-          setTimeout(() => setGameForEdit(null), 200)
-        }}
-        onSave={loadPlayoffGames}
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        onSave={load}
       />
-
       <BoxScoreModal
         game={gameForView}
-        isOpen={isViewModalOpen}
-        onClose={() => {
-          setIsViewModalOpen(false)
-          setTimeout(() => setGameForView(null), 200)
-        }}
+        isOpen={isViewOpen}
+        onClose={() => setIsViewOpen(false)}
       />
     </>
   )

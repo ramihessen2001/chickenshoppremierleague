@@ -1,32 +1,35 @@
 /**
- * League standings page.
+ * League standings.
  *
  * Standings are an image the admin uploads rather than a computed table. The
- * upload now goes through /api/admin/standings so the storage bucket can stay
- * read-only to the public; it used to upload straight from the browser, which
- * required a bucket that accepted writes from anyone.
+ * upload goes through /api/admin/standings so the storage bucket can stay
+ * read-only to the public.
  */
 
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { getLeagueConfig, uploadStandingsImage } from '@/lib/supabaseData'
-import { Upload, ArrowLeft } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
+import { Upload } from 'lucide-react'
+import { getLeagueConfig, uploadStandingsImage } from '@/lib/supabaseData'
 import { useAdmin } from '@/lib/adminContext'
+import { PageHeader } from './PageHeader'
 
 export function StandingsPageClient() {
-  const router = useRouter()
   const { isAdmin } = useAdmin()
+  const fileInput = useRef<HTMLInputElement>(null)
   const [standingsImageUrl, setStandingsImageUrl] = useState<string | null>(null)
+  const [season, setSeason] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     getLeagueConfig()
-      .then((config) => setStandingsImageUrl(config?.standings_image_url ?? null))
+      .then((config) => {
+        setStandingsImageUrl(config?.standings_image_url ?? null)
+        setSeason(config?.season ?? null)
+      })
       .catch(() => setStandingsImageUrl(null))
       .finally(() => setIsLoading(false))
   }, [])
@@ -62,102 +65,77 @@ export function StandingsPageClient() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-[#A0CAC9] via-[#A0CAC9] to-[#FFE0AF] py-12 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="text-black text-xl">Loading standings...</p>
-        </div>
-      </main>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <p className="text-[15px] text-ink-tertiary">Loading…</p>
+      </div>
     )
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#A0CAC9] via-[#A0CAC9] to-[#FFE0AF] py-12">
-      <div className="max-w-7xl mx-auto px-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <button
-            onClick={() => router.push('/')}
-            className="flex items-center gap-2 text-black hover:text-[#523232] transition-colors"
-          >
-            <ArrowLeft size={20} />
-            <span>Back to Home</span>
-          </button>
-          
-          <h1 className="text-4xl font-extrabold text-black uppercase text-center flex-1">
-            League Standings
-          </h1>
-          
-          <div className="w-[120px]"></div> {/* Spacer for centering */}
-        </div>
-
-        {/* Admin Upload Section */}
-        {isAdmin && (
-          <div className="bg-white/90 backdrop-blur-sm border-2 border-[#523232] rounded-lg p-6 mb-8">
-            <h2 className="text-xl font-bold text-black mb-4 flex items-center gap-2">
-              <Upload size={24} />
-              Admin: Upload Standings Image
-            </h2>
-            <div className="flex items-center gap-4">
+    <>
+      <PageHeader
+        eyebrow={season ?? undefined}
+        title="Standings"
+        actions={
+          isAdmin ? (
+            <>
               <input
+                ref={fileInput}
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg,image/webp"
                 onChange={handleFileUpload}
-                disabled={isUploading}
-                className="flex-1 text-black file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#523232] file:text-white hover:file:bg-[#6b4343] file:cursor-pointer disabled:opacity-50"
+                className="sr-only"
               />
-              {isUploading && (
-                <div className="flex items-center gap-2 text-black">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-black"></div>
-                  <span>Uploading...</span>
-                </div>
-              )}
-            </div>
-            <p className="text-sm text-gray-600 mt-2">
-              Upload an image of the current league standings (max 5MB, PNG/JPG/WebP)
-            </p>
-            {error && (
-              <p className="mt-3 text-sm text-red-700 font-medium" role="alert">
-                {error}
-              </p>
-            )}
-          </div>
+              <button
+                onClick={() => fileInput.current?.click()}
+                disabled={isUploading}
+                className="inline-flex items-center gap-1.5 rounded-pill bg-surface-inverse px-4 py-2 text-[13px] font-medium text-ink-inverse transition-opacity hover:opacity-85 disabled:opacity-50"
+              >
+                <Upload size={15} />
+                {isUploading
+                  ? 'Uploading…'
+                  : standingsImageUrl
+                    ? 'Replace image'
+                    : 'Upload image'}
+              </button>
+            </>
+          ) : undefined
+        }
+      />
+
+      <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
+        {error && (
+          <p
+            className="mb-6 rounded-lg border border-hairline bg-negative-wash px-4 py-3 text-[14px] text-negative"
+            role="alert"
+          >
+            {error}
+          </p>
         )}
 
-        {/* Standings Display */}
         {standingsImageUrl ? (
-          <div className="bg-white/90 backdrop-blur-sm border-2 border-[#523232] rounded-lg p-6">
-            <div className="relative w-full">
-              <Image
-                src={standingsImageUrl}
-                alt="League Standings"
-                width={1200}
-                height={800}
-                className="w-full h-auto rounded-lg shadow-lg"
-                priority
-              />
-            </div>
+          <div className="overflow-hidden rounded-lg border border-hairline">
+            <Image
+              src={standingsImageUrl}
+              alt="League standings table"
+              width={1600}
+              height={1000}
+              className="h-auto w-full"
+              priority
+              unoptimized
+            />
           </div>
         ) : (
-          <div className="bg-white/90 backdrop-blur-sm border-2 border-[#523232] rounded-lg p-12 text-center">
-            <div className="max-w-md mx-auto">
-              <Upload size={64} className="mx-auto mb-4 text-gray-400" />
-              <h2 className="text-2xl font-bold text-black mb-2">
-                No Standings Available
-              </h2>
-              <p className="text-gray-600 mb-4">
-                The league standings have not been uploaded yet.
-              </p>
-              {isAdmin && (
-                <p className="text-sm text-gray-500">
-                  As an admin, you can upload the standings image using the form above.
-                </p>
-              )}
-            </div>
+          <div className="rounded-lg border border-dashed border-hairline-strong px-6 py-20 text-center">
+            <p className="text-[17px] font-medium text-ink">No standings yet</p>
+            <p className="mx-auto mt-2 max-w-sm text-[15px] text-ink-secondary">
+              {isAdmin
+                ? 'Upload the current table using the button above.'
+                : 'The table will appear here once the season is underway.'}
+            </p>
           </div>
         )}
       </div>
-    </main>
+    </>
   )
 }
-

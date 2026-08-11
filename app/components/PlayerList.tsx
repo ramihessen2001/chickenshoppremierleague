@@ -1,12 +1,14 @@
 /**
- * A team's roster.
+ * A team's roster: shirt number, name, position.
+ *
+ * A plain list rather than a grid of cards -- a squad reads like a team sheet.
  */
 
 'use client'
 
 import { useState } from 'react'
-import { Player, displayJersey } from '@/types/player'
 import { Pencil, Trash2 } from 'lucide-react'
+import { Player, displayJersey } from '@/types/player'
 import { deletePlayer, notifyDataUpdated } from '@/lib/supabaseData'
 
 interface PlayerListProps {
@@ -17,45 +19,38 @@ interface PlayerListProps {
 export function PlayerList({ players, onEditPlayer }: PlayerListProps) {
   if (players.length === 0) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-400">No players found for this team.</p>
+      <div className="rounded-lg border border-dashed border-hairline-strong px-6 py-14 text-center">
+        <p className="text-[15px] text-ink-secondary">No players on this roster yet.</p>
       </div>
     )
   }
-  
-  // Numbered players first, ascending; unnumbered (TBD) players last.
-  const sortedPlayers = [...players].sort((a, b) => {
+
+  // Numbered players first in ascending order, unnumbered (TBD) last.
+  const sorted = [...players].sort((a, b) => {
     const aNum = a.jerseyNumber ?? Number.MAX_SAFE_INTEGER
     const bNum = b.jerseyNumber ?? Number.MAX_SAFE_INTEGER
     return aNum - bNum || a.name.localeCompare(b.name)
   })
-  
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {sortedPlayers.map(player => (
-        <PlayerCard 
-          key={player.id} 
-          player={player}
-          onEdit={onEditPlayer ? () => onEditPlayer(player) : undefined}
-        />
+    <ul className="border-t border-hairline">
+      {sorted.map((player) => (
+        <li key={player.id}>
+          <PlayerRow
+            player={player}
+            onEdit={onEditPlayer ? () => onEditPlayer(player) : undefined}
+          />
+        </li>
       ))}
-    </div>
+    </ul>
   )
 }
 
-interface PlayerCardProps {
-  player: Player
-  onEdit?: () => void
-}
-
-function PlayerCard({ player, onEdit }: PlayerCardProps) {
+function PlayerRow({ player, onEdit }: { player: Player; onEdit?: () => void }) {
   const [isDeleting, setIsDeleting] = useState(false)
-  const displayNumber = displayJersey(player.jerseyNumber)
 
   const handleDelete = async () => {
-    if (!confirm(`Delete player ${player.name}? This also removes their statistics.`)) {
-      return
-    }
+    if (!confirm(`Delete ${player.name}? This also removes their statistics.`)) return
 
     setIsDeleting(true)
     try {
@@ -69,47 +64,50 @@ function PlayerCard({ player, onEdit }: PlayerCardProps) {
   }
 
   return (
-    <div className="relative p-4 border border-[#523232] rounded-lg shadow-league hover:border-[#D47F7D] transition-colors">
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <p className="text-lg font-semibold text-white">{player.name}</p>
-          {player.position && (
-            <p className="text-sm text-gray-400 mt-1">{player.position}</p>
-          )}
-          {!player.isActive && (
-            <p className="text-xs text-red-400 mt-1">INACTIVE</p>
-          )}
-        </div>
-        <div className="ml-4">
-          <span className="text-3xl font-black text-[#D47F7D]">
-            {displayNumber}
-          </span>
-        </div>
+    <div className="group flex items-center gap-4 border-b border-hairline py-3">
+      <span
+        className={`tabular w-8 shrink-0 text-[15px] ${
+          player.jerseyNumber === null
+            ? 'text-[11px] font-medium uppercase tracking-wider text-ink-tertiary'
+            : 'font-semibold text-ink-tertiary'
+        }`}
+      >
+        {displayJersey(player.jerseyNumber)}
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <p
+          className={`truncate text-[15px] ${
+            player.isActive ? 'text-ink' : 'text-ink-tertiary line-through'
+          }`}
+        >
+          {player.name}
+        </p>
       </div>
-      
-      {/* Admin controls */}
+
+      {player.position && (
+        <span className="shrink-0 text-[13px] text-ink-tertiary">{player.position}</span>
+      )}
+
       {onEdit && (
-        <div className="absolute top-2 right-2 flex gap-1">
+        <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
           <button
             onClick={onEdit}
-            className="p-1.5 bg-[#D47F7D]/90 hover:bg-[#D47F7D] rounded transition-colors"
-            aria-label="Edit player"
-            title="Edit Player"
+            aria-label={`Edit ${player.name}`}
+            className="rounded-md p-1.5 text-ink-tertiary transition-colors hover:bg-surface-sunken hover:text-ink"
           >
-            <Pencil size={14} className="text-white" />
+            <Pencil size={14} />
           </button>
           <button
             onClick={handleDelete}
             disabled={isDeleting}
-            className="p-1.5 bg-red-600/90 hover:bg-red-600 rounded transition-colors disabled:opacity-50"
-            aria-label="Delete player"
-            title="Delete Player"
+            aria-label={`Delete ${player.name}`}
+            className="rounded-md p-1.5 text-ink-tertiary transition-colors hover:bg-negative-wash hover:text-negative disabled:opacity-40"
           >
-            <Trash2 size={14} className="text-white" />
+            <Trash2 size={14} />
           </button>
         </div>
       )}
     </div>
   )
 }
-
