@@ -11,6 +11,7 @@ import { useState, useEffect } from 'react'
 import { Game, GameStatus } from '@/types/game'
 import { updateGame, createGame, notifyDataUpdated } from '@/lib/supabaseData'
 import { useTeams } from '@/lib/teamsContext'
+import { youTubeVideoId } from '@/lib/youtube'
 import {
   Modal,
   FormError,
@@ -41,6 +42,7 @@ interface GameFormData {
   awayScore: string
   isPlayoff: boolean
   playoffRound: string
+  streamUrl: string
 }
 
 const PLAYOFF_ROUNDS = [
@@ -87,6 +89,7 @@ export function EditGameModal({
             awayScore: game.awayScore === null ? '' : String(game.awayScore),
             isPlayoff: game.isPlayoff ?? game.weekNumber === 0,
             playoffRound: game.playoffRound ?? '',
+            streamUrl: game.streamUrl ?? '',
           }
         : {
             weekNumber: defaultWeek && defaultWeek > 0 ? defaultWeek : 1,
@@ -100,6 +103,7 @@ export function EditGameModal({
             awayScore: '',
             isPlayoff: defaultWeek === 0,
             playoffRound: '',
+            streamUrl: '',
           }
     )
   }, [game, isOpen, defaultWeek, teams])
@@ -136,6 +140,13 @@ export function EditGameModal({
       return
     }
 
+    if (formData.streamUrl.trim() && !youTubeVideoId(formData.streamUrl)) {
+      setError(
+        'That does not look like a YouTube video link. Use the watch, live or youtu.be URL for the stream itself, not a channel.'
+      )
+      return
+    }
+
     setIsSaving(true)
     try {
       const fields = {
@@ -150,6 +161,7 @@ export function EditGameModal({
         status: formData.status,
         isPlayoff: formData.isPlayoff,
         playoffRound: formData.isPlayoff ? formData.playoffRound || null : null,
+        streamUrl: formData.streamUrl.trim() || null,
       }
 
       if (game) {
@@ -329,6 +341,26 @@ export function EditGameModal({
               </option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <label htmlFor="game-stream" className={labelClass}>
+            YouTube stream{' '}
+            <span className="font-normal text-ink-tertiary">optional</span>
+          </label>
+          <input
+            id="game-stream"
+            type="url"
+            inputMode="url"
+            placeholder="https://www.youtube.com/watch?v=…"
+            value={formData.streamUrl}
+            onChange={(e) => update('streamUrl', e.target.value)}
+            className={fieldClass}
+          />
+          <p className="mt-1.5 text-[12px] text-ink-tertiary">
+            Set the status to <strong className="font-medium">In progress</strong> to
+            show this on the homepage as live.
+          </p>
         </div>
 
         {formData.status === 'completed' && (

@@ -1,27 +1,46 @@
 /**
- * Admin control for which week the homepage features, and the switch that hands
- * the homepage over to the playoff bracket.
+ * The admin bar on the homepage: which phase the league is in, and which week
+ * is featured while the season is running.
  */
 
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { LeaguePhase } from '@/lib/supabase'
 import { updateLeagueConfig, notifyDataUpdated } from '@/lib/supabaseData'
 
 interface CurrentWeekControlProps {
+  phase: LeaguePhase
   currentWeek: number
   totalWeeks: number
-  playoffsStarted: boolean
   onWeekChange: (newWeek: number) => void
   /** Called after a change the parent should re-read config for. */
   onConfigChange?: () => void
 }
 
+/** In the order a season actually runs. */
+const PHASES: [LeaguePhase, string][] = [
+  ['signups', 'Signups'],
+  ['preseason', 'Preseason'],
+  ['draft', 'Draft'],
+  ['season', 'Season'],
+  ['playoffs', 'Playoffs'],
+]
+
+const PHASE_EXPLANATION: Record<LeaguePhase, string> = {
+  signups: 'Registration form is open on the homepage.',
+  preseason: 'Registration closed. Waiting on the draft.',
+  draft: 'Draft under way. Assign players from the signups page.',
+  season: 'Weekly fixtures on the homepage.',
+  playoffs: 'Bracket and final on the homepage.',
+}
+
 export function CurrentWeekControl({
+  phase,
   currentWeek,
   totalWeeks,
-  playoffsStarted,
   onWeekChange,
   onConfigChange,
 }: CurrentWeekControlProps) {
@@ -41,6 +60,12 @@ export function CurrentWeekControl({
     }
   }
 
+  const changePhase = (next: LeaguePhase) =>
+    run(async () => {
+      await updateLeagueConfig({ phase: next })
+      onConfigChange?.()
+    })
+
   const changeWeek = (newWeek: number) => {
     if (newWeek < 1 || newWeek > totalWeeks || newWeek === currentWeek) return
     return run(async () => {
@@ -49,68 +74,88 @@ export function CurrentWeekControl({
     })
   }
 
-  const togglePlayoffs = () =>
-    run(async () => {
-      await updateLeagueConfig({ playoffsStarted: !playoffsStarted })
-      onConfigChange?.()
-    })
-
   const stepButton =
     'flex h-8 w-8 items-center justify-center rounded-md border border-hairline-strong text-ink transition-colors hover:bg-surface-hover disabled:opacity-35 disabled:hover:bg-transparent'
 
   return (
     <div className="rounded-lg border border-hairline bg-surface-sunken p-5">
-      <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-5">
-        <div className="flex items-center gap-4">
-          <div>
-            <p className="eyebrow">Current week</p>
-            <p className="tabular mt-1 text-[15px] font-medium text-ink">
-              Week {currentWeek}{' '}
-              <span className="font-normal text-ink-tertiary">of {totalWeeks}</span>
-            </p>
+      <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-5">
+        <div className="min-w-0">
+          <p className="eyebrow">League phase</p>
+
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {PHASES.map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => changePhase(value)}
+                disabled={isUpdating || value === phase}
+                aria-current={value === phase ? 'true' : undefined}
+                className={`rounded-pill px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                  value === phase
+                    ? 'bg-surface-inverse text-ink-inverse'
+                    : 'border border-hairline-strong text-ink hover:bg-surface-hover disabled:opacity-50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => changeWeek(currentWeek - 1)}
-              disabled={currentWeek <= 1 || isUpdating}
-              className={stepButton}
-              aria-label="Previous week"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              onClick={() => changeWeek(currentWeek + 1)}
-              disabled={currentWeek >= totalWeeks || isUpdating}
-              className={stepButton}
-              aria-label="Next week"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
+          <p className="mt-2.5 text-[13px] text-ink-tertiary">
+            {PHASE_EXPLANATION[phase]}
+            {(phase === 'signups' || phase === 'preseason' || phase === 'draft') && (
+              <>
+                {' '}
+                <Link
+                  href="/signups"
+                  className="text-accent-ink transition-opacity hover:opacity-70"
+                >
+                  View registrations →
+                </Link>
+              </>
+            )}
+          </p>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div>
-            <p className="eyebrow">Homepage</p>
-            <p className="mt-1 text-[15px] text-ink">
-              {playoffsStarted ? 'Playoff bracket' : 'Weekly fixtures'}
-            </p>
+        {phase === 'season' && (
+          <div className="flex items-center gap-4">
+            <div>
+              <p className="eyebrow">Current week</p>
+              <p className="tabular mt-1 text-[15px] font-medium text-ink">
+                Week {currentWeek}{' '}
+                <span className="font-normal text-ink-tertiary">of {totalWeeks}</span>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => changeWeek(currentWeek - 1)}
+                disabled={currentWeek <= 1 || isUpdating}
+                className={stepButton}
+                aria-label="Previous week"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                onClick={() => changeWeek(currentWeek + 1)}
+                disabled={currentWeek >= totalWeeks || isUpdating}
+                className={stepButton}
+                aria-label="Next week"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
-          <button
-            onClick={togglePlayoffs}
-            disabled={isUpdating}
-            className="rounded-pill border border-hairline-strong px-4 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-surface-hover disabled:opacity-50"
-          >
-            {playoffsStarted ? 'Show fixtures' : 'Start playoffs'}
-          </button>
-        </div>
+        )}
       </div>
 
       {error && (
         <p className="mt-4 text-[13px] text-negative" role="alert">
           {error}
         </p>
+      )}
+      {isUpdating && (
+        <p className="mt-4 text-[13px] text-ink-tertiary">Updating…</p>
       )}
     </div>
   )

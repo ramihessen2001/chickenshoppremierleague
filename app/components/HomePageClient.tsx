@@ -1,9 +1,9 @@
 /**
  * Homepage.
  *
- * A quiet hero, then the week's fixtures, then leaders, then teams. During the
- * playoffs the bracket and final replace the weekly fixtures, driven by the
- * `playoffs_started` flag rather than by commenting out code.
+ * What it leads with follows `league_config.phase`, so the site tracks the
+ * season without a deploy: registration while signups are open, then a holding
+ * message through the draft, then fixtures, then the bracket.
  */
 
 'use client'
@@ -16,12 +16,38 @@ import { StatLeaders } from './StatLeaders'
 import { CurrentWeekControl } from './CurrentWeekControl'
 import { PlayoffBracket } from './PlayoffBracket'
 import { ChampionshipGameCard } from './ChampionshipGameCard'
+import { SignupForm } from './SignupForm'
+import { LiveNow } from './LiveNow'
 import { useAdmin } from '@/lib/adminContext'
 import { LEAGUE } from '@/config/league'
 import { getGamesByWeek, getStatLeaders, getLeagueConfig } from '@/lib/supabaseData'
-import { LeagueConfig } from '@/lib/supabase'
+import { LeagueConfig, LeaguePhase } from '@/lib/supabase'
 import { LeaderboardEntry } from '@/types/statistic'
 import { Game } from '@/types/game'
+
+/** The headline and supporting line for each phase. */
+const HERO_COPY: Record<LeaguePhase, { title: string; body: string }> = {
+  signups: {
+    title: 'Registration is open',
+    body: 'Sign up below to play this season. Once registration closes we hold the draft, and teams are announced here.',
+  },
+  preseason: {
+    title: 'Registration is closed',
+    body: 'Thanks to everyone who signed up. The draft is next — teams and the fixture list will appear here.',
+  },
+  draft: {
+    title: 'Draft in progress',
+    body: 'Teams are being picked now. Rosters appear here as they fill.',
+  },
+  season: {
+    title: LEAGUE.name,
+    body: 'Fixtures, results, standings and statistics — updated through the season.',
+  },
+  playoffs: {
+    title: 'Playoffs',
+    body: 'The bracket, the final, and everything that got us here.',
+  },
+}
 
 export function HomePageClient() {
   const { isAdmin } = useAdmin()
@@ -76,36 +102,55 @@ export function HomePageClient() {
     )
   }
 
+  const phase: LeaguePhase = config?.phase ?? 'season'
   const currentWeek = config?.current_week ?? 1
   const totalWeeks = config?.total_weeks ?? 10
-  const playoffsStarted = config?.playoffs_started ?? false
+  const hero = HERO_COPY[phase]
+
+  // Before the season starts there are no results to link to, so the hero
+  // offers registration instead of pages that would be empty.
+  const isPreSeason =
+    phase === 'signups' || phase === 'preseason' || phase === 'draft'
 
   return (
     <div>
-      {/* Hero. One idea per line, nothing competing for attention. */}
+      <LiveNow />
+
       <section className="mx-auto max-w-6xl px-5 pt-20 pb-16 sm:px-8 sm:pt-28 sm:pb-20">
         <p className="eyebrow">{config?.season ?? LEAGUE.fallbackSeason}</p>
         <h1 className="mt-4 max-w-3xl text-[2.75rem] font-semibold text-ink sm:text-[4rem]">
-          {LEAGUE.name}
+          {hero.title}
         </h1>
         <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-ink-secondary">
-          Fixtures, results, standings and statistics — updated through the
-          season.
+          {hero.body}
         </p>
 
         <div className="mt-9 flex flex-wrap items-center gap-3">
-          <Link
-            href="/schedule"
-            className="rounded-pill bg-surface-inverse px-5 py-2.5 text-[14px] font-medium text-ink-inverse transition-opacity hover:opacity-85"
-          >
-            View schedule
-          </Link>
-          <Link
-            href="/stats"
-            className="rounded-pill border border-hairline-strong px-5 py-2.5 text-[14px] font-medium text-ink transition-colors hover:bg-surface-hover"
-          >
-            Player stats
-          </Link>
+          {phase === 'signups' ? (
+            <a
+              href="#register"
+              className="rounded-pill bg-surface-inverse px-5 py-2.5 text-[14px] font-medium text-ink-inverse transition-opacity hover:opacity-85"
+            >
+              Register to play
+            </a>
+          ) : (
+            <Link
+              href="/schedule"
+              className="rounded-pill bg-surface-inverse px-5 py-2.5 text-[14px] font-medium text-ink-inverse transition-opacity hover:opacity-85"
+            >
+              View schedule
+            </Link>
+          )}
+
+          {!isPreSeason && (
+            <Link
+              href="/stats"
+              className="rounded-pill border border-hairline-strong px-5 py-2.5 text-[14px] font-medium text-ink transition-colors hover:bg-surface-hover"
+            >
+              Player stats
+            </Link>
+          )}
+
           {LEAGUE.jerseyShopUrl && (
             <a
               href={LEAGUE.jerseyShopUrl}
@@ -122,25 +167,50 @@ export function HomePageClient() {
       {isAdmin && (
         <section className="mx-auto max-w-6xl px-5 pb-10 sm:px-8">
           <CurrentWeekControl
+            phase={phase}
             currentWeek={currentWeek}
             totalWeeks={totalWeeks}
-            playoffsStarted={playoffsStarted}
             onWeekChange={handleWeekChange}
             onConfigChange={fetchData}
           />
         </section>
       )}
 
-      {playoffsStarted ? (
+      {phase === 'signups' && (
+        <section
+          id="register"
+          className="mx-auto max-w-3xl scroll-mt-20 px-5 pb-16 sm:px-8"
+          aria-labelledby="register-heading"
+        >
+          <h2
+            id="register-heading"
+            className="text-[28px] font-semibold text-ink sm:text-[32px]"
+          >
+            Register
+          </h2>
+          <p className="mt-3 text-[15px] text-ink-secondary">
+            One registration per player. We&apos;ll be in touch before the draft.
+          </p>
+          <div className="mt-8">
+            <SignupForm />
+          </div>
+        </section>
+      )}
+
+      {phase === 'playoffs' && (
         <>
           <ChampionshipGameCard />
           <PlayoffBracket />
         </>
-      ) : (
+      )}
+
+      {phase === 'season' && (
         <WeeklyGames games={currentWeekGames} weekNumber={currentWeek} />
       )}
 
-      <StatLeaders goals={goalLeaders} assists={assistLeaders} saves={saveLeaders} />
+      {!isPreSeason && (
+        <StatLeaders goals={goalLeaders} assists={assistLeaders} saves={saveLeaders} />
+      )}
 
       <TeamLogos />
     </div>

@@ -12,6 +12,8 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fail, readJson, requireAdmin } from '@/lib/apiAuth'
 
+const VALID_PHASES = ['signups', 'preseason', 'draft', 'season', 'playoffs']
+
 interface UpdateConfigBody {
   currentWeek?: number
   totalWeeks?: number
@@ -19,7 +21,7 @@ interface UpdateConfigBody {
   leagueName?: string
   startDate?: string
   endDate?: string
-  playoffsStarted?: boolean
+  phase?: string
   standingsImageUrl?: string | null
 }
 
@@ -50,8 +52,11 @@ export async function PATCH(request: Request) {
   if (body.leagueName !== undefined) columns.league_name = body.leagueName
   if (body.startDate !== undefined) columns.start_date = body.startDate
   if (body.endDate !== undefined) columns.end_date = body.endDate
-  if (body.playoffsStarted !== undefined) {
-    columns.playoffs_started = body.playoffsStarted
+  if (body.phase !== undefined) {
+    if (!VALID_PHASES.includes(body.phase)) {
+      return fail(`phase must be one of: ${VALID_PHASES.join(', ')}`)
+    }
+    columns.phase = body.phase
   }
   if (body.standingsImageUrl !== undefined) {
     columns.standings_image_url = body.standingsImageUrl

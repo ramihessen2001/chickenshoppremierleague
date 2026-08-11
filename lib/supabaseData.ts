@@ -7,7 +7,14 @@
  * write to the database on its own -- that is the point.
  */
 
-import { supabase, Team, Player as SupabasePlayer, LeagueConfig } from './supabase'
+import {
+  supabase,
+  Team,
+  Player as SupabasePlayer,
+  LeagueConfig,
+  LeaguePhase,
+  Signup,
+} from './supabase'
 import { Game } from '@/types/game'
 import { Player } from '@/types/player'
 import { GameStatistic as LocalGameStatistic, StatType } from '@/types/statistic'
@@ -89,6 +96,7 @@ function transformGame(raw: any): Game {
     status: raw.status,
     isPlayoff: raw.is_playoff ?? false,
     playoffRound: raw.playoff_round ?? null,
+    streamUrl: raw.stream_url ?? null,
     statistics: (raw.statistics ?? []).map(transformStatistic),
     playerOfGameId: raw.player_of_game_id,
     playerOfGame: potm
@@ -434,6 +442,7 @@ export function notifyDataUpdated() {
 }
 
 export interface GameWriteFields {
+  streamUrl?: string | null
   weekNumber?: number | null
   date?: string
   time?: string
@@ -543,7 +552,7 @@ export interface LeagueConfigWriteFields {
   leagueName?: string
   startDate?: string
   endDate?: string
-  playoffsStarted?: boolean
+  phase?: LeaguePhase
   standingsImageUrl?: string | null
 }
 
@@ -565,4 +574,81 @@ export async function uploadStandingsImage(file: File): Promise<string> {
     formData,
   })
   return url
+}
+
+/* -------------------------------------------------------------------------- */
+/* Signups                                                                     */
+/* -------------------------------------------------------------------------- */
+
+export interface SignupInput {
+  name: string
+  email: string
+  phone?: string
+  position?: string
+  experience?: string
+  notes?: string
+}
+
+/**
+ * Registers a player. Public -- no admin session needed.
+ * Resolves to null on success, or a message to show the person signing up.
+ */
+export async function submitSignup(input: SignupInput): Promise<string | null> {
+  try {
+    const response = await fetch('/api/signups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+
+    if (response.ok) return null
+
+    const payload = await response.json().catch(() => ({}))
+    return payload.error || 'Could not complete your registration'
+  } catch {
+    return 'Could not reach the server. Check your connection and try again.'
+  }
+}
+
+/** A signup row with its drafted team joined in. */
+export type SignupWithTeam = Signup & {
+  drafted_team?: { id: string; name: string; slug: string } | null
+}
+
+/** The full signup list. Admin only. */
+export async function getSignups(): Promise<SignupWithTeam[]> {
+  const { signups } = await apiRequest<{ signups: SignupWithTeam[] }>(
+    '/api/admin/signups',
+    { method: 'GET' }
+  )
+  return signups
+}
+
+export interface SignupWriteFields {
+  name?: string
+  email?: string
+  phone?: string | null
+  position?: string | null
+  experience?: string | null
+  notes?: string | null
+  status?: Signup['status']
+  /** Team UUID. */
+  draftedTeamId?: string | null
+  /** Also create a player row on the drafted team. */
+  createPlayer?: boolean
+}
+
+export async function updateSignup(
+  signupId: string,
+  fields: SignupWriteFields
+): Promise<SignupWithTeam> {
+  const { signup } = await apiRequest<{ signup: SignupWithTeam }>(
+    `/api/admin/signups/${signupId}`,
+    { method: 'PATCH', body: fields }
+  )
+  return signup
+}
+
+export async function deleteSignup(signupId: string): Promise<void> {
+  await apiRequest(`/api/admin/signups/${signupId}`, { method: 'DELETE' })
 }

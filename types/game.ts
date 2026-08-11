@@ -34,6 +34,9 @@ export interface Game {
   /** play-in | quarterfinal | semifinal | final */
   playoffRound?: string | null
 
+  /** YouTube URL. The game is live when this is set and status is in_progress. */
+  streamUrl?: string | null
+
   statistics: GameStatistic[]
 
   playerOfGameId?: string | null

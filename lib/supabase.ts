@@ -71,6 +71,8 @@ export interface Game {
   is_playoff: boolean
   playoff_round?: string | null
   player_of_game_id?: string | null
+  /** YouTube URL. Live when set and status is 'in_progress'. */
+  stream_url?: string | null
   created_at: string
   updated_at: string
 }
@@ -94,6 +96,14 @@ export interface GameStatistic {
   created_at: string
 }
 
+/** Where the league is in its lifecycle. Drives what the homepage leads with. */
+export type LeaguePhase =
+  | 'signups'
+  | 'preseason'
+  | 'draft'
+  | 'season'
+  | 'playoffs'
+
 export interface LeagueConfig {
   id: string
   league_name: string
@@ -103,7 +113,29 @@ export interface LeagueConfig {
   current_week: number
   total_weeks: number
   standings_image_url?: string | null
-  playoffs_started: boolean
+  phase: LeaguePhase
+  updated_at: string
+}
+
+export type SignupStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'waitlisted'
+  | 'withdrawn'
+  | 'drafted'
+
+export interface Signup {
+  id: string
+  name: string
+  email: string
+  phone?: string | null
+  position?: string | null
+  experience?: string | null
+  notes?: string | null
+  status: SignupStatus
+  drafted_team_id?: string | null
+  season: string
+  created_at: string
   updated_at: string
 }
 

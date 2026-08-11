@@ -22,6 +22,7 @@ interface UpdateGameBody {
   isPlayoff?: boolean
   playoffRound?: string | null
   playerOfGameId?: string | null
+  streamUrl?: string | null
 }
 
 const VALID_STATUSES = [
@@ -72,6 +73,7 @@ export async function PATCH(request: Request, { params }: Params) {
   assign('is_playoff', body.isPlayoff)
   assign('playoff_round', body.playoffRound)
   assign('player_of_game_id', body.playerOfGameId)
+  assign('stream_url', body.streamUrl)
 
   if (Object.keys(columns).length === 0) {
     return fail('No fields to update')

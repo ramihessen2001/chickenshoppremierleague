@@ -23,6 +23,7 @@ interface CreateGameBody {
   status?: string
   isPlayoff?: boolean
   playoffRound?: string | null
+  streamUrl?: string | null
 }
 
 const VALID_STATUSES = [
@@ -84,6 +85,7 @@ export async function POST(request: Request) {
       status: body.status ?? 'scheduled',
       is_playoff: isPlayoff,
       playoff_round: body.playoffRound ?? null,
+      stream_url: body.streamUrl ?? null,
     })
     .select('id')
     .single()

@@ -81,6 +81,9 @@ CREATE TABLE games (
   is_playoff BOOLEAN DEFAULT FALSE,
   playoff_round VARCHAR(50),                 -- play-in | quarterfinal | semifinal | final
   player_of_game_id UUID REFERENCES players(id) ON DELETE SET NULL,
+  -- YouTube watch or live URL. A game counts as live when it has a stream and
+  -- status = 'in_progress', so there is no separate "is live" flag to forget.
+  stream_url TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   -- A team cannot play itself, but both sides may be NULL for an unfilled
@@ -116,7 +119,15 @@ CREATE TABLE league_config (
   current_week INTEGER DEFAULT 1,
   total_weeks INTEGER NOT NULL,
   standings_image_url TEXT,
-  playoffs_started BOOLEAN DEFAULT FALSE,    -- when true the homepage shows the bracket
+  -- Where the league is in its lifecycle. This drives what the homepage leads
+  -- with, so the site follows the season without a code change:
+  --   signups   registration form is open
+  --   preseason registration closed, draft not yet held
+  --   draft     draft under way
+  --   season    weekly fixtures
+  --   playoffs  bracket and final
+  phase VARCHAR(20) NOT NULL DEFAULT 'signups'
+    CHECK (phase IN ('signups', 'preseason', 'draft', 'season', 'playoffs')),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -157,6 +168,38 @@ CREATE TABLE award_votes (
 );
 
 -- ---------------------------------------------------------------------------
+-- Signups
+-- ---------------------------------------------------------------------------
+-- Registrations taken before the draft. These rows hold contact details, so
+-- unlike every other table they are NOT publicly readable -- see the RLS
+-- section below. The public can submit through /api/signups; only the admin
+-- routes can read them back.
+CREATE TABLE signups (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(200) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  phone VARCHAR(50),
+  -- Preferred position and rough experience, both free-ish text so the form
+  -- can change without a migration.
+  position VARCHAR(50),
+  experience VARCHAR(50),
+  notes TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'confirmed', 'waitlisted', 'withdrawn', 'drafted')),
+  -- Set once the player has been picked, so the draft can be tracked here
+  -- before rosters are built.
+  drafted_team_id UUID REFERENCES teams(id) ON DELETE SET NULL,
+  season VARCHAR(100) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- One signup per email per season. Case-insensitive, because people are
+-- inconsistent about capitalising their own address.
+CREATE UNIQUE INDEX signups_unique_email_per_season
+  ON signups (season, lower(email));
+
+-- ---------------------------------------------------------------------------
 -- Indexes
 -- ---------------------------------------------------------------------------
 CREATE INDEX idx_teams_order          ON teams(display_order);
@@ -175,6 +218,8 @@ CREATE INDEX idx_awards_active        ON awards(is_active);
 CREATE INDEX idx_award_nominees_award ON award_nominees(award_id);
 CREATE INDEX idx_award_votes_award    ON award_votes(award_id);
 CREATE INDEX idx_award_votes_nominee  ON award_votes(nominee_id);
+CREATE INDEX idx_signups_status       ON signups(status);
+CREATE INDEX idx_signups_season       ON signups(season);
 
 -- ---------------------------------------------------------------------------
 -- updated_at triggers
@@ -188,6 +233,8 @@ CREATE TRIGGER update_games_updated_at         BEFORE UPDATE ON games
 CREATE TRIGGER update_league_config_updated_at BEFORE UPDATE ON league_config
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_awards_updated_at        BEFORE UPDATE ON awards
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_signups_updated_at       BEFORE UPDATE ON signups
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ---------------------------------------------------------------------------
@@ -203,6 +250,7 @@ ALTER TABLE league_config    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE awards           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE award_nominees   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE award_votes      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE signups          ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "public read" ON teams           FOR SELECT USING (true);
 CREATE POLICY "public read" ON players         FOR SELECT USING (true);
@@ -212,6 +260,11 @@ CREATE POLICY "public read" ON league_config   FOR SELECT USING (true);
 CREATE POLICY "public read" ON awards          FOR SELECT USING (true);
 CREATE POLICY "public read" ON award_nominees  FOR SELECT USING (true);
 CREATE POLICY "public read" ON award_votes     FOR SELECT USING (true);
+
+-- Deliberately NO policy for `signups`: it holds email addresses and phone
+-- numbers. With RLS on and no policy, the anon key can neither read nor write
+-- it. Submissions and the admin list both go through server routes using the
+-- service role key.
 
 -- ---------------------------------------------------------------------------
 -- Storage: standings screenshots and team logos
@@ -232,9 +285,10 @@ CREATE POLICY "league images public read"
 -- Adjust dates and total_weeks to match the real season, then re-run just this
 -- statement if it changes. current_week is controlled from the admin UI.
 INSERT INTO league_config (
-  league_name, season, start_date, end_date, current_week, total_weeks
+  league_name, season, start_date, end_date, current_week, total_weeks, phase
 ) VALUES (
-  'Chicken Shop Premier League', 'Fall 2026', '2026-09-10', '2026-11-26', 1, 10
+  'Chicken Shop Premier League', 'Fall 2026', '2026-09-10', '2026-11-26', 1, 10,
+  'signups'
 );
 
 COMMENT ON TABLE teams           IS 'Teams in the league; the app reads this list at runtime';
@@ -243,3 +297,4 @@ COMMENT ON TABLE games           IS 'Scheduled and completed games, regular seas
 COMMENT ON TABLE game_statistics IS 'Box score statistics';
 COMMENT ON TABLE league_config   IS 'Global league configuration (single row)';
 COMMENT ON TABLE awards          IS 'End-of-season awards open for voting';
+COMMENT ON TABLE signups         IS 'Pre-draft registrations. Contains contact details; not publicly readable';

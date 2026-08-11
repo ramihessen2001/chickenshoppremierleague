@@ -13,6 +13,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LEAGUE } from '@/config/league'
+import { useAdmin } from '@/lib/adminContext'
 
 const NAV = [
   { href: '/schedule', label: 'Schedule' },
@@ -22,6 +23,10 @@ const NAV = [
 
 export function Header() {
   const pathname = usePathname()
+  const { isAdmin } = useAdmin()
+
+  // Signups hold contact details, so the link only appears once signed in.
+  const nav = isAdmin ? [...NAV, { href: '/signups', label: 'Signups' }] : NAV
 
   return (
     <header className="sticky top-0 z-40 border-b border-hairline bg-surface/80 backdrop-blur-xl backdrop-saturate-150">
@@ -46,7 +51,7 @@ export function Header() {
         </Link>
 
         <nav className="ml-auto flex items-center gap-1" aria-label="Main">
-          {NAV.map(({ href, label }) => {
+          {nav.map(({ href, label }) => {
             const isActive = pathname === href || pathname.startsWith(`${href}/`)
             return (
               <Link
