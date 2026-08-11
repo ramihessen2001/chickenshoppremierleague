@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+/* YM JAX Soccer League Theme */
+:root {
+  /* Background gradient colors */
+  --bg-black: #A0CAC9;
+  --bg-blue: #FFE0AF;
+  
+  /* UI element colors */
+  --border-brown: #523232;
+  --accent-teal: #D47F7D;
+  --accent-gold: #B8860B;
+  
+  /* Text colors */
+  --text-white: #000000;
+  --text-gray: #A0A0A0;
+  --text-dark: #171717;
+}
+
+@theme inline {
+  --color-primary: var(--accent-teal);
+  --color-accent-gold: var(--accent-gold);
+  --color-border: var(--border-brown);
+  
+  /* Custom colors for Tailwind */
+  --color-league-black: var(--bg-black);
+  --color-league-blue: var(--bg-blue);
+  --color-league-teal: var(--accent-teal);
+  --color-league-gold: var(--accent-gold);
+  --color-league-border: var(--border-brown);
+  
+  /* Minimum 16px body text (constitutional requirement) */
+  --font-size-base: 1rem;
+}
+
+body {
+  /* Dark gradient background: linear-gradient(138.92deg, #A0CAC9 42.58%, #FFE0AF 83.07%) */
+  background: linear-gradient(138.92deg, var(--bg-black) 42.58%, var(--bg-blue) 83.07%);
+  background-attachment: fixed;
+  color: var(--text-white);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: var(--font-size-base);
+  min-height: 100vh;
+}
+
+/* Heading font (Rajdhani) - geometric, bold */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Rajdhani', 'Inter', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Focus visible styles (accessibility) */
+*:focus-visible {
+  outline: 2px solid var(--accent-teal);
+  outline-offset: 2px;
+}
+
+/* Custom shadow */
+.shadow-league {
+  box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+}
