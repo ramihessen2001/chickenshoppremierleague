@@ -1,5 +1,5 @@
 /**
- * Grid of team crests linking to each team's page.
+ * Team index: crest and name, linking to each team's page.
  *
  * The grid adapts to however many teams the league has rather than assuming a
  * fixed six.
@@ -14,51 +14,47 @@ import { useTeams } from '@/lib/teamsContext'
 export function TeamLogos() {
   const { teams, isLoading } = useTeams()
 
-  if (isLoading) {
-    return (
-      <section className="py-12 px-4 sm:px-6 text-center">
-        <p className="text-gray-700">Loading teams...</p>
-      </section>
-    )
-  }
-
-  if (teams.length === 0) {
-    return (
-      <section className="py-12 px-4 sm:px-6 text-center">
-        <p className="text-gray-700">
-          No teams have been added yet. Add them in the database to see them here.
-        </p>
-      </section>
-    )
-  }
-
   return (
-    <section className="py-12 px-4 sm:px-6" aria-label="Team navigation">
-      <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8">
+    <section
+      className="mx-auto max-w-6xl px-5 py-16 sm:px-8"
+      aria-labelledby="teams-heading"
+    >
+      <h2
+        id="teams-heading"
+        className="text-[28px] font-semibold text-ink sm:text-[32px]"
+      >
+        Teams
+      </h2>
+
+      {isLoading ? (
+        <p className="mt-10 text-[15px] text-ink-tertiary">Loading…</p>
+      ) : teams.length === 0 ? (
+        <p className="mt-10 text-[15px] text-ink-tertiary">
+          No teams have been added yet.
+        </p>
+      ) : (
+        <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {teams.map((team) => (
-            <Link
-              key={team.slug}
-              href={`/teams/${team.slug}`}
-              className="flex flex-col items-center gap-3 p-4 rounded-lg hover:bg-white/20 transition-colors group"
-              aria-label={`View ${team.name} roster`}
-            >
-              <div className="relative w-28 h-28 sm:w-36 sm:h-36 group-hover:scale-110 transition-transform">
+            <li key={team.slug}>
+              <Link
+                href={`/teams/${team.slug}`}
+                className="flex items-center gap-3.5 rounded-lg border border-hairline bg-surface p-4 transition-colors hover:bg-surface-hover"
+              >
                 <Image
                   src={team.logoUrl}
                   alt=""
-                  fill
-                  sizes="(max-width: 640px) 112px, 144px"
-                  className="object-contain"
+                  width={36}
+                  height={36}
+                  className="h-9 w-9 shrink-0 object-contain"
                 />
-              </div>
-              <span className="text-sm sm:text-base font-semibold uppercase tracking-wide text-black text-center">
-                {team.name}
-              </span>
-            </Link>
+                <span className="truncate text-[15px] font-medium text-ink">
+                  {team.name}
+                </span>
+              </Link>
+            </li>
           ))}
-        </div>
-      </div>
+        </ul>
+      )}
     </section>
   )
 }

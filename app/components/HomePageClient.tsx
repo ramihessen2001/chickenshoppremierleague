@@ -1,18 +1,15 @@
 /**
  * Homepage.
  *
- * During the regular season this shows the current week's fixtures. Once the
- * admin flips `playoffs_started` in the league config, the bracket and the
- * championship card take over. Last season that switch was made by commenting
- * out the weekly games in the source, which is why they had to be restored by
- * hand for a new season.
+ * A quiet hero, then the week's fixtures, then leaders, then teams. During the
+ * playoffs the bracket and final replace the weekly fixtures, driven by the
+ * `playoffs_started` flag rather than by commenting out code.
  */
 
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ShoppingBag } from 'lucide-react'
 import { WeeklyGames } from './WeeklyGames'
 import { TeamLogos } from './TeamLogos'
 import { StatLeaders } from './StatLeaders'
@@ -21,11 +18,7 @@ import { PlayoffBracket } from './PlayoffBracket'
 import { ChampionshipGameCard } from './ChampionshipGameCard'
 import { useAdmin } from '@/lib/adminContext'
 import { LEAGUE } from '@/config/league'
-import {
-  getGamesByWeek,
-  getStatLeaders,
-  getLeagueConfig,
-} from '@/lib/supabaseData'
+import { getGamesByWeek, getStatLeaders, getLeagueConfig } from '@/lib/supabaseData'
 import { LeagueConfig } from '@/lib/supabase'
 import { LeaderboardEntry } from '@/types/statistic'
 import { Game } from '@/types/game'
@@ -45,7 +38,6 @@ export function HomePageClient() {
       setConfig(leagueConfig)
 
       const week = leagueConfig?.current_week ?? 1
-
       const [games, goals, assists, saves] = await Promise.all([
         getGamesByWeek(week),
         getStatLeaders('goal', 5),
@@ -78,8 +70,8 @@ export function HomePageClient() {
 
   if (isLoading) {
     return (
-      <div className="w-full min-h-screen flex items-center justify-center">
-        <p className="text-black text-xl">Loading league data...</p>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <p className="text-[15px] text-ink-tertiary">Loading…</p>
       </div>
     )
   }
@@ -88,58 +80,54 @@ export function HomePageClient() {
   const totalWeeks = config?.total_weeks ?? 10
   const playoffsStarted = config?.playoffs_started ?? false
 
-  const navLink =
-    'inline-block px-6 py-3 bg-[#D47F7D] hover:bg-[#D47F7D]/90 rounded-lg font-semibold transition-colors text-black'
-
   return (
-    <div className="w-full">
-      <section className="py-8 px-4 sm:px-6 text-center">
-        <p className="text-lg sm:text-xl text-[#523232] font-semibold tracking-wide">
-          {config?.season ?? LEAGUE.fallbackSeason}
+    <div>
+      {/* Hero. One idea per line, nothing competing for attention. */}
+      <section className="mx-auto max-w-6xl px-5 pt-20 pb-16 sm:px-8 sm:pt-28 sm:pb-20">
+        <p className="eyebrow">{config?.season ?? LEAGUE.fallbackSeason}</p>
+        <h1 className="mt-4 max-w-3xl text-[2.75rem] font-semibold text-ink sm:text-[4rem]">
+          {LEAGUE.name}
+        </h1>
+        <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-ink-secondary">
+          Fixtures, results, standings and statistics — updated through the
+          season.
         </p>
-      </section>
 
-      <section className="py-6 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto flex flex-wrap justify-center gap-4">
-          <Link href="/schedule" className={navLink}>
-            Full Season Schedule
+        <div className="mt-9 flex flex-wrap items-center gap-3">
+          <Link
+            href="/schedule"
+            className="rounded-pill bg-surface-inverse px-5 py-2.5 text-[14px] font-medium text-ink-inverse transition-opacity hover:opacity-85"
+          >
+            View schedule
           </Link>
-          <Link href="/standings" className={navLink}>
-            Standings
+          <Link
+            href="/stats"
+            className="rounded-pill border border-hairline-strong px-5 py-2.5 text-[14px] font-medium text-ink transition-colors hover:bg-surface-hover"
+          >
+            Player stats
           </Link>
-          <Link href="/stats" className={navLink}>
-            Player Stats &amp; Awards
-          </Link>
-        </div>
-      </section>
-
-      {LEAGUE.jerseyShopUrl && (
-        <section className="px-4 sm:px-6 mb-6">
-          <div className="max-w-7xl mx-auto text-center">
+          {LEAGUE.jerseyShopUrl && (
             <a
               href={LEAGUE.jerseyShopUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-[#B2D497] hover:bg-[#B2D497]/90 rounded-lg font-bold transition-colors text-black text-lg shadow-lg"
+              className="px-1 text-[14px] font-medium text-accent-ink transition-opacity hover:opacity-70"
             >
-              <ShoppingBag size={20} />
-              Buy a league jersey
+              Buy a kit →
             </a>
-          </div>
-        </section>
-      )}
+          )}
+        </div>
+      </section>
 
       {isAdmin && (
-        <section className="px-4 sm:px-6 mb-4">
-          <div className="max-w-7xl mx-auto">
-            <CurrentWeekControl
-              currentWeek={currentWeek}
-              totalWeeks={totalWeeks}
-              playoffsStarted={playoffsStarted}
-              onWeekChange={handleWeekChange}
-              onConfigChange={fetchData}
-            />
-          </div>
+        <section className="mx-auto max-w-6xl px-5 pb-10 sm:px-8">
+          <CurrentWeekControl
+            currentWeek={currentWeek}
+            totalWeeks={totalWeeks}
+            playoffsStarted={playoffsStarted}
+            onWeekChange={handleWeekChange}
+            onConfigChange={fetchData}
+          />
         </section>
       )}
 
@@ -152,9 +140,9 @@ export function HomePageClient() {
         <WeeklyGames games={currentWeekGames} weekNumber={currentWeek} />
       )}
 
-      <TeamLogos />
-
       <StatLeaders goals={goalLeaders} assists={assistLeaders} saves={saveLeaders} />
+
+      <TeamLogos />
     </div>
   )
 }

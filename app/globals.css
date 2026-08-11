@@ -1,63 +1,171 @@
 @import "tailwindcss";
 
-/* YM JAX Soccer League Theme */
+/* ===========================================================================
+   Chicken Shop Premier League — design tokens
+
+   Light, quiet, content-first. The Puro palette appears as accent only: a
+   link colour, a thin rule, the odd highlight. Everything structural is
+   neutral, so the data is what carries the page.
+
+   Token names describe what a value IS, not what it looks like. The previous
+   stylesheet had `--bg-black: #A0CAC9` (a teal) and `--text-white: #000000`,
+   which is how half the components ended up styled for a theme that no longer
+   existed.
+   =========================================================================== */
+
 :root {
-  /* Background gradient colors */
-  --bg-black: #A0CAC9;
-  --bg-blue: #FFE0AF;
-  
-  /* UI element colors */
-  --border-brown: #523232;
-  --accent-teal: #D47F7D;
-  --accent-gold: #B8860B;
-  
-  /* Text colors */
-  --text-white: #000000;
-  --text-gray: #A0A0A0;
-  --text-dark: #171717;
+  /* --- Surfaces --------------------------------------------------------- */
+  --surface: #ffffff;          /* page and card background */
+  --surface-sunken: #f5f5f7;   /* recessed areas, table headers, page bands */
+  --surface-hover: #fafafa;    /* row and card hover */
+  --surface-inverse: #1d1d1f;  /* dark surfaces: primary buttons, modals */
+
+  /* --- Text ------------------------------------------------------------- */
+  --ink: #1d1d1f;              /* headings, primary copy */
+  --ink-secondary: #6e6e73;    /* supporting copy, labels */
+  --ink-tertiary: #86868b;     /* captions, metadata, empty states */
+  --ink-inverse: #ffffff;      /* text on --surface-inverse */
+
+  /* --- Lines ------------------------------------------------------------ */
+  --hairline: #e5e5e7;         /* default separators */
+  --hairline-strong: #d2d2d7;  /* card and input borders */
+
+  /* --- Accent (Puro) ---------------------------------------------------- */
+  /* --accent is the brand rose. At 2.7:1 on white it is decorative only:
+     fills, rules, dots. --accent-ink is the darkened version that clears
+     4.5:1 for text and links. */
+  --accent: #d47f7d;
+  --accent-ink: #a2494a;
+  --accent-wash: #fdf4f3;      /* tinted background for selected states */
+
+  --gold: #b8860b;             /* champions and first place, used sparingly */
+
+  /* --- Semantic --------------------------------------------------------- */
+  --positive: #1d7a4c;
+  --negative: #b3261e;
+  --positive-wash: #f0f9f4;
+  --negative-wash: #fdf2f1;
+
+  /* --- Elevation -------------------------------------------------------- */
+  /* Hairlines do most of the work. Shadows stay near-invisible. */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-raised: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.24);
+
+  /* --- Radius ----------------------------------------------------------- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 980px;        /* Apple's button radius */
 }
 
 @theme inline {
-  --color-primary: var(--accent-teal);
-  --color-accent-gold: var(--accent-gold);
-  --color-border: var(--border-brown);
-  
-  /* Custom colors for Tailwind */
-  --color-league-black: var(--bg-black);
-  --color-league-blue: var(--bg-blue);
-  --color-league-teal: var(--accent-teal);
-  --color-league-gold: var(--accent-gold);
-  --color-league-border: var(--border-brown);
-  
-  /* Minimum 16px body text (constitutional requirement) */
-  --font-size-base: 1rem;
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-inverse: var(--surface-inverse);
+
+  --color-ink: var(--ink);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-tertiary: var(--ink-tertiary);
+  --color-ink-inverse: var(--ink-inverse);
+
+  --color-hairline: var(--hairline);
+  --color-hairline-strong: var(--hairline-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-wash: var(--accent-wash);
+  --color-gold: var(--gold);
+
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-positive-wash: var(--positive-wash);
+  --color-negative-wash: var(--negative-wash);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-pill: var(--radius-pill);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-raised: var(--shadow-raised);
+  --shadow-modal: var(--shadow-modal);
+}
+
+/* ===========================================================================
+   Base
+   =========================================================================== */
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  /* Dark gradient background: linear-gradient(138.92deg, #A0CAC9 42.58%, #FFE0AF 83.07%) */
-  background: linear-gradient(138.92deg, var(--bg-black) 42.58%, var(--bg-blue) 83.07%);
-  background-attachment: fixed;
-  color: var(--text-white);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  font-size: var(--font-size-base);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui,
+    sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
   min-height: 100vh;
 }
 
-/* Heading font (Rajdhani) - geometric, bold */
-h1, h2, h3, h4, h5, h6 {
-  font-family: 'Rajdhani', 'Inter', sans-serif;
-  font-weight: 700;
+/* Large type gets tighter tracking, the way optically-sized faces do. The old
+   stylesheet uppercased every heading and added positive letter-spacing, which
+   is the opposite of what reads as considered. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+  letter-spacing: -0.021em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+h1 {
+  letter-spacing: -0.035em;
+}
+
+/* Tabular figures everywhere numbers are compared down a column: scores,
+   standings, statistics. Without this, digits jitter between rows. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* The small all-caps label above a section. The one place uppercase earns its
+   place, because it is set small with wide tracking on purpose. */
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: var(--ink-tertiary);
 }
 
-/* Focus visible styles (accessibility) */
-*:focus-visible {
-  outline: 2px solid var(--accent-teal);
-  outline-offset: 2px;
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
-/* Custom shadow */
-.shadow-league {
-  box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+:focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Respect the OS setting. Every transition below is decorative. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

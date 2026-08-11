@@ -1,10 +1,17 @@
 /**
- * The current week's games, shown on the homepage.
+ * The current week's fixtures.
+ *
+ * Each fixture is a two-row block -- crest, name, score -- the way a results
+ * page reads, rather than a card shouting the matchup. Scores use tabular
+ * figures so digits line up between fixtures.
  */
 
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
+import Link from 'next/link'
+import { Pencil } from 'lucide-react'
 import { Game } from '@/types/game'
 import { displayJersey } from '@/types/player'
 import { useTeams } from '@/lib/teamsContext'
@@ -14,9 +21,6 @@ import { BoxScoreModal } from './BoxScoreModal'
 import { EditBoxScoreModal } from './EditBoxScoreModal'
 import { useAdmin } from '@/lib/adminContext'
 import { getGameById } from '@/lib/supabaseData'
-import { Pencil, Trophy } from 'lucide-react'
-import Link from 'next/link'
-import Image from 'next/image'
 
 interface WeeklyGamesProps {
   games: Game[]
@@ -25,188 +29,222 @@ interface WeeklyGamesProps {
 
 export function WeeklyGames({ games, weekNumber }: WeeklyGamesProps) {
   const { isAdmin } = useAdmin()
-  const [selectedGame, setSelectedGame] = useState<Game | null>(null)
-  const [selectedGameWithStats, setSelectedGameWithStats] = useState<Game | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  
-  const handleGameClick = async (game: Game, edit = false) => {
-    setSelectedGame(game)
-    
+  const [gameForView, setGameForView] = useState<Game | null>(null)
+  const [gameForEdit, setGameForEdit] = useState<Game | null>(null)
+  const [isViewOpen, setIsViewOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+
+  const open = async (game: Game, edit: boolean) => {
+    const full = (await getGameById(game.id)) ?? game
     if (edit) {
-      // Load full game with statistics from Supabase for editing
-      const fullGame = await getGameById(game.id)
-      
-      if (fullGame) {
-        setSelectedGameWithStats(fullGame)
-        setIsEditModalOpen(true)
-      }
+      setGameForEdit(full)
+      setIsEditOpen(true)
     } else {
-      // Load full game with statistics from Supabase for viewing
-      const fullGame = await getGameById(game.id)
-      
-      if (fullGame) {
-        setSelectedGame(fullGame)
-      }
-      setIsModalOpen(true)
+      setGameForView(full)
+      setIsViewOpen(true)
     }
   }
-  
-  const handleCloseModal = () => {
-    setIsModalOpen(false)
-    // Delay clearing selected game to allow modal close animation
-    setTimeout(() => setSelectedGame(null), 200)
-  }
-  
-  const handleCloseEditModal = () => {
-    setIsEditModalOpen(false)
-    setTimeout(() => {
-      setSelectedGame(null)
-      setSelectedGameWithStats(null)
-    }, 200)
-  }
-  
+
   return (
     <>
-      <section className="py-12 px-4 sm:px-6" aria-labelledby="weekly-games-title">
-        <div className="max-w-7xl mx-auto">
-          <h2 id="weekly-games-title" className="text-3xl sm:text-4xl font-black text-center mb-2 text-black">
-            This Week&apos;s Games
-          </h2>
-
-          <p className="text-center text-gray-700 mb-6">Week {weekNumber}</p>
-
-          {games.length === 0 ? (
-            <p className="text-center text-gray-700">
-              No games scheduled for week {weekNumber}
-            </p>
-          ) : (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {games.map(game => (
-                <GameCard 
-                  key={game.id} 
-                  game={game} 
-                  onClick={() => handleGameClick(game)} 
-                  onEdit={isAdmin ? () => handleGameClick(game, true) : undefined}
-                />
-              ))}
-            </div>
-          )}
-          
-          {/* Link to full schedule and standings */}
-          <div className="mt-8 text-center flex flex-wrap justify-center gap-4">
-            <Link
-              href="/schedule"
-              className="inline-block px-6 py-3 bg-[#D47F7D] hover:bg-[#D47F7D]/90 rounded-lg font-semibold transition-colors"
-              aria-label="View full season schedule"
+      <section
+        className="mx-auto max-w-6xl px-5 py-16 sm:px-8"
+        aria-labelledby="fixtures-heading"
+      >
+        <div className="flex items-baseline justify-between gap-4">
+          <div>
+            <p className="eyebrow">Week {weekNumber}</p>
+            <h2
+              id="fixtures-heading"
+              className="mt-2 text-[28px] font-semibold text-ink sm:text-[32px]"
             >
-              View Full Season Schedule
-            </Link>
-            <Link
-              href="/standings"
-              className="inline-block px-6 py-3 bg-[#D47F7D] hover:bg-[#D47F7D]/90 rounded-lg font-semibold transition-colors"
-              aria-label="View league standings"
-            >
-              View Standings
-            </Link>
-            <Link
-              href="/stats"
-              className="inline-block px-6 py-3 bg-[#D47F7D] hover:bg-[#D47F7D]/90 rounded-lg font-semibold transition-colors"
-              aria-label="View player statistics"
-            >
-              View Player Stats
-            </Link>
+              Fixtures
+            </h2>
           </div>
+          <Link
+            href="/schedule"
+            className="shrink-0 text-[14px] font-medium text-accent-ink transition-opacity hover:opacity-70"
+          >
+            Full season →
+          </Link>
         </div>
+
+        {games.length === 0 ? (
+          <p className="mt-10 text-[15px] text-ink-tertiary">
+            No fixtures scheduled for this week.
+          </p>
+        ) : (
+          <ul className="mt-8 grid gap-4 sm:grid-cols-2">
+            {games.map((game) => (
+              <li key={game.id}>
+                <FixtureCard
+                  game={game}
+                  onOpen={() => open(game, false)}
+                  onEdit={isAdmin ? () => open(game, true) : undefined}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
-      
-      {/* Box Score Modal */}
-      <BoxScoreModal game={selectedGame} isOpen={isModalOpen} onClose={handleCloseModal} />
-      
-      {/* Edit Box Score Modal */}
-      <EditBoxScoreModal 
-        game={selectedGameWithStats} 
-        isOpen={isEditModalOpen} 
-        onClose={handleCloseEditModal}
+
+      <BoxScoreModal
+        game={gameForView}
+        isOpen={isViewOpen}
+        onClose={() => setIsViewOpen(false)}
+      />
+      <EditBoxScoreModal
+        game={gameForEdit}
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
       />
     </>
   )
 }
 
-interface GameCardProps {
+interface FixtureCardProps {
   game: Game
-  onClick: () => void
+  onOpen: () => void
   onEdit?: () => void
 }
 
-function GameCard({ game, onClick, onEdit }: GameCardProps) {
-  const { teamName } = useTeams()
-  const homeTeamName = teamName(game.homeTeamId)
-  const awayTeamName = teamName(game.awayTeamId)
+function FixtureCard({ game, onOpen, onEdit }: FixtureCardProps) {
+  const { teamName, teamLogo } = useTeams()
+  const homeName = teamName(game.homeTeamId)
+  const awayName = teamName(game.awayTeamId)
 
-  // Show scores if they exist (including 0-0 for scheduled games)
-  const hasScores = game.homeScore !== null && game.awayScore !== null
-  const scoreDisplay = hasScores ? `${game.homeScore} - ${game.awayScore}` : 'VS'
+  const played = game.homeScore !== null && game.awayScore !== null
+  const homeWon = played && game.homeScore! > game.awayScore!
+  const awayWon = played && game.awayScore! > game.homeScore!
 
   return (
-    <div className="relative">
+    <div className="group relative">
       <button
-        onClick={onClick}
-        className="block w-full p-6 border border-[#523232] rounded-lg shadow-league hover:border-[#D47F7D] transition-colors text-left cursor-pointer"
-        aria-label={`View box score for ${homeTeamName} vs ${awayTeamName}`}
+        onClick={onOpen}
+        className="w-full rounded-lg border border-hairline bg-surface p-5 text-left transition-colors hover:bg-surface-hover"
+        aria-label={`${homeName} versus ${awayName}, box score`}
       >
-        <div className="flex justify-between items-center mb-4">
-          <span className="text-lg font-bold uppercase text-black">{homeTeamName}</span>
-          <span className="text-2xl font-black text-[#D47F7D]">{scoreDisplay}</span>
-          <span className="text-lg font-bold uppercase text-black">{awayTeamName}</span>
-        </div>
-        
-        <div className="text-sm text-gray-400 space-y-1">
-          <p>{formatDate(game.date)} • {formatTime(game.time)}</p>
-          <p>{game.location}</p>
-          {game.status !== 'scheduled' && game.status !== 'completed' && (
-            <p className="text-yellow-400 capitalize">{game.status}</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="tabular text-[12px] text-ink-tertiary">
+            {formatDate(game.date)} · {formatTime(game.time)}
+          </p>
+          {played ? (
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-tertiary">
+              Final
+            </span>
+          ) : (
+            game.status !== 'scheduled' && (
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-accent-ink">
+                {game.status}
+              </span>
+            )
           )}
         </div>
-        
-        {/* Player of the Game Badge */}
+
+        <div className="mt-4 space-y-2.5">
+          <TeamLine
+            logo={game.homeTeamId ? teamLogo(game.homeTeamId) : null}
+            name={homeName}
+            score={game.homeScore}
+            played={played}
+            won={homeWon}
+          />
+          <TeamLine
+            logo={game.awayTeamId ? teamLogo(game.awayTeamId) : null}
+            name={awayName}
+            score={game.awayScore}
+            played={played}
+            won={awayWon}
+          />
+        </div>
+
+        {game.location && (
+          <p className="mt-4 truncate text-[12px] text-ink-tertiary">{game.location}</p>
+        )}
+
         {game.playerOfGame && (
-          <div className="mt-4 pt-4 border-t border-[#523232]">
-            <div className="flex items-center gap-3 px-4 py-3 rounded-lg">
-              <Image
-                src={LEAGUE.manOfTheMatch.badgeImageUrl}
-                alt=""
-                width={50}
-                height={50}
-                className="rounded-full"
-              />
-              <div className="flex-1">
-                <p className="text-xs text-black font-bold uppercase flex items-center gap-1.5">
-                  <Trophy size={14} className="text-black" />
-                  {LEAGUE.manOfTheMatch.label}
-                </p>
-                <p className="text-base font-black text-black mt-1">
-                  #{displayJersey(game.playerOfGame.jerseyNumber)} {game.playerOfGame.name}
-                </p>
-              </div>
-            </div>
+          <div className="mt-4 flex items-center gap-2 border-t border-hairline pt-3">
+            <Image
+              src={LEAGUE.manOfTheMatch.badgeImageUrl}
+              alt=""
+              width={18}
+              height={18}
+              className="h-[18px] w-[18px] shrink-0 rounded-full object-contain"
+            />
+            <p className="truncate text-[12px] text-ink-secondary">
+              <span className="text-ink-tertiary">Man of the match · </span>
+              <span className="font-medium text-ink">{game.playerOfGame.name}</span>
+              <span className="tabular text-ink-tertiary">
+                {' '}
+                #{displayJersey(game.playerOfGame.jerseyNumber)}
+              </span>
+            </p>
           </div>
         )}
       </button>
-      
+
       {onEdit && (
         <button
           onClick={(e) => {
             e.stopPropagation()
             onEdit()
           }}
-          className="absolute top-2 right-2 p-2 bg-[#D47F7D]/90 hover:bg-[#D47F7D] rounded-full transition-colors"
+          className="absolute right-3 top-3 rounded-md p-1.5 text-ink-tertiary opacity-0 transition-opacity hover:bg-surface-sunken hover:text-ink focus-visible:opacity-100 group-hover:opacity-100"
           aria-label="Edit box score"
         >
-          <Pencil size={16} className="text-black" />
+          <Pencil size={14} />
         </button>
       )}
     </div>
   )
 }
 
+/** One team's line within a fixture: crest, name, score. */
+function TeamLine({
+  logo,
+  name,
+  score,
+  played,
+  won,
+}: {
+  logo: string | null
+  name: string
+  score: number | null
+  played: boolean
+  won: boolean
+}) {
+  // Once a game is played the loser recedes, so a glance reads the result.
+  const dim = played && !won
+
+  return (
+    <div className="flex items-center gap-3">
+      {logo ? (
+        <Image
+          src={logo}
+          alt=""
+          width={28}
+          height={28}
+          className="h-7 w-7 shrink-0 object-contain"
+        />
+      ) : (
+        <div className="h-7 w-7 shrink-0 rounded-full bg-surface-sunken" />
+      )}
+      <span
+        className={`flex-1 truncate text-[15px] ${
+          dim ? 'text-ink-secondary' : 'font-medium text-ink'
+        }`}
+      >
+        {name}
+      </span>
+      {played && (
+        <span
+          className={`tabular text-[17px] ${
+            won ? 'font-semibold text-ink' : 'text-ink-secondary'
+          }`}
+        >
+          {score}
+        </span>
+      )}
+    </div>
+  )
+}

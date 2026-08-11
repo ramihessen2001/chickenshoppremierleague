@@ -1,8 +1,12 @@
 /**
  * Leaderboards for goals, assists and saves.
- * Displays top 5 leaders in goals, assists, and saves
+ *
+ * Three columns, each a plain ranked list. Ties share a rank and are listed
+ * together. Counts are right-aligned with tabular figures so the column scans
+ * vertically.
  */
 
+import Link from 'next/link'
 import { LeaderboardEntry } from '@/types/statistic'
 
 interface StatLeadersProps {
@@ -12,89 +16,95 @@ interface StatLeadersProps {
 }
 
 export function StatLeaders({ goals, assists, saves }: StatLeadersProps) {
+  const hasAny = goals.length > 0 || assists.length > 0 || saves.length > 0
+
   return (
-    <section className="py-12 px-4 sm:px-6" aria-labelledby="stat-leaders-title">
-      <div className="max-w-7xl mx-auto">
-        {/* Gold divider */}
-        <div className="h-px bg-gradient-to-r from-transparent via-[#B8860B] to-transparent mb-12" />
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
-          <LeaderColumn title="GOALS LEADERS" leaders={goals} />
-          <LeaderColumn title="ASSISTS LEADERS" leaders={assists} />
-          <LeaderColumn title="SAVES LEADERS" leaders={saves} />
+    <section
+      className="border-t border-hairline bg-surface-sunken"
+      aria-labelledby="leaders-heading"
+    >
+      <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8">
+        <div className="flex items-baseline justify-between gap-4">
+          <h2
+            id="leaders-heading"
+            className="text-[28px] font-semibold text-ink sm:text-[32px]"
+          >
+            Leaders
+          </h2>
+          <Link
+            href="/stats"
+            className="shrink-0 text-[14px] font-medium text-accent-ink transition-opacity hover:opacity-70"
+          >
+            All players →
+          </Link>
         </div>
+
+        {!hasAny ? (
+          <p className="mt-10 text-[15px] text-ink-tertiary">
+            Leaders appear once results have been recorded.
+          </p>
+        ) : (
+          <div className="mt-10 grid gap-10 sm:grid-cols-3 sm:gap-8">
+            <LeaderColumn title="Goals" leaders={goals} />
+            <LeaderColumn title="Assists" leaders={assists} />
+            <LeaderColumn title="Saves" leaders={saves} />
+          </div>
+        )}
       </div>
     </section>
   )
 }
 
-interface LeaderColumnProps {
+function LeaderColumn({
+  title,
+  leaders,
+}: {
   title: string
   leaders: LeaderboardEntry[]
-}
+}) {
+  // Players on the same count share a rank, and the next rank skips past them.
+  const byCount = new Map<number, LeaderboardEntry['player'][]>()
+  for (const entry of leaders) {
+    if (!byCount.has(entry.count)) byCount.set(entry.count, [])
+    byCount.get(entry.count)!.push(entry.player)
+  }
 
-function LeaderColumn({ title, leaders }: LeaderColumnProps) {
-  if (leaders.length === 0) {
-    return (
-      <div>
-        <h3 className="text-xl sm:text-2xl font-bold uppercase mb-6 text-white">
-          {title}
-        </h3>
-        <p className="text-gray-400 text-sm">Statistics available after games begin</p>
-      </div>
-    )
-  }
-  
-  // Group players by count (for ties)
-  const groupedByCount = leaders.reduce((acc, entry) => {
-    if (!acc[entry.count]) {
-      acc[entry.count] = []
-    }
-    acc[entry.count].push(entry.player)
-    return acc
-  }, {} as Record<number, typeof leaders[number]['player'][]>)
-  
-  // Sort counts descending
-  const sortedCounts = Object.keys(groupedByCount)
-    .map(Number)
-    .sort((a, b) => b - a)
-    .slice(0, 5)
-  
-  // Rank each score group up front. Mutating a counter while mapping works
-  // until React re-renders the list without re-running this function.
+  const counts = [...byCount.keys()].sort((a, b) => b - a).slice(0, 5)
+
   let running = 1
-  const rankByCount = new Map<number, number>()
-  for (const count of sortedCounts) {
-    rankByCount.set(count, running)
-    running += groupedByCount[count].length
-  }
+  const rows = counts.map((count) => {
+    const players = byCount.get(count)!
+    const rank = running
+    running += players.length
+    return { count, players, rank }
+  })
 
   return (
     <div>
-      <h3 className="text-xl sm:text-2xl font-bold uppercase mb-6 text-black">
-        {title}
-      </h3>
-      <ol className="space-y-3">
-        {sortedCounts.map(count => {
-          const players = groupedByCount[count]
-          const currentRank = rankByCount.get(count)!
+      <h3 className="eyebrow">{title}</h3>
 
-          return (
-            <li key={count} className="flex justify-between items-start text-base sm:text-lg">
-              <span className="flex-1">
-                <span className="text-black mr-3">{currentRank}.</span>
-                <span className="text-black">
-                  {players.length > 1
-                    ? players.map(p => p.name).join(', ')
-                    : players[0].name}
-                </span>
+      {rows.length === 0 ? (
+        <p className="mt-4 text-[14px] text-ink-tertiary">No data yet</p>
+      ) : (
+        <ol className="mt-4">
+          {rows.map(({ count, players, rank }) => (
+            <li
+              key={count}
+              className="flex items-baseline gap-3 border-b border-hairline py-3 last:border-0"
+            >
+              <span className="tabular w-5 shrink-0 text-[13px] text-ink-tertiary">
+                {rank}
               </span>
-              <span className="font-bold text-black ml-4">{count}</span>
+              <span className="flex-1 text-[15px] text-ink">
+                {players.map((p) => p.name).join(', ')}
+              </span>
+              <span className="tabular text-[15px] font-semibold text-ink">
+                {count}
+              </span>
             </li>
-          )
-        })}
-      </ol>
+          ))}
+        </ol>
+      )}
     </div>
   )
 }
-

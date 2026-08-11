@@ -1,50 +1,69 @@
 /**
- * Site header: league crest either side of the league name.
+ * Site header: a slim sticky bar with the crest, wordmark and navigation.
+ *
+ * The previous header was a full-width block with the same logo mirrored on
+ * both sides and the league name set huge in uppercase, which pushed the actual
+ * content below the fold. Navigation lived as three large buttons dumped on the
+ * homepage, so it existed on exactly one page. It belongs here.
  */
+
+'use client'
 
 import Image from 'next/image'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { LEAGUE } from '@/config/league'
 
+const NAV = [
+  { href: '/schedule', label: 'Schedule' },
+  { href: '/standings', label: 'Standings' },
+  { href: '/stats', label: 'Stats' },
+]
+
 export function Header() {
+  const pathname = usePathname()
+
   return (
-    <header className="w-full py-6 px-4 sm:px-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between gap-4">
-          <Link href="/" className="flex-shrink-0" aria-label="Home">
-            <div className="relative w-26 h-26 sm:w-34 sm:h-34">
-              <Image
-                src={LEAGUE.logoUrl}
-                alt={`${LEAGUE.name} logo`}
-                fill
-                className="object-contain"
-                priority
-              />
-            </div>
-          </Link>
+    <header className="sticky top-0 z-40 border-b border-hairline bg-surface/80 backdrop-blur-xl backdrop-saturate-150">
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-5 sm:px-8">
+        <Link
+          href="/"
+          className="flex shrink-0 items-center gap-2.5"
+          aria-label={`${LEAGUE.name} home`}
+        >
+          <Image
+            src={LEAGUE.logoUrl}
+            alt=""
+            width={28}
+            height={28}
+            className="h-7 w-7 object-contain"
+            priority
+          />
+          <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">
+            <span className="hidden sm:inline">{LEAGUE.name}</span>
+            <span className="sm:hidden">{LEAGUE.shortName}</span>
+          </span>
+        </Link>
 
-          <div className="flex-1 text-center">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-wider text-black">
-              {LEAGUE.name}
-            </h1>
-          </div>
-
-          {/* Decorative mirror of the crest -- hidden from screen readers so the
-              league name is not announced twice. */}
-          <div className="flex-shrink-0" aria-hidden="true">
-            <div className="relative w-26 h-26 sm:w-34 sm:h-34">
-              <Image
-                src={LEAGUE.logoUrl}
-                alt=""
-                fill
-                className="object-contain"
-                priority
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="h-px bg-gradient-to-r from-transparent via-[#B8860B] to-transparent mt-6" />
+        <nav className="ml-auto flex items-center gap-1" aria-label="Main">
+          {NAV.map(({ href, label }) => {
+            const isActive = pathname === href || pathname.startsWith(`${href}/`)
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={isActive ? 'page' : undefined}
+                className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                  isActive
+                    ? 'text-ink'
+                    : 'text-ink-secondary hover:text-ink'
+                }`}
+              >
+                {label}
+              </Link>
+            )
+          })}
+        </nav>
       </div>
     </header>
   )

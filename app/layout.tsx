@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Inter, Rajdhani } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import './globals.css'
 import { Header } from './components/Header'
 import { Footer } from './components/Footer'
@@ -8,16 +8,17 @@ import { TeamsProvider } from '@/lib/teamsContext'
 import { AdminBanner } from './components/AdminBanner'
 import { LEAGUE } from '@/config/league'
 
+/**
+ * One typeface, used at every size.
+ *
+ * The old build paired Inter with Rajdhani -- a condensed geometric face that
+ * reads as sports-broadcast graphics, not as the restrained look we want.
+ * Inter is the closest widely available stand-in for SF Pro, and its variable
+ * axes cover everything from captions to the hero.
+ */
 const inter = Inter({
   variable: '--font-inter',
   subsets: ['latin'],
-  display: 'swap',
-})
-
-const rajdhani = Rajdhani({
-  variable: '--font-rajdhani',
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
   display: 'swap',
 })
 
@@ -37,10 +38,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${inter.variable} ${rajdhani.variable} antialiased min-h-screen flex flex-col`}
-        style={{ fontFamily: 'var(--font-inter), system-ui, sans-serif' }}
-      >
+      <body className={`${inter.variable} antialiased min-h-screen flex flex-col`}>
         <AdminProvider>
           <TeamsProvider>
             <AdminBanner />
