@@ -5,7 +5,6 @@
 
 import { displayJersey } from '@/types/player'
 
-import Image from 'next/image'
 import { Trophy } from 'lucide-react'
 
 interface PuroPlayerBadgeProps {

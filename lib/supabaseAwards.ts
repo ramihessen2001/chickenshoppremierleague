@@ -317,3 +317,29 @@ export async function getAllAwards(): Promise<Award[]> {
 }
 
 
+
+/**
+ * The nominees for one award, with player names, for the admin panel.
+ */
+export async function getAwardNominees(awardId: string): Promise<
+  Array<{ id: string; player_id: string; playerName: string }>
+> {
+  const { data, error } = await supabase
+    .from('award_nominees')
+    .select('id, player_id, players(name)')
+    .eq('award_id', awardId)
+
+  if (error) {
+    console.error('Error fetching nominees:', error)
+    return []
+  }
+
+  return (data ?? []).map((nominee: any) => {
+    const player = Array.isArray(nominee.players) ? nominee.players[0] : nominee.players
+    return {
+      id: nominee.id,
+      player_id: nominee.player_id,
+      playerName: player?.name ?? '',
+    }
+  })
+}

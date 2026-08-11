@@ -9,6 +9,7 @@ import Image from 'next/image'
 import { Game } from '@/types/game'
 import { displayJersey } from '@/types/player'
 import { useTeams } from '@/lib/teamsContext'
+import { LEAGUE } from '@/config/league'
 import { BoxScoreModal } from './BoxScoreModal'
 import { Calendar, Trophy, Clock } from 'lucide-react'
 
@@ -173,7 +174,7 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
                       <div className="mt-4 pt-4 border-t border-[#523232]">
                         <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg">
                           <Image
-                            src="/images/puro_logo.png"
+                            src={LEAGUE.manOfTheMatch.badgeImageUrl}
                             alt="Puro"
                             width={40}
                             height={40}

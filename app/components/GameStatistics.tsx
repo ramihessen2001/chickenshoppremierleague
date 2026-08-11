@@ -102,7 +102,7 @@ export function GameStatistics({ game }: GameStatisticsProps) {
               Detailed statistics not yet entered for this game.
             </p>
             <p className="text-sm text-gray-500">
-              Goal scorers, assists, saves, and other statistics will appear here once they're added by an admin.
+              Goal scorers, assists, saves and cards appear here once an admin adds them.
             </p>
           </div>
         </div>

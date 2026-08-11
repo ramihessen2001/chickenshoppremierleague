@@ -4,11 +4,12 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Trophy, Plus, X, Users, Edit2, Trash2, Check } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Trophy, Plus, X, Users, Trash2, Check } from 'lucide-react'
 import { Award } from '@/lib/supabase'
 import { 
-  getAllAwards, 
+  getAllAwards,
+  getAwardNominees,
   createAward, 
   updateAward, 
   deleteAward,
@@ -62,11 +63,7 @@ export function AwardManagement() {
   }>>([])
   const [selectedPlayerId, setSelectedPlayerId] = useState('')
 
-  useEffect(() => {
-    fetchData()
-  }, [])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true)
     const [awardsData, playersData] = await Promise.all([
       getAllAwards(),
@@ -75,7 +72,14 @@ export function AwardManagement() {
     setAwards(awardsData)
     setPlayers(playersData)
     setIsLoading(false)
-  }
+  }, [])
+
+  useEffect(() => {
+    // fetchData is async, so its setState runs after the queries resolve rather
+    // than during this render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData()
+  }, [fetchData])
 
   const handleCreateAward = async () => {
     if (!awardForm.name.trim()) {
@@ -119,24 +123,7 @@ export function AwardManagement() {
     setSelectedAward(award)
     
     // Fetch current nominees for this award
-    const { data } = await (await import('@/lib/supabase')).supabase
-      .from('award_nominees')
-      .select(`
-        id,
-        player_id,
-        players (
-          name
-        )
-      `)
-      .eq('award_id', award.id)
-
-    const nomineesData = data?.map(n => ({
-      id: n.id,
-      player_id: n.player_id,
-      playerName: (n.players as any)?.name || ''
-    })) || []
-
-    setNominees(nomineesData)
+    setNominees(await getAwardNominees(award.id))
     setShowNomineeModal(true)
   }
 

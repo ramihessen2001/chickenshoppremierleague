@@ -82,6 +82,9 @@ export function TeamsProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    // load() is async, so its setState runs once the fetch resolves rather than
+    // during this render. The rule's heuristic cannot see through the await.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load()
 
     // Admin edits dispatch this event; re-read so renames and new teams appear

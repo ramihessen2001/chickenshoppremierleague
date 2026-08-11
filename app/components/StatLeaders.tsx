@@ -60,8 +60,15 @@ function LeaderColumn({ title, leaders }: LeaderColumnProps) {
     .sort((a, b) => b - a)
     .slice(0, 5)
   
-  let rank = 1
-  
+  // Rank each score group up front. Mutating a counter while mapping works
+  // until React re-renders the list without re-running this function.
+  let running = 1
+  const rankByCount = new Map<number, number>()
+  for (const count of sortedCounts) {
+    rankByCount.set(count, running)
+    running += groupedByCount[count].length
+  }
+
   return (
     <div>
       <h3 className="text-xl sm:text-2xl font-bold uppercase mb-6 text-black">
@@ -70,9 +77,8 @@ function LeaderColumn({ title, leaders }: LeaderColumnProps) {
       <ol className="space-y-3">
         {sortedCounts.map(count => {
           const players = groupedByCount[count]
-          const currentRank = rank
-          rank += players.length
-          
+          const currentRank = rankByCount.get(count)!
+
           return (
             <li key={count} className="flex justify-between items-start text-base sm:text-lg">
               <span className="flex-1">

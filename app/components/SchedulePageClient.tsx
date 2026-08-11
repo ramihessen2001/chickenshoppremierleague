@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react'
 import { FullSchedule } from '@/app/components/FullSchedule'
-import { getAllGames, getCurrentWeek, getLeagueConfig } from '@/lib/supabaseData'
+import { getAllGames, getLeagueConfig } from '@/lib/supabaseData'
 import { Game } from '@/types/game'
 
 export function SchedulePageClient() {

@@ -4,8 +4,9 @@
 
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
+import { fallbackTeamLogo } from '@/config/league'
 import Link from 'next/link'
 import { getAllPlayersWithStats } from '@/lib/supabaseData'
 import { useTeams } from '@/lib/teamsContext'
@@ -40,7 +41,6 @@ export function PlayerStatsClient() {
   const { isAdmin } = useAdmin()
   const { teams } = useTeams()
   const [players, setPlayers] = useState<PlayerStats[]>([])
-  const [filteredPlayers, setFilteredPlayers] = useState<PlayerStats[]>([])
   const [selectedTeam, setSelectedTeam] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [isLoading, setIsLoading] = useState(true)
@@ -48,81 +48,83 @@ export function PlayerStatsClient() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
 
   useEffect(() => {
-    const fetchPlayers = async () => {
-      setIsLoading(true)
-      const data = await getAllPlayersWithStats()
-      setPlayers(data)
-      setFilteredPlayers(data)
-      setIsLoading(false)
-    }
+    let cancelled = false
 
-    fetchPlayers()
+    getAllPlayersWithStats()
+      .then((data) => {
+        if (!cancelled) setPlayers(data)
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  useEffect(() => {
-    let filtered = players
+  /**
+   * The visible rows are derived from the player list plus the current filters,
+   * so they are computed rather than stored. Keeping them in state meant every
+   * keystroke triggered a second render pass, and left two sources of truth
+   * that could disagree.
+   */
+  const filteredPlayers = useMemo(() => {
+    let result = players
 
-    // Filter by team
     if (selectedTeam !== 'all') {
-      filtered = filtered.filter(player => player.team?.slug === selectedTeam)
+      result = result.filter((player) => player.team?.slug === selectedTeam)
     }
 
-    // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(player => 
-        player.name.toLowerCase().includes(query) ||
-        (player.jerseyNumber !== null &&
-          player.jerseyNumber.toString().includes(query))
+      result = result.filter(
+        (player) =>
+          player.name.toLowerCase().includes(query) ||
+          (player.jerseyNumber !== null &&
+            player.jerseyNumber.toString().includes(query))
       )
     }
 
-    // Sort the filtered results
-    filtered = [...filtered].sort((a, b) => {
-      let compareValue = 0
-
+    const compare = (a: PlayerStats, b: PlayerStats): number => {
       switch (sortField) {
         case 'name':
-          compareValue = a.name.localeCompare(b.name)
-          break
+          return a.name.localeCompare(b.name)
         case 'team':
-          compareValue = (a.team?.name || '').localeCompare(b.team?.name || '')
-          break
+          return (a.team?.name || '').localeCompare(b.team?.name || '')
         case 'goals':
-          compareValue = a.goals - b.goals
-          break
+          return a.goals - b.goals
         case 'assists':
-          compareValue = a.assists - b.assists
-          break
+          return a.assists - b.assists
         case 'saves':
-          compareValue = a.saves - b.saves
-          break
+          return a.saves - b.saves
       }
+    }
 
-      return sortOrder === 'asc' ? compareValue : -compareValue
-    })
-
-    setFilteredPlayers(filtered)
-  }, [selectedTeam, searchQuery, players, sortField, sortOrder])
+    return [...result].sort((a, b) =>
+      sortOrder === 'asc' ? compare(a, b) : -compare(a, b)
+    )
+  }, [players, selectedTeam, searchQuery, sortField, sortOrder])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
-      // Toggle sort order if same field
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
     } else {
-      // New field, default to ascending
       setSortField(field)
       setSortOrder('asc')
     }
   }
 
-  const SortIcon = ({ field }: { field: SortField }) => {
+  /** Sort indicator for a column header. */
+  const sortIcon = (field: SortField) => {
     if (sortField !== field) {
       return <ArrowUpDown size={14} className="inline ml-1 opacity-50" />
     }
-    return sortOrder === 'asc' 
-      ? <ArrowUp size={14} className="inline ml-1" />
-      : <ArrowDown size={14} className="inline ml-1" />
+    return sortOrder === 'asc' ? (
+      <ArrowUp size={14} className="inline ml-1" />
+    ) : (
+      <ArrowDown size={14} className="inline ml-1" />
+    )
   }
 
   if (isLoading) {
@@ -230,14 +232,14 @@ export function PlayerStatsClient() {
                         onClick={() => handleSort('name')}
                       >
                         Player
-                        <SortIcon field="name" />
+                      {sortIcon('name')}
                       </th>
                       <th 
                         className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider cursor-pointer hover:text-[#D47F7D] transition-colors"
                         onClick={() => handleSort('team')}
                       >
                         Team
-                        <SortIcon field="team" />
+                      {sortIcon('team')}
                       </th>
                       <th 
                         className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider cursor-pointer hover:text-[#D47F7D] transition-colors"
@@ -245,7 +247,7 @@ export function PlayerStatsClient() {
                       >
                         <Trophy size={14} className="inline mr-1" />
                         Goals
-                        <SortIcon field="goals" />
+                      {sortIcon('goals')}
                       </th>
                       <th 
                         className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider cursor-pointer hover:text-[#D47F7D] transition-colors"
@@ -253,14 +255,14 @@ export function PlayerStatsClient() {
                       >
                         <Target size={14} className="inline mr-1" />
                         Assists
-                        <SortIcon field="assists" />
+                      {sortIcon('assists')}
                       </th>
                       <th 
                         className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider cursor-pointer hover:text-[#D47F7D] transition-colors"
                         onClick={() => handleSort('saves')}
                       >
                         Saves
-                        <SortIcon field="saves" />
+                      {sortIcon('saves')}
                       </th>
                     </tr>
                   </thead>
@@ -303,10 +305,8 @@ export function PlayerStatsClient() {
                             <div className="flex items-center gap-2">
                               <Image
                                 src={
-                                  player.team.logoUrl && !player.team.logoUrl.includes('/league_data/')
-                                    ? player.team.logoUrl
-                                    : `/images/${player.team.slug}_logo.png`
-                                }
+                                player.team.logoUrl || fallbackTeamLogo(player.team.slug)
+                              }
                                 alt={player.team.name}
                                 width={24}
                                 height={24}
@@ -365,9 +365,7 @@ export function PlayerStatsClient() {
                           <div className="flex items-center gap-2 text-sm text-gray-400">
                             <Image
                               src={
-                                player.team.logoUrl && !player.team.logoUrl.includes('/league_data/')
-                                  ? player.team.logoUrl
-                                  : `/images/${player.team.slug}_logo.png`
+                                player.team.logoUrl || fallbackTeamLogo(player.team.slug)
                               }
                               alt={player.team.name}
                               width={20}

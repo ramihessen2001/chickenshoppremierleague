@@ -14,7 +14,7 @@ import { EditGameModal } from './EditGameModal'
 import { useAdmin } from '@/lib/adminContext'
 import { getGameById } from '@/lib/supabaseData'
 import Link from 'next/link'
-import { ArrowLeft, Plus } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 
 interface FullScheduleProps {
   games: Game[]
@@ -30,13 +30,10 @@ export function FullSchedule({ games, currentWeek, totalWeeks }: FullSchedulePro
   const [isEditBoxScoreModalOpen, setIsEditBoxScoreModalOpen] = useState(false)
   const [isEditGameModalOpen, setIsEditGameModalOpen] = useState(false)
   const [newGameWeek, setNewGameWeek] = useState<number | undefined>(undefined)
-  const [isLoadingGame, setIsLoadingGame] = useState(false)
   
   const handleGameClick = async (game: Game) => {
     // Load full game with statistics from Supabase for viewing
-    setIsLoadingGame(true)
     const fullGame = await getGameById(game.id)
-    setIsLoadingGame(false)
     
     if (fullGame) {
       setSelectedGame(fullGame)
@@ -46,9 +43,7 @@ export function FullSchedule({ games, currentWeek, totalWeeks }: FullSchedulePro
   
   const handleEditBoxScore = async (game: Game) => {
     // Load full game with statistics from Supabase for editing
-    setIsLoadingGame(true)
     const fullGame = await getGameById(game.id)
-    setIsLoadingGame(false)
     
     if (fullGame) {
       setSelectedGameWithStats(fullGame)

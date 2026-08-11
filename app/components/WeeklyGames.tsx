@@ -29,16 +29,13 @@ export function WeeklyGames({ games, weekNumber }: WeeklyGamesProps) {
   const [selectedGameWithStats, setSelectedGameWithStats] = useState<Game | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [isLoadingGame, setIsLoadingGame] = useState(false)
   
   const handleGameClick = async (game: Game, edit = false) => {
     setSelectedGame(game)
     
     if (edit) {
       // Load full game with statistics from Supabase for editing
-      setIsLoadingGame(true)
       const fullGame = await getGameById(game.id)
-      setIsLoadingGame(false)
       
       if (fullGame) {
         setSelectedGameWithStats(fullGame)
@@ -46,9 +43,7 @@ export function WeeklyGames({ games, weekNumber }: WeeklyGamesProps) {
       }
     } else {
       // Load full game with statistics from Supabase for viewing
-      setIsLoadingGame(true)
       const fullGame = await getGameById(game.id)
-      setIsLoadingGame(false)
       
       if (fullGame) {
         setSelectedGame(fullGame)

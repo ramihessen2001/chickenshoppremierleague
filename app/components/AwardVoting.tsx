@@ -5,8 +5,9 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
+import { fallbackTeamLogo } from '@/config/league'
 import { Trophy, CheckCircle, Circle } from 'lucide-react'
 import { getAwardsWithNominees, submitVote, AwardWithNominees } from '@/lib/supabaseAwards'
 
@@ -20,28 +21,32 @@ export function AwardVoting() {
   const [showNamePrompt, setShowNamePrompt] = useState(false)
   const [pendingVote, setPendingVote] = useState<{ awardId: string; nomineeId: string } | null>(null)
 
-  useEffect(() => {
-    // Generate a unique voter identifier (using a combination of timestamp and random)
-    // In production, you might want to use IP address or a more sophisticated method
-    const identifier = localStorage.getItem('voter_id') || `voter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    localStorage.setItem('voter_id', identifier)
-    setVoterIdentifier(identifier)
-
-    // Check if voter name is already saved
-    const savedName = localStorage.getItem('voter_name')
-    if (savedName) {
-      setVoterName(savedName)
-    }
-
-    fetchAwards(identifier)
-  }, [])
-
-  const fetchAwards = async (identifier: string) => {
+  const fetchAwards = useCallback(async (identifier: string) => {
     setIsLoading(true)
     const data = await getAwardsWithNominees(identifier)
     setAwards(data)
     setIsLoading(false)
-  }
+  }, [])
+
+  useEffect(() => {
+    // A per-browser id, so a voter is not asked to vote twice on one device.
+    // It is not proof of identity -- clearing site data resets it.
+    const identifier =
+      localStorage.getItem('voter_id') ||
+      `voter_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
+    localStorage.setItem('voter_id', identifier)
+
+    // localStorage is a browser-only store, so it cannot be read until after
+    // mount. Seeding state from it here is the "read from an external system"
+    // case the rule is meant to permit, not derived state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setVoterIdentifier(identifier)
+
+    const savedName = localStorage.getItem('voter_name')
+    if (savedName) setVoterName(savedName)
+
+    fetchAwards(identifier)
+  }, [fetchAwards])
 
   const handleSelectNominee = (awardId: string, nomineeId: string) => {
     setSelectedNominees({
@@ -190,9 +195,7 @@ export function AwardVoting() {
                           <div className="flex items-center gap-2 text-sm text-gray-400 mt-1">
                             <Image
                               src={
-                                nominee.player.team.logoUrl && !nominee.player.team.logoUrl.includes('/league_data/')
-                                  ? nominee.player.team.logoUrl
-                                  : `/images/${nominee.player.team.slug}_logo.png`
+                                nominee.player.team.logoUrl || fallbackTeamLogo(nominee.player.team.slug)
                               }
                               alt={nominee.player.team.name}
                               width={16}
@@ -237,10 +240,8 @@ export function AwardVoting() {
                             <div className="flex items-center gap-2 text-sm text-gray-400 mt-1">
                               <Image
                                 src={
-                                  nominee.player.team.logoUrl && !nominee.player.team.logoUrl.includes('/league_data/')
-                                    ? nominee.player.team.logoUrl
-                                    : `/images/${nominee.player.team.slug}_logo.png`
-                                }
+                                nominee.player.team.logoUrl || fallbackTeamLogo(nominee.player.team.slug)
+                              }
                                 alt={nominee.player.team.name}
                                 width={16}
                                 height={16}
