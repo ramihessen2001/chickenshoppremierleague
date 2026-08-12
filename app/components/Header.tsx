@@ -36,13 +36,19 @@ export function Header() {
           className="flex shrink-0 items-center gap-2.5"
           aria-label={`${LEAGUE.name} home`}
         >
+          {/* The wordmark is ~3.2:1, so it gets a wide slot with an explicit
+              height. A square box would shrink it to a sliver. */}
           <Image
-            src={LEAGUE.logoUrl}
-            alt=""
-            width={28}
-            height={28}
-            className="h-7 w-7 object-contain"
+            src={LEAGUE.wordmarkUrl}
+            alt="Puro"
+            width={640}
+            height={197}
+            className="h-[22px] w-auto object-contain"
             priority
+          />
+          <span
+            className="h-4 w-px shrink-0 bg-hairline-strong"
+            aria-hidden="true"
           />
           <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">
             <span className="hidden sm:inline">{LEAGUE.name}</span>

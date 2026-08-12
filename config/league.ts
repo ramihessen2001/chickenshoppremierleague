@@ -25,8 +25,17 @@ export const LEAGUE = {
 
   keywords: 'CSPL, Chicken Shop Premier League, soccer league, schedule, standings, stats',
 
-  /** Path to the league crest in /public. */
-  logoUrl: '/images/league_logo.png',
+  /**
+   * The Puro wordmark, shown in the header. Wide -- roughly 3.2:1 -- so it
+   * needs a wide slot, not a square one.
+   */
+  wordmarkUrl: '/images/puro_wordmark.png',
+
+  /** White version of the wordmark, for dark surfaces. */
+  wordmarkWhiteUrl: '/images/puro_wordmark_white.png',
+
+  /** The league crest. Square, shown large on the pre-season homepage. */
+  crestUrl: '/images/league_logo.png',
 
   /**
    * Where the "buy a kit" button points, or null to hide it everywhere.
@@ -38,7 +47,9 @@ export const LEAGUE = {
   /** Branding for the man-of-the-match award. */
   manOfTheMatch: {
     label: 'Puro Man of The Match',
-    badgeImageUrl: '/images/puro_white.png',
+    // The dark wordmark: these badges sit on white and light grey surfaces, so
+    // the white version was invisible after the redesign.
+    badgeImageUrl: '/images/puro_wordmark.png',
   },
 }
 

@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { WeeklyGames } from './WeeklyGames'
 import { TeamLogos } from './TeamLogos'
 import { StatLeaders } from './StatLeaders'
@@ -221,6 +222,20 @@ export function HomePageClient() {
             <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-ink-secondary">
               {hero.body}
             </p>
+
+            {/* The crest anchors the page while there is no other content to
+                look at. Once fixtures and results exist it would just be
+                decoration, so it appears only before the season starts. */}
+            {isRegistering && (
+              <Image
+                src={LEAGUE.crestUrl}
+                alt=""
+                width={384}
+                height={383}
+                priority
+                className="mt-10 h-32 w-32 object-contain sm:h-40 sm:w-40"
+              />
+            )}
 
             {actions.length > 0 && (
               <div className="mt-9 flex flex-wrap items-center gap-3">
