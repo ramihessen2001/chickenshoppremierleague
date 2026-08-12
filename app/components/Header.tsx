@@ -46,10 +46,6 @@ export function Header() {
             className="h-[22px] w-auto object-contain"
             priority
           />
-          <span
-            className="h-4 w-px shrink-0 bg-hairline-strong"
-            aria-hidden="true"
-          />
           <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">
             <span className="hidden sm:inline">{LEAGUE.name}</span>
             <span className="sm:hidden">{LEAGUE.shortName}</span>

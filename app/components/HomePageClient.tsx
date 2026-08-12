@@ -204,11 +204,32 @@ export function HomePageClient() {
         <div
           className={
             isRegistering
-              ? 'grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:gap-16'
+              ? 'grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:gap-16'
               : ''
           }
         >
-          <div>
+          {/* A flex column so the crest can be reordered by breakpoint and, on
+              desktop, absorb the space left over beside the form. */}
+          <div className={isRegistering ? 'flex flex-col' : ''}>
+            {/* The crest anchors the page while there is no other content to
+                look at. Once fixtures and results exist it would just be
+                decoration, so it appears only before the season starts.
+
+                It sits above the headline on narrow screens, and below it on
+                desktop -- one element, reordered, rather than two copies. */}
+            {isRegistering && (
+              <div className="order-first mb-8 lg:order-last lg:mb-0 lg:min-h-0 lg:flex-1 lg:pt-12">
+                <Image
+                  src={LEAGUE.crestUrl}
+                  alt=""
+                  width={384}
+                  height={383}
+                  priority
+                  className="h-20 w-20 object-contain sm:h-24 sm:w-24 lg:h-full lg:w-full lg:max-w-[22rem] lg:object-left-bottom"
+                />
+              </div>
+            )}
+
             <p className="eyebrow">{config?.season ?? LEAGUE.fallbackSeason}</p>
             <h1
               className={`mt-4 font-semibold text-ink ${
@@ -222,20 +243,6 @@ export function HomePageClient() {
             <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-ink-secondary">
               {hero.body}
             </p>
-
-            {/* The crest anchors the page while there is no other content to
-                look at. Once fixtures and results exist it would just be
-                decoration, so it appears only before the season starts. */}
-            {isRegistering && (
-              <Image
-                src={LEAGUE.crestUrl}
-                alt=""
-                width={384}
-                height={383}
-                priority
-                className="mt-10 h-32 w-32 object-contain sm:h-40 sm:w-40"
-              />
-            )}
 
             {actions.length > 0 && (
               <div className="mt-9 flex flex-wrap items-center gap-3">
