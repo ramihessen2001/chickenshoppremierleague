@@ -29,7 +29,7 @@ export function Header() {
   const nav = isAdmin ? [...NAV, { href: '/signups', label: 'Signups' }] : NAV
 
   return (
-    <header className="sticky top-0 z-40 border-b border-hairline bg-surface/80 backdrop-blur-xl backdrop-saturate-150">
+    <header className="sticky top-0 z-40 bg-surface/80 backdrop-blur-xl backdrop-saturate-150">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-5 sm:px-8">
         <Link
           href="/"

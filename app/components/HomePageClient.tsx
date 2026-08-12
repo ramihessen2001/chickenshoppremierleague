@@ -218,14 +218,18 @@ export function HomePageClient() {
                 It sits above the headline on narrow screens, and below it on
                 desktop -- one element, reordered, rather than two copies. */}
             {isRegistering && (
-              <div className="order-first mb-8 lg:order-last lg:mb-0 lg:min-h-0 lg:flex-1 lg:pt-12">
+              <div className="order-first mb-8 lg:order-last lg:mb-0 lg:min-h-0 lg:flex-1 lg:pt-6">
+                {/* object-bottom is `center bottom`, so the artwork centres
+                    horizontally under the headline while its lower edge stays
+                    level with the bottom of the form. No max width: the space
+                    left beside the form is what sets the size. */}
                 <Image
                   src={LEAGUE.crestUrl}
                   alt=""
                   width={384}
                   height={383}
                   priority
-                  className="h-20 w-20 object-contain sm:h-24 sm:w-24 lg:h-full lg:w-full lg:max-w-[22rem] lg:object-left-bottom"
+                  className="mx-auto h-24 w-24 object-contain sm:h-28 sm:w-28 lg:h-full lg:w-full lg:object-bottom"
                 />
               </div>
             )}
