@@ -26,7 +26,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <header className="border-b border-hairline">
-      <div className="mx-auto max-w-6xl px-5 pt-14 pb-10 sm:px-8 sm:pt-20 sm:pb-12">
+      <div className="mx-auto max-w-6xl px-5 pb-10 sm:px-8 sm:pb-12">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div className="min-w-0">
             {eyebrow && <p className="eyebrow">{eyebrow}</p>}

@@ -198,7 +198,7 @@ export function HomePageClient() {
     <div>
       <LiveNow />
 
-      <section className="mx-auto max-w-6xl px-5 pt-20 pb-16 sm:px-8 sm:pt-28 sm:pb-20">
+      <section className="mx-auto max-w-6xl px-5 pb-16 sm:px-8 sm:pb-20">
         {/* While registration is open the form sits beside the headline, so the
             first thing on the page is the thing we want people to do. */}
         <div
@@ -234,9 +234,8 @@ export function HomePageClient() {
               </div>
             )}
 
-            <p className="eyebrow">{config?.season ?? LEAGUE.fallbackSeason}</p>
             <h1
-              className={`mt-4 font-semibold text-ink ${
+              className={`font-semibold text-ink ${
                 isRegistering
                   ? 'text-[2.5rem] sm:text-[3.25rem]'
                   : 'max-w-3xl text-[2.75rem] sm:text-[4rem]'
