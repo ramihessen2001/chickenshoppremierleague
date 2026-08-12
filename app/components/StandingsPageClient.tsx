@@ -122,7 +122,6 @@ export function StandingsPageClient() {
               height={1000}
               className="h-auto w-full"
               priority
-              unoptimized
             />
           </div>
         ) : (
