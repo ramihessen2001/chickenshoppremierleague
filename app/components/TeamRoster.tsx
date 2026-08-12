@@ -35,7 +35,7 @@ export function TeamRoster({ team, games = [] }: TeamRosterProps) {
   return (
     <>
       <header className="border-b border-hairline">
-        <div className="mx-auto max-w-6xl px-5 pb-10 sm:px-8 sm:pb-12">
+        <div className="mx-auto max-w-6xl px-5 pt-14 pb-10 sm:px-8 sm:pt-20 sm:pb-12">
           <div className="flex flex-wrap items-center justify-between gap-6">
             <div className="flex min-w-0 items-center gap-5">
               <Image

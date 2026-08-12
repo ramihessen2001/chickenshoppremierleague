@@ -198,7 +198,7 @@ export function HomePageClient() {
     <div>
       <LiveNow />
 
-      <section className="mx-auto max-w-6xl px-5 pb-16 sm:px-8 sm:pb-20">
+      <section className="mx-auto max-w-6xl px-5 pt-20 pb-16 sm:px-8 sm:pt-28 sm:pb-20">
         {/* While registration is open the form sits beside the headline, so the
             first thing on the page is the thing we want people to do. */}
         <div
@@ -218,7 +218,7 @@ export function HomePageClient() {
                 It sits above the headline on narrow screens, and below it on
                 desktop -- one element, reordered, rather than two copies. */}
             {isRegistering && (
-              <div className="order-first mb-8 lg:order-last lg:mb-0 lg:min-h-0 lg:flex-1 lg:pt-6">
+              <div className="order-first lg:order-last lg:min-h-0 lg:flex-1">
                 {/* object-bottom is `center bottom`, so the artwork centres
                     horizontally under the headline while its lower edge stays
                     level with the bottom of the form. No max width: the space
