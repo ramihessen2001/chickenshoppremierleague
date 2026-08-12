@@ -1,9 +1,12 @@
 /**
  * League registration.
  *
- * Shown on the homepage while the season is in its `signups` phase. The server
- * refuses submissions in any other phase, so closing registration is a single
- * change in the admin panel.
+ * Shown beside the headline while the season is in its `signups` phase. The
+ * server refuses submissions in any other phase, so closing registration is a
+ * single change in the admin panel.
+ *
+ * Single column throughout: it sits in a narrow column on wide screens, where
+ * side-by-side fields would be cramped.
  */
 
 'use client'
@@ -73,7 +76,7 @@ export function SignupForm() {
         <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-positive-wash">
           <Check size={20} className="text-positive" />
         </div>
-        <h3 className="mt-4 text-[19px] font-semibold text-ink">You&apos;re in</h3>
+        <h2 className="mt-4 text-[19px] font-semibold text-ink">You&apos;re in</h2>
         <p className="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-ink-secondary">
           We&apos;ve got your registration. You&apos;ll hear from us before the
           draft with the details.
@@ -102,8 +105,13 @@ export function SignupForm() {
         </p>
       )}
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div className="sm:col-span-2">
+      <h2 className="text-[19px] font-semibold text-ink">Register to play</h2>
+      <p className="mt-1.5 text-[14px] text-ink-secondary">
+        One registration per player.
+      </p>
+
+      <div className="mt-6 grid gap-5">
+        <div>
           <label htmlFor="signup-name" className={labelClass}>
             Full name
           </label>
@@ -185,7 +193,7 @@ export function SignupForm() {
           </select>
         </div>
 
-        <div className="sm:col-span-2">
+        <div>
           <label htmlFor="signup-notes" className={labelClass}>
             Anything we should know?{' '}
             <span className="font-normal text-ink-tertiary">optional</span>
@@ -201,18 +209,17 @@ export function SignupForm() {
         </div>
       </div>
 
-      <div className="mt-7 flex flex-wrap items-center gap-4">
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="rounded-pill bg-surface-inverse px-6 py-2.5 text-[14px] font-medium text-ink-inverse transition-opacity hover:opacity-85 disabled:opacity-50"
-        >
-          {isSubmitting ? 'Submitting…' : 'Register'}
-        </button>
-        <p className="text-[13px] text-ink-tertiary">
-          We only use your details to run the league.
-        </p>
-      </div>
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="mt-7 w-full rounded-pill bg-surface-inverse px-6 py-2.5 text-[14px] font-medium text-ink-inverse transition-opacity hover:opacity-85 disabled:opacity-50"
+      >
+        {isSubmitting ? 'Submitting…' : 'Register'}
+      </button>
+
+      <p className="mt-3 text-center text-[12px] text-ink-tertiary">
+        We only use your details to run the league.
+      </p>
     </form>
   )
 }

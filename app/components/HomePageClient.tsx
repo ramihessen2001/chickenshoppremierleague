@@ -19,8 +19,15 @@ import { ChampionshipGameCard } from './ChampionshipGameCard'
 import { SignupForm } from './SignupForm'
 import { LiveNow } from './LiveNow'
 import { useAdmin } from '@/lib/adminContext'
+import { useTeams } from '@/lib/teamsContext'
 import { LEAGUE } from '@/config/league'
-import { getGamesByWeek, getStatLeaders, getLeagueConfig } from '@/lib/supabaseData'
+import {
+  getGamesByWeek,
+  getStatLeaders,
+  getLeagueConfig,
+  countGames,
+} from '@/lib/supabaseData'
+import { hasOpenAwards } from '@/lib/supabaseAwards'
 import { LeagueConfig, LeaguePhase } from '@/lib/supabase'
 import { LeaderboardEntry } from '@/types/statistic'
 import { Game } from '@/types/game'
@@ -29,7 +36,7 @@ import { Game } from '@/types/game'
 const HERO_COPY: Record<LeaguePhase, { title: string; body: string }> = {
   signups: {
     title: 'Registration is open',
-    body: 'Sign up below to play this season. Once registration closes we hold the draft, and teams are announced here.',
+    body: 'Sign up to play this season. Once registration closes we hold the draft, and teams are announced here.',
   },
   preseason: {
     title: 'Registration is closed',
@@ -49,10 +56,73 @@ const HERO_COPY: Record<LeaguePhase, { title: string; body: string }> = {
   },
 }
 
+interface HeroAction {
+  href: string
+  label: string
+  variant: 'primary' | 'secondary'
+}
+
+/**
+ * The hero's buttons for the current phase.
+ *
+ * The governing rule is that a button never points at a page that is empty in
+ * this phase. Before the draft there are no fixtures, standings or statistics,
+ * so the only thing worth offering is the team list.
+ */
+function heroActions(state: {
+  phase: LeaguePhase
+  hasTeams: boolean
+  hasFixtures: boolean
+  awardsOpen: boolean
+}): HeroAction[] {
+  const { phase, hasTeams, hasFixtures, awardsOpen } = state
+  const meetTheTeams = (variant: HeroAction['variant']): HeroAction[] =>
+    hasTeams ? [{ href: '#teams', label: 'Meet the teams', variant }] : []
+
+  switch (phase) {
+    // The registration form sits beside the headline, so it is the call to
+    // action; a button pointing at it would be redundant.
+    case 'signups':
+      return meetTheTeams('secondary')
+
+    case 'preseason':
+    case 'draft':
+      return meetTheTeams('primary')
+
+    case 'season':
+      return hasFixtures
+        ? [
+            { href: '/schedule', label: 'View schedule', variant: 'primary' },
+            { href: '/standings', label: 'Standings', variant: 'secondary' },
+          ]
+        : [{ href: '/standings', label: 'Standings', variant: 'primary' }]
+
+    // The bracket is already directly below the hero during the playoffs, so
+    // the button offers voting instead -- but only if a vote is actually open.
+    case 'playoffs':
+      return awardsOpen
+        ? [
+            { href: '/stats', label: 'Vote for awards', variant: 'primary' },
+            { href: '/standings', label: 'Standings', variant: 'secondary' },
+          ]
+        : [{ href: '/standings', label: 'Standings', variant: 'primary' }]
+  }
+}
+
+const BUTTON_STYLES: Record<HeroAction['variant'], string> = {
+  primary:
+    'rounded-pill bg-surface-inverse px-5 py-2.5 text-[14px] font-medium text-ink-inverse transition-opacity hover:opacity-85',
+  secondary:
+    'rounded-pill border border-hairline-strong px-5 py-2.5 text-[14px] font-medium text-ink transition-colors hover:bg-surface-hover',
+}
+
 export function HomePageClient() {
   const { isAdmin } = useAdmin()
+  const { teams } = useTeams()
   const [config, setConfig] = useState<LeagueConfig | null>(null)
   const [currentWeekGames, setCurrentWeekGames] = useState<Game[]>([])
+  const [gameCount, setGameCount] = useState(0)
+  const [awardsOpen, setAwardsOpen] = useState(false)
   const [goalLeaders, setGoalLeaders] = useState<LeaderboardEntry[]>([])
   const [assistLeaders, setAssistLeaders] = useState<LeaderboardEntry[]>([])
   const [saveLeaders, setSaveLeaders] = useState<LeaderboardEntry[]>([])
@@ -64,14 +134,19 @@ export function HomePageClient() {
       setConfig(leagueConfig)
 
       const week = leagueConfig?.current_week ?? 1
-      const [games, goals, assists, saves] = await Promise.all([
-        getGamesByWeek(week),
-        getStatLeaders('goal', 5),
-        getStatLeaders('assist', 5),
-        getStatLeaders('save', 5),
-      ])
+      const [games, totalGames, openAwards, goals, assists, saves] =
+        await Promise.all([
+          getGamesByWeek(week),
+          countGames(),
+          hasOpenAwards(),
+          getStatLeaders('goal', 5),
+          getStatLeaders('assist', 5),
+          getStatLeaders('save', 5),
+        ])
 
       setCurrentWeekGames(games)
+      setGameCount(totalGames)
+      setAwardsOpen(openAwards)
       setGoalLeaders(goals)
       setAssistLeaders(assists)
       setSaveLeaders(saves)
@@ -107,59 +182,67 @@ export function HomePageClient() {
   const totalWeeks = config?.total_weeks ?? 10
   const hero = HERO_COPY[phase]
 
-  // Before the season starts there are no results to link to, so the hero
-  // offers registration instead of pages that would be empty.
+  const isRegistering = phase === 'signups'
   const isPreSeason =
     phase === 'signups' || phase === 'preseason' || phase === 'draft'
+
+  const actions = heroActions({
+    phase,
+    hasTeams: teams.length > 0,
+    hasFixtures: gameCount > 0,
+    awardsOpen,
+  })
 
   return (
     <div>
       <LiveNow />
 
       <section className="mx-auto max-w-6xl px-5 pt-20 pb-16 sm:px-8 sm:pt-28 sm:pb-20">
-        <p className="eyebrow">{config?.season ?? LEAGUE.fallbackSeason}</p>
-        <h1 className="mt-4 max-w-3xl text-[2.75rem] font-semibold text-ink sm:text-[4rem]">
-          {hero.title}
-        </h1>
-        <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-ink-secondary">
-          {hero.body}
-        </p>
+        {/* While registration is open the form sits beside the headline, so the
+            first thing on the page is the thing we want people to do. */}
+        <div
+          className={
+            isRegistering
+              ? 'grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:gap-16'
+              : ''
+          }
+        >
+          <div>
+            <p className="eyebrow">{config?.season ?? LEAGUE.fallbackSeason}</p>
+            <h1
+              className={`mt-4 font-semibold text-ink ${
+                isRegistering
+                  ? 'text-[2.5rem] sm:text-[3.25rem]'
+                  : 'max-w-3xl text-[2.75rem] sm:text-[4rem]'
+              }`}
+            >
+              {hero.title}
+            </h1>
+            <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-ink-secondary">
+              {hero.body}
+            </p>
 
-        <div className="mt-9 flex flex-wrap items-center gap-3">
-          {phase === 'signups' ? (
-            <a
-              href="#register"
-              className="rounded-pill bg-surface-inverse px-5 py-2.5 text-[14px] font-medium text-ink-inverse transition-opacity hover:opacity-85"
-            >
-              Register to play
-            </a>
-          ) : (
-            <Link
-              href="/schedule"
-              className="rounded-pill bg-surface-inverse px-5 py-2.5 text-[14px] font-medium text-ink-inverse transition-opacity hover:opacity-85"
-            >
-              View schedule
-            </Link>
-          )}
+            {actions.length > 0 && (
+              <div className="mt-9 flex flex-wrap items-center gap-3">
+                {actions.map(({ href, label, variant }) =>
+                  href.startsWith('#') ? (
+                    <a key={href} href={href} className={BUTTON_STYLES[variant]}>
+                      {label}
+                    </a>
+                  ) : (
+                    <Link key={href} href={href} className={BUTTON_STYLES[variant]}>
+                      {label}
+                    </Link>
+                  )
+                )}
+              </div>
+            )}
+          </div>
 
-          {!isPreSeason && (
-            <Link
-              href="/stats"
-              className="rounded-pill border border-hairline-strong px-5 py-2.5 text-[14px] font-medium text-ink transition-colors hover:bg-surface-hover"
-            >
-              Player stats
-            </Link>
-          )}
-
-          {LEAGUE.jerseyShopUrl && (
-            <a
-              href={LEAGUE.jerseyShopUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-1 text-[14px] font-medium text-accent-ink transition-opacity hover:opacity-70"
-            >
-              Buy a kit →
-            </a>
+          {isRegistering && (
+            <div id="register" className="scroll-mt-20">
+              <SignupForm />
+            </div>
           )}
         </div>
       </section>
@@ -173,27 +256,6 @@ export function HomePageClient() {
             onWeekChange={handleWeekChange}
             onConfigChange={fetchData}
           />
-        </section>
-      )}
-
-      {phase === 'signups' && (
-        <section
-          id="register"
-          className="mx-auto max-w-3xl scroll-mt-20 px-5 pb-16 sm:px-8"
-          aria-labelledby="register-heading"
-        >
-          <h2
-            id="register-heading"
-            className="text-[28px] font-semibold text-ink sm:text-[32px]"
-          >
-            Register
-          </h2>
-          <p className="mt-3 text-[15px] text-ink-secondary">
-            One registration per player. We&apos;ll be in touch before the draft.
-          </p>
-          <div className="mt-8">
-            <SignupForm />
-          </div>
         </section>
       )}
 

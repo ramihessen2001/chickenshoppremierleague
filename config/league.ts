@@ -28,15 +28,19 @@ export const LEAGUE = {
   /** Path to the league crest in /public. */
   logoUrl: '/images/league_logo.png',
 
-  /** Where the "buy a jersey" button points. Set to null to hide the button. */
-  jerseyShopUrl: 'https://purofc.com/products/cspl-ls-kit',
+  /**
+   * Where the "buy a kit" button points, or null to hide it everywhere.
+   * Currently hidden. The previous season's shop link, for when it returns:
+   * https://purofc.com/products/cspl-ls-kit
+   */
+  jerseyShopUrl: null as string | null,
 
   /** Branding for the man-of-the-match award. */
   manOfTheMatch: {
     label: 'Puro Man of The Match',
     badgeImageUrl: '/images/puro_white.png',
   },
-} as const
+}
 
 /** Fallback logo path for a team with no logo_url set in the database. */
 export function fallbackTeamLogo(slug: string): string {

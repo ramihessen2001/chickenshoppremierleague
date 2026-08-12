@@ -216,6 +216,19 @@ export async function getAllGames(): Promise<Game[]> {
   return (data ?? []).map(transformGame)
 }
 
+/** How many games exist at all. Used to decide whether to link to the schedule. */
+export async function countGames(): Promise<number> {
+  const { count, error } = await supabase
+    .from('games')
+    .select('*', { count: 'exact', head: true })
+
+  if (error) {
+    console.error('Error counting games:', error)
+    return 0
+  }
+  return count ?? 0
+}
+
 /** All playoff games, i.e. week 0. */
 export async function getPlayoffGames(): Promise<Game[]> {
   return getGamesByWeek(0)

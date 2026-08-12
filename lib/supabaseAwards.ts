@@ -343,3 +343,34 @@ export async function getAwardNominees(awardId: string): Promise<
     }
   })
 }
+
+/**
+ * Whether any award is currently accepting votes -- active, and inside its
+ * voting window if one was set.
+ *
+ * Deliberately light: the homepage only needs a yes/no to decide whether to
+ * offer a "Vote for awards" button, not the awards themselves.
+ */
+export async function hasOpenAwards(): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('awards')
+    .select('voting_start_date, voting_end_date')
+    .eq('is_active', true)
+
+  if (error) {
+    console.error('Error checking open awards:', error)
+    return false
+  }
+
+  const now = Date.now()
+
+  return (data ?? []).some((award) => {
+    if (award.voting_start_date && now < Date.parse(award.voting_start_date)) {
+      return false
+    }
+    if (award.voting_end_date && now > Date.parse(award.voting_end_date)) {
+      return false
+    }
+    return true
+  })
+}

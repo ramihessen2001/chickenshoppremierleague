@@ -1,8 +1,8 @@
 /**
  * Team index: crest and name, linking to each team's page.
  *
- * The grid adapts to however many teams the league has rather than assuming a
- * fixed six.
+ * The section always renders, so `#teams` is a reliable anchor and so the
+ * pre-draft state says something useful rather than being absent.
  */
 
 'use client'
@@ -16,7 +16,8 @@ export function TeamLogos() {
 
   return (
     <section
-      className="mx-auto max-w-6xl px-5 py-16 sm:px-8"
+      id="teams"
+      className="mx-auto max-w-6xl scroll-mt-20 px-5 py-16 sm:px-8"
       aria-labelledby="teams-heading"
     >
       <h2
@@ -27,11 +28,14 @@ export function TeamLogos() {
       </h2>
 
       {isLoading ? (
-        <p className="mt-10 text-[15px] text-ink-tertiary">Loading…</p>
+        <p className="mt-8 text-[15px] text-ink-tertiary">Loading…</p>
       ) : teams.length === 0 ? (
-        <p className="mt-10 text-[15px] text-ink-tertiary">
-          No teams have been added yet.
-        </p>
+        <div className="mt-8 rounded-lg border border-dashed border-hairline-strong px-6 py-16 text-center">
+          <p className="text-[17px] font-medium text-ink">Coming soon</p>
+          <p className="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-ink-secondary">
+            Teams are announced after the draft.
+          </p>
+        </div>
       ) : (
         <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {teams.map((team) => (
