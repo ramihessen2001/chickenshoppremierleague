@@ -1,5 +1,42 @@
 # Chicken Shop Premier League
 
+This repository contains the Chicken Shop Premier League web app (Next.js).
+
+Quick start
+
+1. Install dependencies:
+
+```bash
+npm install
+# or
+pnpm install
+```
+
+2. Run the development server:
+
+```bash
+npm run dev
+# or
+pnpm dev
+```
+
+3. Build for production:
+
+```bash
+npm run build
+npm start
+```
+
+Notes
+
+- See `package.json` scripts for exact commands.
+- Environment variables should be provided in a `.env.local` file (not checked in).
+
+License
+
+This project is licensed under the MIT License — see the `LICENSE` file for details.
+# Chicken Shop Premier League
+
 League website: fixtures, rosters, standings, statistics, box scores, playoff
 bracket and end-of-season award voting.
 
