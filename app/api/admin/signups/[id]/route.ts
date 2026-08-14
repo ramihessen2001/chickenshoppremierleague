@@ -1,8 +1,12 @@
 /**
  * Update or delete a signup. Admin only.
  *
- *   PATCH  -> { status?, draftedTeamId?, notes?, ... }
+ *   PATCH  -> { status?, paidAt?, paymentMethod?, draftedTeamId?, notes?, ... }
  *   DELETE -> removes the registration
+ *
+ * Moving a signup to `confirmed` emails the player to say their place is
+ * secured -- the one notification the site sends off the back of an admin
+ * action, and only on the transition, never on a later edit.
  *
  * PATCH also supports `createPlayer: true`, which turns a signup into a real
  * player on the drafted team in one step -- the usual move on draft night.
@@ -11,6 +15,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fail, readJson, requireAdmin } from '@/lib/apiAuth'
+import { sendEmail, placeConfirmedEmail } from '@/lib/email'
 
 const VALID_STATUSES = [
   'pending',
@@ -22,12 +27,14 @@ const VALID_STATUSES = [
 
 interface UpdateSignupBody {
   name?: string
-  email?: string
+  email?: string | null
   phone?: string | null
   position?: string | null
   experience?: string | null
   notes?: string | null
   status?: string
+  paidAt?: string | null
+  paymentMethod?: string | null
   draftedTeamId?: string | null
   /** Also create a player row on the drafted team. */
   createPlayer?: boolean
@@ -49,15 +56,30 @@ export async function PATCH(request: Request, { params }: Params) {
 
   const columns: Record<string, unknown> = {}
   if (body.name !== undefined) columns.name = body.name.trim()
-  if (body.email !== undefined) columns.email = body.email.trim().toLowerCase()
+  if (body.email !== undefined) {
+    columns.email = body.email?.trim().toLowerCase() || null
+  }
   if (body.phone !== undefined) columns.phone = body.phone
   if (body.position !== undefined) columns.position = body.position
   if (body.experience !== undefined) columns.experience = body.experience
   if (body.notes !== undefined) columns.notes = body.notes
   if (body.status !== undefined) columns.status = body.status
+  if (body.paidAt !== undefined) columns.paid_at = body.paidAt
+  if (body.paymentMethod !== undefined) {
+    columns.payment_method = body.paymentMethod?.slice(0, 50) ?? null
+  }
   if (body.draftedTeamId !== undefined) columns.drafted_team_id = body.draftedTeamId
 
   if (Object.keys(columns).length === 0) return fail('No fields to update')
+
+  // Read the status first so the confirmation email only goes out on the
+  // change itself. Without this, every later edit to a confirmed player --
+  // a phone number, a draft pick -- would send it again.
+  const { data: before } = await supabaseAdmin
+    .from('signups')
+    .select('status')
+    .eq('id', id)
+    .maybeSingle()
 
   const { data: signup, error } = await supabaseAdmin
     .from('signups')
@@ -72,6 +94,19 @@ export async function PATCH(request: Request, { params }: Params) {
     }
     console.error('Error updating signup:', error)
     return fail('Failed to update signup', 500)
+  }
+
+  // Players who registered with a phone number alone have nowhere to send
+  // this; they get told in person.
+  if (
+    body.status === 'confirmed' &&
+    before?.status !== 'confirmed' &&
+    signup.email
+  ) {
+    await sendEmail({
+      to: signup.email,
+      ...placeConfirmedEmail(signup.name),
+    })
   }
 
   // Draft night shortcut: promote the signup to a player on their new team.

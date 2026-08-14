@@ -18,7 +18,21 @@ import {
 } from '@/lib/supabaseData'
 import { SignupStatus } from '@/lib/supabase'
 import { useTeams } from '@/lib/teamsContext'
+import { LEAGUE } from '@/config/league'
 import { PageHeader } from './PageHeader'
+
+/** Status filters, plus one that cuts across them: who still owes the fee. */
+type Filter = SignupStatus | 'all' | 'unpaid'
+
+/**
+ * How the fee arrived. The three apps come from the same list the players are
+ * shown, so adding a payment method is one edit in `config/league.ts`.
+ */
+const PAYMENT_METHODS = [
+  ...LEAGUE.payment.methods.map(({ label }) => label),
+  'Cash',
+  'Other',
+]
 
 const STATUSES: [SignupStatus, string][] = [
   ['pending', 'Pending'],
@@ -41,7 +55,7 @@ export function SignupsAdmin() {
   const [signups, setSignups] = useState<SignupWithTeam[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [statusFilter, setStatusFilter] = useState<SignupStatus | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<Filter>('all')
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -67,13 +81,22 @@ export function SignupsAdmin() {
     return tally
   }, [signups])
 
-  const visible = useMemo(
-    () =>
-      statusFilter === 'all'
-        ? signups
-        : signups.filter((s) => s.status === statusFilter),
-    [signups, statusFilter]
+  /**
+   * Who still owes the fee. Withdrawn players are left out -- chasing someone
+   * who has pulled out for $40 they no longer owe is not the point of this.
+   */
+  const unpaid = useMemo(
+    () => signups.filter((s) => !s.paid_at && s.status !== 'withdrawn'),
+    [signups]
   )
+
+  const confirmedCount = counts.get('confirmed') ?? 0
+
+  const visible = useMemo(() => {
+    if (statusFilter === 'all') return signups
+    if (statusFilter === 'unpaid') return unpaid
+    return signups.filter((s) => s.status === statusFilter)
+  }, [signups, statusFilter, unpaid])
 
   const patch = async (
     id: string,
@@ -92,6 +115,33 @@ export function SignupsAdmin() {
     } finally {
       setBusyId(null)
     }
+  }
+
+  /** Stamps the fee as received now, or clears it if it was recorded by mistake. */
+  const handlePayment = (signup: SignupWithTeam, method: string | null) =>
+    patch(signup.id, {
+      paidAt: method === null ? null : new Date().toISOString(),
+      paymentMethod: method,
+    })
+
+  /**
+   * Confirming is what fills the roster, so it is the one status change worth
+   * questioning: past the cap the player belongs on the waitlist instead.
+   */
+  const handleStatus = (signup: SignupWithTeam, status: SignupStatus) => {
+    if (
+      status === 'confirmed' &&
+      signup.status !== 'confirmed' &&
+      confirmedCount >= LEAGUE.rosterCap
+    ) {
+      const past = confirm(
+        `${LEAGUE.rosterCap} places are already confirmed — the roster is full.\n\n` +
+          `Confirm ${signup.name} anyway?`
+      )
+      if (!past) return
+    }
+
+    return patch(signup.id, { status })
   }
 
   const handleDraft = (signup: SignupWithTeam, teamId: string) => {
@@ -146,7 +196,10 @@ export function SignupsAdmin() {
     <>
       <PageHeader
         title="Signups"
-        description={`${signups.length} ${signups.length === 1 ? 'registration' : 'registrations'} for this season.`}
+        description={
+          `${signups.length} ${signups.length === 1 ? 'registration' : 'registrations'} for this season. ` +
+          `${confirmedCount} of ${LEAGUE.rosterCap} places confirmed, ${unpaid.length} still to pay.`
+        }
         actions={
           // A file download from an API route, not a page navigation, so
           // next/link would be wrong here.
@@ -184,6 +237,12 @@ export function SignupsAdmin() {
               {label} {counts.get(value) ?? 0}
             </button>
           ))}
+          <button
+            onClick={() => setStatusFilter('unpaid')}
+            className={chip(statusFilter === 'unpaid')}
+          >
+            Unpaid {unpaid.length}
+          </button>
         </div>
 
         {visible.length === 0 ? (
@@ -209,6 +268,17 @@ export function SignupsAdmin() {
                     >
                       {signup.status}
                     </span>
+                    {signup.paid_at ? (
+                      <span className="rounded-pill bg-positive-wash px-2 py-0.5 text-[11px] font-semibold tracking-wider text-positive uppercase">
+                        paid{signup.payment_method ? ` · ${signup.payment_method}` : ''}
+                      </span>
+                    ) : (
+                      signup.status !== 'withdrawn' && (
+                        <span className="rounded-pill bg-negative-wash px-2 py-0.5 text-[11px] font-semibold tracking-wider text-negative uppercase">
+                          unpaid
+                        </span>
+                      )
+                    )}
                     {signup.drafted_team && (
                       <span className="text-[13px] text-ink-secondary">
                         → {signup.drafted_team.name}
@@ -217,13 +287,24 @@ export function SignupsAdmin() {
                   </div>
 
                   <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-ink-secondary">
-                    <a
-                      href={`mailto:${signup.email}`}
-                      className="underline decoration-hairline-strong underline-offset-2 hover:decoration-ink"
-                    >
-                      {signup.email}
-                    </a>
-                    {signup.phone && <span>{signup.phone}</span>}
+                    {signup.email ? (
+                      <a
+                        href={`mailto:${signup.email}`}
+                        className="underline decoration-hairline-strong underline-offset-2 hover:decoration-ink"
+                      >
+                        {signup.email}
+                      </a>
+                    ) : (
+                      <span className="text-ink-tertiary">No email</span>
+                    )}
+                    {signup.phone && (
+                      <a
+                        href={`tel:${signup.phone.replace(/[^+\d]/g, '')}`}
+                        className="underline decoration-hairline-strong underline-offset-2 hover:decoration-ink"
+                      >
+                        {signup.phone}
+                      </a>
+                    )}
                     {signup.age != null && (
                       <span className="text-ink-tertiary">Age {signup.age}</span>
                     )}
@@ -232,6 +313,12 @@ export function SignupsAdmin() {
                     )}
                     {signup.experience && (
                       <span className="text-ink-tertiary">{signup.experience}</span>
+                    )}
+                    {signup.jersey_size && (
+                      <span className="text-ink-tertiary">
+                        Kit: {signup.jersey_name} #{signup.jersey_number} ·{' '}
+                        {signup.jersey_size}
+                      </span>
                     )}
                   </p>
 
@@ -243,6 +330,40 @@ export function SignupsAdmin() {
                 </div>
 
                 <div className="flex flex-wrap items-start gap-2">
+                  {/* Recording the fee also records how it arrived, so an
+                      unexplained Venmo transfer can be matched to a player. */}
+                  {signup.paid_at ? (
+                    <button
+                      onClick={() => handlePayment(signup, null)}
+                      disabled={busyId === signup.id}
+                      className="rounded-pill border border-hairline-strong px-3.5 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-surface-hover disabled:opacity-50"
+                    >
+                      Mark unpaid
+                    </button>
+                  ) : (
+                    <>
+                      <label className="sr-only" htmlFor={`paid-${signup.id}`}>
+                        Record payment from {signup.name}
+                      </label>
+                      <select
+                        id={`paid-${signup.id}`}
+                        value=""
+                        disabled={busyId === signup.id}
+                        onChange={(e) =>
+                          e.target.value && handlePayment(signup, e.target.value)
+                        }
+                        className="rounded-md border border-hairline-strong bg-surface px-2.5 py-1.5 text-[13px] text-ink focus:border-ink focus:outline-none disabled:opacity-50"
+                      >
+                        <option value="">Mark paid…</option>
+                        {PAYMENT_METHODS.map((method) => (
+                          <option key={method} value={method}>
+                            {method}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+
                   <label className="sr-only" htmlFor={`status-${signup.id}`}>
                     Status for {signup.name}
                   </label>
@@ -251,7 +372,7 @@ export function SignupsAdmin() {
                     value={signup.status}
                     disabled={busyId === signup.id}
                     onChange={(e) =>
-                      patch(signup.id, { status: e.target.value as SignupStatus })
+                      handleStatus(signup, e.target.value as SignupStatus)
                     }
                     className="rounded-md border border-hairline-strong bg-surface px-2.5 py-1.5 text-[13px] text-ink focus:border-ink focus:outline-none disabled:opacity-50"
                   >

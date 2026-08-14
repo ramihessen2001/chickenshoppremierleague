@@ -1,7 +1,13 @@
 /**
  * Register for the league. Public.
  *
- *   POST -> { name, email, age, phone?, position?, experience?, notes? }
+ *   POST -> { name, age, jerseyName, jerseyNumber, jerseySize,
+ *              email?, phone?, position?, experience?, notes? }
+ *
+ * Email and phone are individually optional but jointly required: a player has
+ * to be reachable somehow. Email is the one that matters most -- it carries the
+ * payment details and the confirmation -- but a phone number is enough to take
+ * someone's registration and chase the rest later.
  *
  * Signups are only accepted while league_config.phase is 'signups', so closing
  * registration is a data change rather than a deploy.
@@ -15,6 +21,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fail, readJson } from '@/lib/apiAuth'
+import { sendEmail, registrationEmail, waitlistEmail } from '@/lib/email'
+import { LEAGUE } from '@/config/league'
 
 interface SignupBody {
   name?: string
@@ -23,8 +31,13 @@ interface SignupBody {
   phone?: string
   position?: string
   experience?: string
+  jerseyName?: string
+  jerseyNumber?: number
+  jerseySize?: string
   notes?: string
 }
+
+const JERSEY_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 
 /** Deliberately permissive -- just enough to catch a typo, not to police form. */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -42,6 +55,7 @@ const MAX_LENGTHS = {
   phone: 50,
   position: 50,
   experience: 50,
+  jerseyName: 20,
   notes: 1000,
 }
 
@@ -51,12 +65,23 @@ export async function POST(request: Request) {
 
   const name = body.name?.trim() ?? ''
   const email = body.email?.trim().toLowerCase() ?? ''
+  const phone = body.phone?.trim() ?? ''
 
   if (!name) return fail('Please enter your name')
   if (name.length > MAX_LENGTHS.name) return fail('That name is too long')
-  if (!email) return fail('Please enter your email address')
-  if (!EMAIL_PATTERN.test(email) || email.length > MAX_LENGTHS.email) {
+
+  if (!email && !phone) {
+    return fail('Please give us an email address or a phone number')
+  }
+
+  if (email && (!EMAIL_PATTERN.test(email) || email.length > MAX_LENGTHS.email)) {
     return fail('Please enter a valid email address')
+  }
+
+  // Enough digits to be a phone number rather than a typo. Formatting is left
+  // alone: people write their own number in whatever shape they like.
+  if (phone && (phone.replace(/\D/g, '').length < 7 || phone.length > MAX_LENGTHS.phone)) {
+    return fail('Please enter a valid phone number')
   }
 
   const age = body.age
@@ -69,7 +94,29 @@ export async function POST(request: Request) {
     return fail('Please enter a valid age')
   }
 
-  for (const field of ['phone', 'position', 'experience', 'notes'] as const) {
+  // Kit details. Required, because the order goes in before the season and
+  // chasing 64 people for a size afterwards is nobody's idea of a good time.
+  const jerseyName = body.jerseyName?.trim() ?? ''
+  const jerseyNumber = body.jerseyNumber
+  const jerseySize = body.jerseySize?.trim().toUpperCase() ?? ''
+
+  if (!jerseyName) return fail('Please enter the name for your jersey')
+  if (jerseyName.length > MAX_LENGTHS.jerseyName) {
+    return fail('That jersey name is too long')
+  }
+  if (
+    typeof jerseyNumber !== 'number' ||
+    !Number.isInteger(jerseyNumber) ||
+    jerseyNumber < 0 ||
+    jerseyNumber > 99
+  ) {
+    return fail('Please choose a jersey number between 0 and 99')
+  }
+  if (!JERSEY_SIZES.includes(jerseySize)) {
+    return fail('Please choose a jersey size')
+  }
+
+  for (const field of ['position', 'experience', 'notes'] as const) {
     const value = body[field]
     if (value && value.length > MAX_LENGTHS[field]) {
       return fail(`That ${field} is too long`)
@@ -93,16 +140,36 @@ export async function POST(request: Request) {
     return fail('Registration is closed for this season', 403)
   }
 
+  // The roster cap counts confirmed places, not registrations: people register
+  // far more freely than they pay. Once it is reached the form keeps taking
+  // people, but as a waitlist -- and they are told so rather than being asked
+  // for a fee we may not be able to honour.
+  const { count: confirmedCount, error: countError } = await supabaseAdmin
+    .from('signups')
+    .select('id', { count: 'exact', head: true })
+    .eq('season', config.season)
+    .eq('status', 'confirmed')
+
+  if (countError) {
+    console.error('Could not count confirmed signups:', countError)
+    return fail('Registration is unavailable right now', 503)
+  }
+
+  const isWaitlisted = (confirmedCount ?? 0) >= LEAGUE.rosterCap
+
   const { error } = await supabaseAdmin.from('signups').insert({
     name,
-    email,
+    email: email || null,
     age,
-    phone: body.phone?.trim() || null,
+    phone: phone || null,
     position: body.position?.trim() || null,
     experience: body.experience?.trim() || null,
+    jersey_name: jerseyName,
+    jersey_number: jerseyNumber,
+    jersey_size: jerseySize,
     notes: body.notes?.trim() || null,
     season: config.season,
-    status: 'pending',
+    status: isWaitlisted ? 'waitlisted' : 'pending',
   })
 
   if (error) {
@@ -114,5 +181,21 @@ export async function POST(request: Request) {
     return fail('Could not complete your registration', 500)
   }
 
-  return NextResponse.json({ success: true }, { status: 201 })
+  // Awaited, not fired and forgotten: this runs in a serverless function that
+  // may be frozen the moment the response is returned. `sendEmail` swallows
+  // its own failures, so a bad mail provider cannot cost someone their place.
+  //
+  // Someone who registered with a phone number alone gets nothing here; the
+  // confirmation panel is the only place they will see the payment details.
+  if (email) {
+    await sendEmail({
+      to: email,
+      ...(isWaitlisted ? waitlistEmail(name) : registrationEmail(name)),
+    })
+  }
+
+  return NextResponse.json(
+    { success: true, waitlisted: isWaitlisted },
+    { status: 201 }
+  )
 }

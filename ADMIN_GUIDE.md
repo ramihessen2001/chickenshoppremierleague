@@ -93,6 +93,64 @@ storage and do so; if that matters, close voting once you have enough responses.
 
 ---
 
+## Registrations
+
+**Signups** in the header, while signed in. The heading line tells you how many
+have registered, how many places are confirmed against the cap of 64, and how
+many have not paid.
+
+### Taking the fee
+
+Registering does not hold a place — paying does. When a payment lands, find the
+player and pick how it arrived from **Mark paid…**. That stamps the date and
+the method, so an unexplained Venmo transfer can be matched to a name later.
+Picked the wrong person? **Mark unpaid** clears both.
+
+Filter by **Unpaid** to see who still owes. Withdrawn players are left out of
+that list.
+
+### Kit
+
+Every registration carries a jersey name, a requested number and a size, shown
+on the row as `Kit: AHMED #7 · L` and included in the CSV export. The number is
+a request, not a reservation — squad numbers have to be unique within a team, so
+clashes are settled on the roster after the draft.
+
+For the size tally, run this in Supabase → SQL Editor:
+
+```sql
+SELECT jersey_size, COUNT(*) FROM signups
+  WHERE status = 'confirmed' GROUP BY jersey_size ORDER BY jersey_size;
+```
+
+### Confirming a place
+
+Set their status to **Confirmed**. This is the step that emails the player to
+say their place is secured, and it only sends on the change itself — later
+edits to a confirmed player send nothing. Paying and confirming are separate on
+purpose: you might confirm someone who paid in cash at the masjid, or hold a
+payment you have not verified yet.
+
+### The roster cap
+
+The league has room for 64 **confirmed** players. Registrations keep arriving
+past that point, but they come in as **Waitlisted** and those players are told
+not to send the fee. Confirming a 65th player is still possible — you get a
+warning first. The cap lives in `config/league.ts` if the number changes.
+
+---
+
+## Questions
+
+**Inbox** in the header holds everything sent through the contact form. It
+opens on the unanswered ones.
+
+**Reply** opens your own mail client with the question quoted, so the answer
+comes from a real address rather than the site. Then **Mark answered** to clear
+it off the list. Nothing is sent by the site here.
+
+---
+
 ## Notes
 
 - Everything you change saves to the database and is visible to everyone

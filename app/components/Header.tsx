@@ -25,8 +25,17 @@ export function Header() {
   const pathname = usePathname()
   const { isAdmin } = useAdmin()
 
-  // Signups hold contact details, so the link only appears once signed in.
-  const nav = isAdmin ? [...NAV, { href: '/signups', label: 'Signups' }] : NAV
+  // Signups and questions both hold contact details, so those links only
+  // appear once signed in.
+  const nav = isAdmin
+    ? [
+        ...NAV,
+        { href: '/signups', label: 'Signups' },
+        // "Inbox", not "Questions": the footer already links the public
+        // contact form under that name.
+        { href: '/questions', label: 'Inbox' },
+      ]
+    : NAV
 
   return (
     <header className="sticky top-0 z-40 bg-surface/80 backdrop-blur-xl backdrop-saturate-150">
@@ -36,14 +45,15 @@ export function Header() {
           className="flex shrink-0 items-center gap-2.5"
           aria-label={`${LEAGUE.name} home`}
         >
-          {/* The wordmark is ~3.2:1, so it gets a wide slot with an explicit
-              height. A square box would shrink it to a sliver. */}
+          {/* The crest is portrait (3:4), so the height is set and the width
+              follows. The league name sits beside it, which is why the image
+              itself is decorative -- the link is labelled above. */}
           <Image
-            src={LEAGUE.wordmarkUrl}
-            alt="Puro"
-            width={640}
-            height={197}
-            className="h-[22px] w-auto object-contain"
+            src={LEAGUE.crestUrl}
+            alt=""
+            width={1536}
+            height={2048}
+            className="h-[30px] w-auto object-contain"
             priority
           />
           <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">

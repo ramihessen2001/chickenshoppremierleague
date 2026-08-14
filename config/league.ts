@@ -26,8 +26,9 @@ export const LEAGUE = {
   keywords: 'CSPL, Chicken Shop Premier League, soccer league, schedule, standings, stats',
 
   /**
-   * The Puro wordmark, shown in the header. Wide -- roughly 3.2:1 -- so it
-   * needs a wide slot, not a square one.
+   * The Puro wordmark. Wide -- roughly 3.2:1 -- so it needs a wide slot, not a
+   * square one. The header used to carry it; it now shows the league crest
+   * instead. Kept for when a Puro mark is wanted somewhere again.
    */
   wordmarkUrl: '/images/puro_wordmark.png',
 
@@ -35,10 +36,10 @@ export const LEAGUE = {
   wordmarkWhiteUrl: '/images/puro_wordmark_white.png',
 
   /**
-   * The league crest. Square. Not currently shown anywhere -- the pre-season
-   * homepage carries the details table below in its place.
+   * The league crest, shown in the header and on the share card. Portrait
+   * (3:4), so height is what you set -- give it width auto.
    */
-  crestUrl: '/images/league_logo.png',
+  crestUrl: '/images/league_logo.svg',
 
   /**
    * The at-a-glance facts shown beside the registration form while signups are
@@ -59,7 +60,18 @@ export const LEAGUE = {
       'Every Monday and Wednesday, 6:00–9:00 PM (Each team plays once a week)',
     ],
     ['Sign-up fee', '$40 (Payment methods are shown after completing registration)'],
+    ['Places', '64 players (Registrations after that join the waitlist)'],
   ] as [string, string][],
+
+  /**
+   * How many players the league has room for.
+   *
+   * Counted in *confirmed* signups, not registrations: people register far
+   * more freely than they pay, so the total is always the larger and much
+   * softer number. Once this many are confirmed, new registrations are taken
+   * as waitlisted rather than refused.
+   */
+  rosterCap: 64,
 
   /**
    * How the sign-up fee is paid. Shown only on the confirmation panel after a

@@ -83,8 +83,21 @@ change when teams do.
 | `SUPABASE_SERVICE_ROLE_KEY` | **server only** | Bypasses RLS. No `NEXT_PUBLIC_` prefix, deliberately |
 | `ADMIN_PASSWORD` | server only | Checked at `/api/admin/session` |
 | `ADMIN_SESSION_SECRET` | server only | Signs the session cookie; 32+ chars |
+| `NEXT_PUBLIC_SITE_URL` | build | Absolute URLs for the share card. Set in production |
+| `RESEND_API_KEY` | server only | Optional. Without it the site sends no email |
+| `EMAIL_FROM` | server only | Optional. e.g. `CSPL <noreply@your-domain.com>` |
+| `EMAIL_REPLY_TO` | server only | Optional. Where replies go, if not `EMAIL_FROM` |
 
 Generate a session secret with `openssl rand -hex 32`.
+
+### Email
+
+Two messages go out, both through [Resend](https://resend.com): a registration
+receipt carrying the payment details, and a note when an organiser marks a
+place confirmed. Set `RESEND_API_KEY` and `EMAIL_FROM` (from a domain verified
+in Resend) to switch them on. Leave them unset and every send is skipped with a
+line in the server log — registration works exactly the same, it just goes
+unacknowledged by email.
 
 ---
 

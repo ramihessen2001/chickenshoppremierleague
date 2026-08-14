@@ -177,31 +177,66 @@ CREATE TABLE award_votes (
 CREATE TABLE signups (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name VARCHAR(200) NOT NULL,
-  email VARCHAR(255) NOT NULL,
+  -- Email and phone are individually optional but jointly required (see the
+  -- constraint below). Email is the useful one -- it carries the payment
+  -- details and the confirmation -- but a phone number is enough to register.
+  email VARCHAR(255),
+  phone VARCHAR(50),
   -- Collected because the league is for 14-25 year olds. The range here is a
   -- typo guard, not the eligibility rule: an out-of-range signup is left for
   -- an organiser to judge in the admin list.
   age SMALLINT CHECK (age BETWEEN 5 AND 99),
-  phone VARCHAR(50),
   -- Preferred position and rough experience, both free-ish text so the form
   -- can change without a migration.
   position VARCHAR(50),
   experience VARCHAR(50),
+  -- Kit details, collected so the order can go in before the season. The
+  -- number is a request only: the number a player ends up with is set on the
+  -- roster after the draft, where it has to be unique within a team.
+  jersey_name VARCHAR(20),
+  jersey_number SMALLINT CHECK (jersey_number IS NULL OR jersey_number BETWEEN 0 AND 99),
+  jersey_size VARCHAR(5)
+    CHECK (jersey_size IS NULL OR jersey_size IN ('XS', 'S', 'M', 'L', 'XL', 'XXL')),
   notes TEXT,
   status VARCHAR(20) NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending', 'confirmed', 'waitlisted', 'withdrawn', 'drafted')),
+  -- The sign-up fee. A timestamp rather than a boolean: "when did this arrive"
+  -- is the question actually asked when a payment is queried, and NULL answers
+  -- "not yet" perfectly well.
+  paid_at TIMESTAMPTZ,
+  payment_method VARCHAR(50),
   -- Set once the player has been picked, so the draft can be tracked here
   -- before rosters are built.
   drafted_team_id UUID REFERENCES teams(id) ON DELETE SET NULL,
   season VARCHAR(100) NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  -- A registration with no way to reach the player is useless.
+  CONSTRAINT signups_contact_check CHECK (email IS NOT NULL OR phone IS NOT NULL)
 );
 
 -- One signup per email per season. Case-insensitive, because people are
--- inconsistent about capitalising their own address.
+-- inconsistent about capitalising their own address. Rows with no email at all
+-- are excluded, so phone-only registrations do not collide with each other.
 CREATE UNIQUE INDEX signups_unique_email_per_season
-  ON signups (season, lower(email));
+  ON signups (season, lower(email))
+  WHERE email IS NOT NULL;
+
+-- ---------------------------------------------------------------------------
+-- Questions
+-- ---------------------------------------------------------------------------
+-- Messages from the contact form. Like signups they carry an email address, so
+-- they are not publicly readable either.
+CREATE TABLE questions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(200) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'new'
+    CHECK (status IN ('new', 'answered')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
 -- ---------------------------------------------------------------------------
 -- Indexes
@@ -224,6 +259,8 @@ CREATE INDEX idx_award_votes_award    ON award_votes(award_id);
 CREATE INDEX idx_award_votes_nominee  ON award_votes(nominee_id);
 CREATE INDEX idx_signups_status       ON signups(status);
 CREATE INDEX idx_signups_season       ON signups(season);
+CREATE INDEX idx_questions_status     ON questions(status);
+CREATE INDEX idx_questions_created    ON questions(created_at DESC);
 
 -- ---------------------------------------------------------------------------
 -- updated_at triggers
@@ -240,6 +277,8 @@ CREATE TRIGGER update_awards_updated_at        BEFORE UPDATE ON awards
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_signups_updated_at       BEFORE UPDATE ON signups
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_questions_updated_at     BEFORE UPDATE ON questions
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ---------------------------------------------------------------------------
 -- Row Level Security
@@ -255,6 +294,7 @@ ALTER TABLE awards           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE award_nominees   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE award_votes      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE signups          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE questions        ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "public read" ON teams           FOR SELECT USING (true);
 CREATE POLICY "public read" ON players         FOR SELECT USING (true);
@@ -265,10 +305,10 @@ CREATE POLICY "public read" ON awards          FOR SELECT USING (true);
 CREATE POLICY "public read" ON award_nominees  FOR SELECT USING (true);
 CREATE POLICY "public read" ON award_votes     FOR SELECT USING (true);
 
--- Deliberately NO policy for `signups`: it holds email addresses and phone
--- numbers. With RLS on and no policy, the anon key can neither read nor write
--- it. Submissions and the admin list both go through server routes using the
--- service role key.
+-- Deliberately NO policy for `signups` or `questions`: they hold email
+-- addresses and phone numbers. With RLS on and no policy, the anon key can
+-- neither read nor write them. Submissions and the admin lists both go through
+-- server routes using the service role key.
 
 -- ---------------------------------------------------------------------------
 -- Storage: standings screenshots and team logos
@@ -302,3 +342,4 @@ COMMENT ON TABLE game_statistics IS 'Box score statistics';
 COMMENT ON TABLE league_config   IS 'Global league configuration (single row)';
 COMMENT ON TABLE awards          IS 'End-of-season awards open for voting';
 COMMENT ON TABLE signups         IS 'Pre-draft registrations. Contains contact details; not publicly readable';
+COMMENT ON TABLE questions       IS 'Contact form messages. Contains email addresses; not publicly readable';

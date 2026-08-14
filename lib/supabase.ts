@@ -127,15 +127,39 @@ export type SignupStatus =
 export interface Signup {
   id: string
   name: string
-  email: string
+  /** Null only when the player left it out and gave a phone number instead. */
+  email?: string | null
   age?: number | null
   phone?: string | null
   position?: string | null
   experience?: string | null
+  /** What the player wants printed on their kit, and the size to order. */
+  jersey_name?: string | null
+  /** Requested squad number. Not the number they end up with -- that is
+   *  assigned on the roster, where it has to be unique within a team. */
+  jersey_number?: number | null
+  jersey_size?: string | null
   notes?: string | null
   status: SignupStatus
+  /** When the sign-up fee was received. Null means unpaid. */
+  paid_at?: string | null
+  /** How it was received: Zelle, Cash App, Venmo, cash… */
+  payment_method?: string | null
   drafted_team_id?: string | null
   season: string
+  created_at: string
+  updated_at: string
+}
+
+export type QuestionStatus = 'new' | 'answered'
+
+/** A message sent through the contact form. */
+export interface Question {
+  id: string
+  name: string
+  email: string
+  message: string
+  status: QuestionStatus
   created_at: string
   updated_at: string
 }

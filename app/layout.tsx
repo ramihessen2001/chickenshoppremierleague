@@ -22,13 +22,33 @@ const inter = Inter({
   display: 'swap',
 })
 
+/**
+ * Absolute URLs for the share card. Without this Next cannot turn
+ * `opengraph-image` into the absolute URL that chat apps require, and previews
+ * silently fall back to a bare link.
+ */
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: {
     default: LEAGUE.name,
     template: `%s | ${LEAGUE.shortName}`,
   },
   description: LEAGUE.description,
   keywords: LEAGUE.keywords,
+  openGraph: {
+    type: 'website',
+    siteName: LEAGUE.name,
+    title: LEAGUE.name,
+    description: LEAGUE.description,
+    url: siteUrl,
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: LEAGUE.name,
+    description: LEAGUE.description,
+  },
 }
 
 export default function RootLayout({

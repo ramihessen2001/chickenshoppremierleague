@@ -36,7 +36,7 @@ import { Game } from '@/types/game'
 /** The headline and supporting line for each phase. */
 const HERO_COPY: Record<LeaguePhase, { title: string; body: string }> = {
   signups: {
-    title: 'Registration is open',
+    title: `${LEAGUE.shortName} registration is open`,
     body: 'Sign up to play this season. Once registration closes we hold the draft, and teams are announced here.',
   },
   preseason: {

@@ -14,6 +14,8 @@ import {
   LeagueConfig,
   LeaguePhase,
   Signup,
+  Question,
+  QuestionStatus,
 } from './supabase'
 import { Game } from '@/types/game'
 import { Player } from '@/types/player'
@@ -595,19 +597,30 @@ export async function uploadStandingsImage(file: File): Promise<string> {
 
 export interface SignupInput {
   name: string
-  email: string
   age: number
+  /** At least one of email or phone is required; the server checks too. */
+  email?: string
   phone?: string
   position?: string
   experience?: string
+  jerseyName: string
+  jerseyNumber: number
+  jerseySize: string
   notes?: string
 }
 
 /**
- * Registers a player. Public -- no admin session needed.
- * Resolves to null on success, or a message to show the person signing up.
+ * What became of a registration. `waitlisted` is not a failure: the roster cap
+ * was already met, so the place is provisional and no fee should be sent yet.
  */
-export async function submitSignup(input: SignupInput): Promise<string | null> {
+export type SignupOutcome =
+  | { ok: true; waitlisted: boolean }
+  | { ok: false; error: string }
+
+/** Registers a player. Public -- no admin session needed. */
+export async function submitSignup(
+  input: SignupInput
+): Promise<SignupOutcome> {
   try {
     const response = await fetch('/api/signups', {
       method: 'POST',
@@ -615,12 +628,19 @@ export async function submitSignup(input: SignupInput): Promise<string | null> {
       body: JSON.stringify(input),
     })
 
-    if (response.ok) return null
-
     const payload = await response.json().catch(() => ({}))
-    return payload.error || 'Could not complete your registration'
+
+    if (response.ok) return { ok: true, waitlisted: Boolean(payload.waitlisted) }
+
+    return {
+      ok: false,
+      error: payload.error || 'Could not complete your registration',
+    }
   } catch {
-    return 'Could not reach the server. Check your connection and try again.'
+    return {
+      ok: false,
+      error: 'Could not reach the server. Check your connection and try again.',
+    }
   }
 }
 
@@ -646,6 +666,9 @@ export interface SignupWriteFields {
   experience?: string | null
   notes?: string | null
   status?: Signup['status']
+  /** ISO timestamp when the fee arrived, or null to mark it unpaid again. */
+  paidAt?: string | null
+  paymentMethod?: string | null
   /** Team UUID. */
   draftedTeamId?: string | null
   /** Also create a player row on the drafted team. */
@@ -665,4 +688,63 @@ export async function updateSignup(
 
 export async function deleteSignup(signupId: string): Promise<void> {
   await apiRequest(`/api/admin/signups/${signupId}`, { method: 'DELETE' })
+}
+
+/* -------------------------------------------------------------------------- */
+/* Questions                                                                   */
+/* -------------------------------------------------------------------------- */
+
+export interface QuestionInput {
+  name: string
+  email: string
+  message: string
+  /** Honeypot. Always empty when a person fills the form in. */
+  website?: string
+}
+
+/**
+ * Sends a question to the organisers. Public -- no admin session needed.
+ * Resolves to null on success, or a message to show the person asking.
+ */
+export async function submitQuestion(
+  input: QuestionInput
+): Promise<string | null> {
+  try {
+    const response = await fetch('/api/questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+
+    if (response.ok) return null
+
+    const payload = await response.json().catch(() => ({}))
+    return payload.error || 'Could not send your question'
+  } catch {
+    return 'Could not reach the server. Check your connection and try again.'
+  }
+}
+
+/** The full question list, newest first. Admin only. */
+export async function getQuestions(): Promise<Question[]> {
+  const { questions } = await apiRequest<{ questions: Question[] }>(
+    '/api/admin/questions',
+    { method: 'GET' }
+  )
+  return questions
+}
+
+export async function updateQuestion(
+  questionId: string,
+  status: QuestionStatus
+): Promise<Question> {
+  const { question } = await apiRequest<{ question: Question }>(
+    `/api/admin/questions/${questionId}`,
+    { method: 'PATCH', body: { status } }
+  )
+  return question
+}
+
+export async function deleteQuestion(questionId: string): Promise<void> {
+  await apiRequest(`/api/admin/questions/${questionId}`, { method: 'DELETE' })
 }
