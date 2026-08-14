@@ -178,6 +178,10 @@ CREATE TABLE signups (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name VARCHAR(200) NOT NULL,
   email VARCHAR(255) NOT NULL,
+  -- Collected because the league is for 14-25 year olds. The range here is a
+  -- typo guard, not the eligibility rule: an out-of-range signup is left for
+  -- an organiser to judge in the admin list.
+  age SMALLINT CHECK (age BETWEEN 5 AND 99),
   phone VARCHAR(50),
   -- Preferred position and rough experience, both free-ish text so the form
   -- can change without a migration.

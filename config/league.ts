@@ -34,8 +34,46 @@ export const LEAGUE = {
   /** White version of the wordmark, for dark surfaces. */
   wordmarkWhiteUrl: '/images/puro_wordmark_white.png',
 
-  /** The league crest. Square, shown large on the pre-season homepage. */
+  /**
+   * The league crest. Square. Not currently shown anywhere -- the pre-season
+   * homepage carries the details table below in its place.
+   */
   crestUrl: '/images/league_logo.png',
+
+  /**
+   * The at-a-glance facts shown beside the registration form while signups are
+   * open. Edited by hand each season: unlike the week count and current week,
+   * none of this is in `league_config`. A newline in a value becomes a line
+   * break on the page.
+   */
+  details: [
+    [
+      'Location',
+      'Islamic Center of Northeast Florida (ICNEF)\n2333 St Johns Bluff Rd S, Jacksonville, FL 32246',
+    ],
+    ['Ages allowed', '14–25'],
+    ['League dates', 'September 29, 2026 – November 27, 2026'],
+    ['Format', 'League table, with playoffs in the last two weeks of the season'],
+    [
+      'Matchdays',
+      'Every Monday and Wednesday, 6:00–9:00 PM (Each team plays once a week)',
+    ],
+    ['Sign-up fee', '$40 (Payment methods are shown after completing registration)'],
+  ] as [string, string][],
+
+  /**
+   * How the sign-up fee is paid. Shown only on the confirmation panel after a
+   * registration goes through, which is why the details table above just says
+   * the amount.
+   */
+  payment: {
+    amount: '$40',
+    methods: [
+      { label: 'Zelle', handle: 'moussawood2007@gmail.com' },
+      { label: 'Cash App', handle: '$MoussaWood' },
+      { label: 'Venmo', handle: '@Moussa-Wood' },
+    ],
+  },
 
   /**
    * Where the "buy a kit" button points, or null to hide it everywhere.

@@ -224,6 +224,9 @@ export function SignupsAdmin() {
                       {signup.email}
                     </a>
                     {signup.phone && <span>{signup.phone}</span>}
+                    {signup.age != null && (
+                      <span className="text-ink-tertiary">Age {signup.age}</span>
+                    )}
                     {signup.position && (
                       <span className="text-ink-tertiary">{signup.position}</span>
                     )}

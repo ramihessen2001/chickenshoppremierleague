@@ -1,7 +1,7 @@
 /**
  * Register for the league. Public.
  *
- *   POST -> { name, email, phone?, position?, experience?, notes? }
+ *   POST -> { name, email, age, phone?, position?, experience?, notes? }
  *
  * Signups are only accepted while league_config.phase is 'signups', so closing
  * registration is a data change rather than a deploy.
@@ -19,6 +19,7 @@ import { fail, readJson } from '@/lib/apiAuth'
 interface SignupBody {
   name?: string
   email?: string
+  age?: number
   phone?: string
   position?: string
   experience?: string
@@ -27,6 +28,13 @@ interface SignupBody {
 
 /** Deliberately permissive -- just enough to catch a typo, not to police form. */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * A sanity range, not the league's eligibility rule. Anyone outside 14-25 is
+ * left for an organiser to look at in the admin list rather than turned away
+ * by the form.
+ */
+const AGE_RANGE = { min: 5, max: 99 }
 
 const MAX_LENGTHS = {
   name: 200,
@@ -49,6 +57,16 @@ export async function POST(request: Request) {
   if (!email) return fail('Please enter your email address')
   if (!EMAIL_PATTERN.test(email) || email.length > MAX_LENGTHS.email) {
     return fail('Please enter a valid email address')
+  }
+
+  const age = body.age
+  if (
+    typeof age !== 'number' ||
+    !Number.isInteger(age) ||
+    age < AGE_RANGE.min ||
+    age > AGE_RANGE.max
+  ) {
+    return fail('Please enter a valid age')
   }
 
   for (const field of ['phone', 'position', 'experience', 'notes'] as const) {
@@ -78,6 +96,7 @@ export async function POST(request: Request) {
   const { error } = await supabaseAdmin.from('signups').insert({
     name,
     email,
+    age,
     phone: body.phone?.trim() || null,
     position: body.position?.trim() || null,
     experience: body.experience?.trim() || null,

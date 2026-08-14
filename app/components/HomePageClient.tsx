@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
+import { ChevronDown } from 'lucide-react'
 import { WeeklyGames } from './WeeklyGames'
 import { TeamLogos } from './TeamLogos'
 import { StatLeaders } from './StatLeaders'
@@ -128,6 +128,8 @@ export function HomePageClient() {
   const [assistLeaders, setAssistLeaders] = useState<LeaderboardEntry[]>([])
   const [saveLeaders, setSaveLeaders] = useState<LeaderboardEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  /** Mobile only: the league details table starts collapsed. */
+  const [showDetails, setShowDetails] = useState(false)
 
   const fetchData = useCallback(async () => {
     try {
@@ -208,32 +210,7 @@ export function HomePageClient() {
               : ''
           }
         >
-          {/* A flex column so the crest can be reordered by breakpoint and, on
-              desktop, absorb the space left over beside the form. */}
-          <div className={isRegistering ? 'flex flex-col' : ''}>
-            {/* The crest anchors the page while there is no other content to
-                look at. Once fixtures and results exist it would just be
-                decoration, so it appears only before the season starts.
-
-                It sits above the headline on narrow screens, and below it on
-                desktop -- one element, reordered, rather than two copies. */}
-            {isRegistering && (
-              <div className="order-first lg:order-last lg:min-h-0 lg:flex-1">
-                {/* object-bottom is `center bottom`, so the artwork centres
-                    horizontally under the headline while its lower edge stays
-                    level with the bottom of the form. No max width: the space
-                    left beside the form is what sets the size. */}
-                <Image
-                  src={LEAGUE.crestUrl}
-                  alt=""
-                  width={384}
-                  height={383}
-                  priority
-                  className="mx-auto h-24 w-24 object-contain sm:h-28 sm:w-28 lg:h-full lg:w-full lg:object-bottom"
-                />
-              </div>
-            )}
-
+          <div>
             <h1
               className={`font-semibold text-ink ${
                 isRegistering
@@ -260,6 +237,55 @@ export function HomePageClient() {
                     </Link>
                   )
                 )}
+              </div>
+            )}
+
+            {/* The facts a prospective player needs before filling the form
+                in. Only while registration is open -- once the season starts
+                the schedule and standings pages say all of this.
+
+                Collapsed behind a toggle on narrow screens, where the whole
+                table between the headline and the form would push the form
+                off the first screen. Always open from `lg` up, where it sits
+                beside the form rather than above it. */}
+            {isRegistering && (
+              <div className="mt-10 max-w-xl">
+                <button
+                  type="button"
+                  onClick={() => setShowDetails((open) => !open)}
+                  aria-expanded={showDetails}
+                  aria-controls="league-details"
+                  className="flex w-full items-center justify-between gap-4 rounded-lg border border-hairline bg-surface px-5 py-3.5 text-[14px] font-medium text-ink transition-colors hover:bg-surface-hover lg:hidden"
+                >
+                  League details
+                  <ChevronDown
+                    size={18}
+                    className={`shrink-0 text-ink-tertiary transition-transform ${
+                      showDetails ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                <dl
+                  id="league-details"
+                  className={`rounded-lg border border-hairline bg-surface max-lg:mt-2 lg:block ${
+                    showDetails ? '' : 'max-lg:hidden'
+                  }`}
+                >
+                  {LEAGUE.details.map(([label, value]) => (
+                    <div
+                      key={label}
+                      className="grid gap-1 border-t border-hairline px-5 py-3.5 first:border-t-0 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4 sm:px-6"
+                    >
+                      <dt className="text-[13px] font-medium text-ink-tertiary">
+                        {label}
+                      </dt>
+                      <dd className="whitespace-pre-line text-[14px] leading-relaxed text-ink">
+                        {value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
             )}
           </div>

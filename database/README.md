@@ -7,6 +7,7 @@
 | `schema.sql` | The whole schema. Run once against a fresh Supabase project. |
 | `seed.js` | Loads `seed-data.json` into the database. |
 | `seed-data.json` | Your teams, players and fixtures. Edit this. |
+| `migrations/` | Numbered changes for a database already in use. Skip them on a fresh project — `schema.sql` includes everything. |
 
 ## First-time setup
 

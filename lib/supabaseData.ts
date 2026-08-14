@@ -596,6 +596,7 @@ export async function uploadStandingsImage(file: File): Promise<string> {
 export interface SignupInput {
   name: string
   email: string
+  age: number
   phone?: string
   position?: string
   experience?: string

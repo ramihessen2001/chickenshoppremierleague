@@ -128,6 +128,7 @@ export interface Signup {
   id: string
   name: string
   email: string
+  age?: number | null
   phone?: string | null
   position?: string | null
   experience?: string | null
