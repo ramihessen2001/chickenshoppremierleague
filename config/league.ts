@@ -54,7 +54,10 @@ export const LEAGUE = {
     ],
     ['Ages allowed', '14–25'],
     ['League dates', 'September 28, 2026 – November 27, 2026'],
-    ['Format', 'League table, with playoffs in the last two weeks of the season'],
+    [
+      'Format',
+      '7 Week League Format\n2 Week Playoffs\nAll Teams are drafted on August 29, 2026',
+    ],
     [
       'Matchdays',
       'Every Monday and Wednesday, 6:00–9:00 PM (Each team plays once a week)',

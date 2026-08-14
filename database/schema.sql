@@ -38,6 +38,7 @@ CREATE TABLE teams (
   logo_url TEXT,                             -- e.g. /images/teams/falcons.png
   primary_color VARCHAR(7) DEFAULT '#523232',-- hex, used for UI accents
   display_order INTEGER NOT NULL DEFAULT 0,  -- controls ordering in the UI
+  draft_position SMALLINT UNIQUE,            -- slot in the snake draft, 1..N
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -208,6 +209,13 @@ CREATE TABLE signups (
   -- Set once the player has been picked, so the draft can be tracked here
   -- before rosters are built.
   drafted_team_id UUID REFERENCES teams(id) ON DELETE SET NULL,
+  -- Live draft. pick_number is the overall pick, 1..N, and null until taken;
+  -- the team on the clock is derived from the highest one rather than stored.
+  -- player_id is the roster row the pick created, so undo can remove exactly
+  -- that player instead of guessing by name.
+  pick_number INTEGER UNIQUE,
+  drafted_at TIMESTAMPTZ,
+  player_id UUID REFERENCES players(id) ON DELETE SET NULL,
   season VARCHAR(100) NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),

@@ -45,7 +45,7 @@ const HERO_COPY: Record<LeaguePhase, { title: string; body: string }> = {
   },
   draft: {
     title: 'Draft in progress',
-    body: 'Teams are being picked now. Rosters appear here as they fill.',
+    body: 'Teams are being picked right now. Follow every pick as it happens on the live board.',
   },
   season: {
     title: LEAGUE.name,
@@ -157,8 +157,15 @@ function heroActions(state: {
       return meetTheTeams('secondary')
 
     case 'preseason':
-    case 'draft':
       return meetTheTeams('primary')
+
+    // Draft night: the board is the thing to be on, so it takes the primary
+    // button and the team list steps back to secondary.
+    case 'draft':
+      return [
+        { href: '/draft', label: 'Watch the draft live', variant: 'primary' },
+        ...meetTheTeams('secondary'),
+      ]
 
     case 'season':
       return hasFixtures
