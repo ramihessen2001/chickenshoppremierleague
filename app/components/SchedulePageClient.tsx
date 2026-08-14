@@ -1,5 +1,11 @@
 /**
  * Schedule page: loads the season and hands it to FullSchedule to render.
+ *
+ * Only *this* season's fixtures are listed. Previous seasons stay in the games
+ * table -- team pages and their results histories are built from them -- but a
+ * fixture list that opened on last year's played games would read as though the
+ * season had already started, so anything before the configured start date is
+ * filtered out here rather than deleted.
  */
 
 'use client'
@@ -24,7 +30,14 @@ export function SchedulePageClient() {
         setTotalWeeks(config.total_weeks)
         setSeason(config.season)
       }
-      setGames(allGames)
+
+      // Both dates are ISO (YYYY-MM-DD), so a string compare orders them.
+      // Games after the end date are kept: a fixture can be rearranged into a
+      // later week, and dropping it would hide a real game.
+      const seasonStart = config?.start_date
+      setGames(
+        seasonStart ? allGames.filter((game) => game.date >= seasonStart) : allGames
+      )
     } catch (error) {
       console.error('Error fetching schedule:', error)
     } finally {

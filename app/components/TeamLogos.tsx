@@ -11,7 +11,16 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useTeams } from '@/lib/teamsContext'
 
-export function TeamLogos() {
+interface TeamLogosProps {
+  /**
+   * Before this season's draft, the teams in the database are still last
+   * season's. The section says so rather than presenting them as the current
+   * line-up, so nobody registers expecting to join one of them.
+   */
+  showingLastSeason?: boolean
+}
+
+export function TeamLogos({ showingLastSeason = false }: TeamLogosProps) {
   const { teams, isLoading } = useTeams()
 
   return (
@@ -24,8 +33,16 @@ export function TeamLogos() {
         id="teams-heading"
         className="text-[28px] font-semibold text-ink sm:text-[32px]"
       >
-        Teams
+        {showingLastSeason ? "Last season's teams" : 'Teams'}
       </h2>
+
+      {showingLastSeason && teams.length > 0 && (
+        <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-ink-secondary">
+          These are last season&rsquo;s teams and results, shown so you can see
+          how the league runs. This season&rsquo;s teams are drafted once
+          registration closes.
+        </p>
+      )}
 
       {isLoading ? (
         <p className="mt-8 text-[15px] text-ink-tertiary">Loading…</p>

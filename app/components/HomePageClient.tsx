@@ -64,6 +64,64 @@ interface HeroAction {
 }
 
 /**
+ * The registration deadline, as a local midnight.
+ *
+ * Parsed by hand rather than with `new Date(iso)`, which reads a bare
+ * YYYY-MM-DD as UTC midnight -- that lands on the previous day west of
+ * Greenwich, so the countdown would lose a day for everyone in Jacksonville.
+ */
+function parseLocalDate(iso: string): Date {
+  const [year, month, day] = iso.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+/** Whole days from today until `deadline`, negative once it has passed. */
+function daysUntil(deadline: string, now: Date): number {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return Math.round(
+    (parseLocalDate(deadline).getTime() - today.getTime()) / 86_400_000
+  )
+}
+
+/**
+ * The urgency line beside the headline while registration is open.
+ *
+ * Derived from the deadline rather than written out, so it cannot go stale:
+ * it counts whole weeks while more than one remains, then days, and returns
+ * null once the deadline passes so a closed registration says nothing.
+ */
+function registrationCountdown(deadline: string, now: Date): string | null {
+  const days = daysUntil(deadline, now)
+  if (days < 0) return null
+  if (days === 0) return 'Last day to register'
+  if (days === 1) return '1 day left to register'
+  if (days < 14) return `${days} days left to register`
+
+  const weeks = Math.floor(days / 7)
+  return `${weeks} weeks left to register`
+}
+
+/** The deadline as "September 28, 2026". */
+function formatDeadline(deadline: string): string {
+  return parseLocalDate(deadline).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+/**
+ * Whether the teams currently in the database are last season's.
+ *
+ * True until the draft starts: registration and the wait before the draft both
+ * show the previous season's teams, because this season's do not exist yet.
+ * From `draft` onwards the rosters being filled are the current ones.
+ */
+function showsLastSeasonTeams(phase: LeaguePhase): boolean {
+  return phase === 'signups' || phase === 'preseason'
+}
+
+/**
  * The hero's buttons for the current phase.
  *
  * The governing rule is that a button never points at a page that is empty in
@@ -78,7 +136,19 @@ function heroActions(state: {
 }): HeroAction[] {
   const { phase, hasTeams, hasFixtures, awardsOpen } = state
   const meetTheTeams = (variant: HeroAction['variant']): HeroAction[] =>
-    hasTeams ? [{ href: '#teams', label: 'Meet the teams', variant }] : []
+    hasTeams
+      ? [
+          {
+            href: '#teams',
+            // Pre-draft the button leads to last season's teams, so it says so
+            // rather than implying these are the sides you could be drafted to.
+            label: showsLastSeasonTeams(phase)
+              ? "See last year's teams"
+              : 'Meet the teams',
+            variant,
+          },
+        ]
+      : []
 
   switch (phase) {
     // The registration form sits beside the headline, so it is the call to
@@ -196,6 +266,10 @@ export function HomePageClient() {
     awardsOpen,
   })
 
+  // Only ever rendered under `isRegistering`, but computed here so the deadline
+  // is read once. Null once the closing date has passed.
+  const countdown = registrationCountdown(LEAGUE.registrationDeadline, new Date())
+
   return (
     <div>
       <LiveNow />
@@ -211,6 +285,17 @@ export function HomePageClient() {
           }
         >
           <div>
+            {/* Sits above the headline so the closing date is the first thing
+                read, before the headline and the form below it. */}
+            {isRegistering && countdown && (
+              <p className="mb-5 inline-flex flex-wrap items-center gap-x-2 rounded-pill border border-hairline-strong px-4 py-1.5 text-[13px] font-medium text-ink">
+                {countdown}
+                <span className="text-ink-tertiary">
+                  Closes {formatDeadline(LEAGUE.registrationDeadline)}
+                </span>
+              </p>
+            )}
+
             <h1
               className={`font-semibold text-ink ${
                 isRegistering
@@ -325,7 +410,7 @@ export function HomePageClient() {
         <StatLeaders goals={goalLeaders} assists={assistLeaders} saves={saveLeaders} />
       )}
 
-      <TeamLogos />
+      <TeamLogos showingLastSeason={showsLastSeasonTeams(phase)} />
     </div>
   )
 }

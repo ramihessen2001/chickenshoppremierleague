@@ -53,15 +53,22 @@ export const LEAGUE = {
       'Islamic Center of Northeast Florida (ICNEF)\n2333 St Johns Bluff Rd S, Jacksonville, FL 32246',
     ],
     ['Ages allowed', '14–25'],
-    ['League dates', 'September 29, 2026 – November 27, 2026'],
+    ['League dates', 'September 28, 2026 – November 27, 2026'],
     ['Format', 'League table, with playoffs in the last two weeks of the season'],
     [
       'Matchdays',
       'Every Monday and Wednesday, 6:00–9:00 PM (Each team plays once a week)',
     ],
     ['Sign-up fee', '$40 (Payment methods are shown after completing registration)'],
-    ['Places', '64 players (Registrations after that join the waitlist)'],
+    // The places/waitlist row is deliberately not listed: the cap is enforced
+    // from `rosterCap` below, and the form says so itself once it is reached.
   ] as [string, string][],
+
+  /**
+   * Last day to register, ISO. The hero counts down to this, so the deadline is
+   * written once here rather than restated in copy that would go stale.
+   */
+  registrationDeadline: '2026-08-28',
 
   /**
    * How many players the league has room for.
