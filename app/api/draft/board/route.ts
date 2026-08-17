@@ -91,6 +91,17 @@ export async function GET() {
   const orderable = teams.map((t) => ({ id: t.id, draftPosition: t.draftPosition }))
   const next = teamOnPick(orderable, nextPick, totalPicks)
 
+  // The next few teams after the one on the clock, so the broadcast hero can
+  // show what's coming without anyone having to work out the snake order.
+  const teamById = new Map(teams.map((t) => [t.id, t]))
+  const onDeck = [1, 2, 3]
+    .map((offset) => teamOnPick(orderable, nextPick + offset, totalPicks))
+    .filter((t): t is NonNullable<typeof t> => t !== null)
+    .map((t) => {
+      const team = teamById.get(t.id)!
+      return { id: team.id, name: team.name, logoUrl: team.logoUrl }
+    })
+
   return NextResponse.json({
     teams,
     available,
@@ -103,6 +114,7 @@ export async function GET() {
         name: s.name,
         teamId: s.drafted_team_id,
         jerseyNumber: s.player_id ? numberByPlayer.get(s.player_id) ?? null : null,
+        draftedAt: s.drafted_at as string | null,
       })),
     onTheClock: next
       ? {
@@ -114,6 +126,7 @@ export async function GET() {
           ),
         }
       : null,
+    onDeck,
     isComplete: available.length === 0 && drafted.length > 0,
     totalPicks,
   })

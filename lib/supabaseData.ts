@@ -5,6 +5,10 @@
  * Writes go through /api/admin/* routes, which verify the admin session cookie
  * server-side and use the service role key there. Nothing in this file can
  * write to the database on its own -- that is the point.
+ *
+ * `getLeagueConfig`/`updateLeagueConfig` are the exception in local dev: see
+ * `lib/devSandbox.ts` for why league_config writes are kept out of Supabase
+ * entirely while running under `next dev`.
  */
 
 import {
@@ -17,6 +21,12 @@ import {
   Question,
   QuestionStatus,
 } from './supabase'
+import {
+  devSandboxActive,
+  getSandboxConfig,
+  setSandboxConfig,
+  setSandboxDraftOrder,
+} from './devSandbox'
 import { Game } from '@/types/game'
 import { Player } from '@/types/player'
 import { GameStatistic as LocalGameStatistic, StatType } from '@/types/statistic'
@@ -133,7 +143,10 @@ export async function getLeagueConfig(): Promise<LeagueConfig | null> {
     console.error('Error fetching league config:', error)
     return null
   }
-  return data
+  // Layer local-only overrides (phase, current week, ...) on top of the real
+  // row, so a dev-mode phase change is visible here without ever touching
+  // Supabase. No-ops outside `next dev`.
+  return data && devSandboxActive ? { ...data, ...getSandboxConfig() } : data
 }
 
 export async function getCurrentWeek(): Promise<number> {
@@ -575,11 +588,45 @@ export interface LeagueConfigWriteFields {
 export async function updateLeagueConfig(
   fields: LeagueConfigWriteFields
 ): Promise<LeagueConfig> {
+  if (devSandboxActive) {
+    // Kept out of Supabase entirely in dev -- see lib/devSandbox.ts. Nothing
+    // reads this return value, so an empty stub is fine here.
+    setSandboxConfig({
+      ...(fields.currentWeek !== undefined && { current_week: fields.currentWeek }),
+      ...(fields.totalWeeks !== undefined && { total_weeks: fields.totalWeeks }),
+      ...(fields.season !== undefined && { season: fields.season }),
+      ...(fields.leagueName !== undefined && { league_name: fields.leagueName }),
+      ...(fields.startDate !== undefined && { start_date: fields.startDate }),
+      ...(fields.endDate !== undefined && { end_date: fields.endDate }),
+      ...(fields.phase !== undefined && { phase: fields.phase }),
+      ...(fields.standingsImageUrl !== undefined && {
+        standings_image_url: fields.standingsImageUrl,
+      }),
+      ...(fields.draftStreamUrl !== undefined && {
+        draft_stream_url: fields.draftStreamUrl,
+      }),
+    })
+    return {} as LeagueConfig
+  }
+
   const { config } = await apiRequest<{ config: LeagueConfig }>(
     '/api/admin/league-config',
     { method: 'PATCH', body: fields }
   )
   return config
+}
+
+/**
+ * Sets the snake draft order. `order` is team ids, index 0 = pick 1.
+ * Rejected by the API once the draft has a pick recorded.
+ */
+export async function setDraftOrder(order: string[]): Promise<void> {
+  if (devSandboxActive) {
+    // Kept out of Supabase entirely in dev -- see lib/devSandbox.ts.
+    setSandboxDraftOrder(order)
+    return
+  }
+  await apiRequest('/api/admin/draft/order', { method: 'PATCH', body: { order } })
 }
 
 export async function uploadStandingsImage(file: File): Promise<string> {
