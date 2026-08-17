@@ -26,6 +26,12 @@ import {
   getSandboxConfig,
   setSandboxConfig,
   setSandboxDraftOrder,
+  getSandboxGames,
+  addSandboxGame,
+  updateSandboxGame,
+  deleteSandboxGame,
+  isSandboxGameId,
+  SANDBOX_GAME_PREFIX,
 } from './devSandbox'
 import { Game } from '@/types/game'
 import { Player } from '@/types/player'
@@ -254,8 +260,17 @@ export async function getTeamBySlug(
   return data
 }
 
+/** Date-then-time comparator matching the `.order('date').order('time')` read below. */
+function byDateThenTime(a: Game, b: Game): number {
+  return a.date.localeCompare(b.date) || a.time.localeCompare(b.time)
+}
+
 /**
  * Games for a single week. Week 0 holds playoff games.
+ *
+ * Layers in any games created locally (see lib/devSandbox.ts) while running
+ * under `next dev`, so the schedule and bracket generators are fully
+ * testable without a single game reaching Supabase.
  */
 export async function getGamesByWeek(weekNumber: number): Promise<Game[]> {
   const { data, error } = await supabase
@@ -265,11 +280,12 @@ export async function getGamesByWeek(weekNumber: number): Promise<Game[]> {
     .order('date')
     .order('time')
 
-  if (error) {
-    console.error(`Error fetching games for week ${weekNumber}:`, error)
-    return []
-  }
-  return (data ?? []).map(transformGame)
+  const real = error ? [] : (data ?? []).map(transformGame)
+  if (error) console.error(`Error fetching games for week ${weekNumber}:`, error)
+  if (!devSandboxActive) return real
+
+  const sandboxed = getSandboxGames().filter((g) => g.weekNumber === weekNumber)
+  return [...real, ...sandboxed].sort(byDateThenTime)
 }
 
 export async function getAllGames(): Promise<Game[]> {
@@ -278,11 +294,11 @@ export async function getAllGames(): Promise<Game[]> {
     .select(GAME_SELECT_WITH_STATS)
     .order('game_number')
 
-  if (error) {
-    console.error('Error fetching all games:', error)
-    return []
-  }
-  return (data ?? []).map(transformGame)
+  const real = error ? [] : (data ?? []).map(transformGame)
+  if (error) console.error('Error fetching all games:', error)
+  if (!devSandboxActive) return real
+
+  return [...real, ...getSandboxGames()]
 }
 
 /** How many games exist at all. Used to decide whether to link to the schedule. */
@@ -291,11 +307,9 @@ export async function countGames(): Promise<number> {
     .from('games')
     .select('*', { count: 'exact', head: true })
 
-  if (error) {
-    console.error('Error counting games:', error)
-    return 0
-  }
-  return count ?? 0
+  const real = error ? 0 : (count ?? 0)
+  if (error) console.error('Error counting games:', error)
+  return devSandboxActive ? real + getSandboxGames().length : real
 }
 
 /** All playoff games, i.e. week 0. */
@@ -304,6 +318,10 @@ export async function getPlayoffGames(): Promise<Game[]> {
 }
 
 export async function getGameById(gameId: string): Promise<Game | null> {
+  if (devSandboxActive && isSandboxGameId(gameId)) {
+    return getSandboxGames().find((g) => g.id === gameId) ?? null
+  }
+
   const { data, error } = await supabase
     .from('games')
     .select(GAME_SELECT_WITH_STATS)
@@ -540,7 +558,51 @@ export interface GameWriteFields {
   playerOfGameId?: string | null
 }
 
+/** A team's slug and name from its UUID. Read-only, so safe even in the sandbox. */
+async function resolveTeam(
+  teamId: string | null | undefined
+): Promise<{ slug: string; name: string } | null> {
+  if (!teamId) return null
+  const { data } = await supabase.from('teams').select('slug, name').eq('id', teamId).maybeSingle()
+  return data
+}
+
 export async function createGame(fields: GameWriteFields): Promise<string> {
+  if (devSandboxActive) {
+    // Kept out of Supabase entirely in dev -- see lib/devSandbox.ts.
+    const [homeTeam, awayTeam] = await Promise.all([
+      resolveTeam(fields.homeTeamId),
+      resolveTeam(fields.awayTeamId),
+    ])
+    const id = `${SANDBOX_GAME_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const now = new Date().toISOString()
+    const isPlayoff = fields.isPlayoff ?? false
+
+    addSandboxGame({
+      id,
+      weekNumber: isPlayoff ? 0 : (fields.weekNumber ?? 1),
+      date: fields.date ?? '',
+      time: fields.time ?? '',
+      location: fields.location ?? 'TBD',
+      homeTeamId: homeTeam?.slug ?? '',
+      awayTeamId: awayTeam?.slug ?? '',
+      homeTeamUUID: fields.homeTeamId ?? undefined,
+      awayTeamUUID: fields.awayTeamId ?? undefined,
+      homeScore: fields.homeScore ?? null,
+      awayScore: fields.awayScore ?? null,
+      status: fields.status ?? 'scheduled',
+      isPlayoff,
+      playoffRound: isPlayoff ? (fields.playoffRound ?? null) : null,
+      streamUrl: fields.streamUrl ?? null,
+      statistics: [],
+      playerOfGameId: null,
+      playerOfGame: null,
+      createdAt: now,
+      updatedAt: now,
+    })
+    return id
+  }
+
   const { id } = await apiRequest<{ id: string }>('/api/admin/games', {
     method: 'POST',
     body: fields,
@@ -549,10 +611,40 @@ export async function createGame(fields: GameWriteFields): Promise<string> {
 }
 
 export async function updateGame(gameId: string, fields: GameWriteFields): Promise<void> {
+  if (devSandboxActive && isSandboxGameId(gameId)) {
+    const patch: Partial<Game> = { updatedAt: new Date().toISOString() }
+    if (fields.date !== undefined) patch.date = fields.date
+    if (fields.time !== undefined) patch.time = fields.time
+    if (fields.location !== undefined) patch.location = fields.location
+    if (fields.homeScore !== undefined) patch.homeScore = fields.homeScore
+    if (fields.awayScore !== undefined) patch.awayScore = fields.awayScore
+    if (fields.status !== undefined) patch.status = fields.status
+    if (fields.streamUrl !== undefined) patch.streamUrl = fields.streamUrl
+    if (fields.playoffRound !== undefined) patch.playoffRound = fields.playoffRound
+    if (fields.weekNumber !== undefined) patch.weekNumber = fields.weekNumber ?? 0
+    if (fields.isPlayoff !== undefined) patch.isPlayoff = fields.isPlayoff
+    if (fields.playerOfGameId !== undefined) patch.playerOfGameId = fields.playerOfGameId
+    if (fields.homeTeamId !== undefined) {
+      const team = await resolveTeam(fields.homeTeamId)
+      patch.homeTeamId = team?.slug ?? ''
+      patch.homeTeamUUID = fields.homeTeamId ?? undefined
+    }
+    if (fields.awayTeamId !== undefined) {
+      const team = await resolveTeam(fields.awayTeamId)
+      patch.awayTeamId = team?.slug ?? ''
+      patch.awayTeamUUID = fields.awayTeamId ?? undefined
+    }
+    updateSandboxGame(gameId, patch)
+    return
+  }
   await apiRequest(`/api/admin/games/${gameId}`, { method: 'PATCH', body: fields })
 }
 
 export async function deleteGame(gameId: string): Promise<void> {
+  if (devSandboxActive && isSandboxGameId(gameId)) {
+    deleteSandboxGame(gameId)
+    return
+  }
   await apiRequest(`/api/admin/games/${gameId}`, { method: 'DELETE' })
 }
 
@@ -592,6 +684,19 @@ export async function saveBoxScore(
     statistics: BoxScoreStat[]
   }
 ): Promise<void> {
+  if (devSandboxActive && isSandboxGameId(gameId)) {
+    // Kept out of Supabase entirely in dev -- see lib/devSandbox.ts. Scores
+    // and status are enough to test the schedule/bracket generators; the
+    // individual stat lines aren't tracked locally.
+    updateSandboxGame(gameId, {
+      homeScore: input.homeScore,
+      awayScore: input.awayScore,
+      status: input.status ?? 'completed',
+      playerOfGameId: input.playerOfGameId ?? null,
+      updatedAt: new Date().toISOString(),
+    })
+    return
+  }
   await apiRequest(`/api/admin/games/${gameId}/box-score`, {
     method: 'PUT',
     body: input,

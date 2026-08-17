@@ -20,6 +20,7 @@ import { fallbackTeamLogo } from '@/config/league'
 import { Standing } from '@/types/standing'
 import { PageHeader } from './PageHeader'
 import { EditStandingModal } from './EditStandingModal'
+import { PlayoffBracket } from './PlayoffBracket'
 
 /** Column abbreviation -> what it means, for the key under the table. */
 const KEY: [string, string][] = [
@@ -71,6 +72,10 @@ export function StandingsPageClient() {
   return (
     <>
       <PageHeader eyebrow={season ?? undefined} title="Standings" />
+
+      {/* Renders nothing until playoff games exist, so this costs the page
+          nothing during the regular season. */}
+      <PlayoffBracket />
 
       <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
         {standings.length === 0 ? (

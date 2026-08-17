@@ -16,6 +16,10 @@ interface PageHeaderProps {
   description?: string
   /** Actions aligned to the right on wide screens. */
   actions?: ReactNode
+  /** Extra content below the title row, still inside the bordered header --
+   *  e.g. an admin panel that belongs with the page's controls rather than
+   *  its content. */
+  children?: ReactNode
 }
 
 export function PageHeader({
@@ -23,6 +27,7 @@ export function PageHeader({
   title,
   description,
   actions,
+  children,
 }: PageHeaderProps) {
   return (
     <header className="border-b border-hairline">
@@ -42,6 +47,8 @@ export function PageHeader({
 
           {actions && <div className="flex shrink-0 items-center gap-3">{actions}</div>}
         </div>
+
+        {children && <div className="mt-8">{children}</div>}
       </div>
     </header>
   )

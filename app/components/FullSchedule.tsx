@@ -100,11 +100,11 @@ export function FullSchedule({
             </button>
           ) : undefined
         }
-      />
+      >
+        <SeasonScheduler hasGames={hasAnyGames} />
+      </PageHeader>
 
       <div className="mx-auto max-w-6xl px-5 pb-20 sm:px-8">
-        <SeasonScheduler hasGames={hasAnyGames} />
-
         {Array.from({ length: totalWeeks }, (_, i) => i + 1).map((week) => (
           <WeekSection
             key={week}

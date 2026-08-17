@@ -417,23 +417,31 @@ export function HomePageClient() {
         </section>
       )}
 
-      {phase === 'playoffs' && (
-        <>
-          <PlayoffBracketGenerator />
-          <ChampionshipGameCard />
-          <PlayoffBracket />
-        </>
-      )}
-
       {config?.show_home_fixtures && phase === 'season' && (
         <WeeklyGames games={currentWeekGames} weekNumber={currentWeek} />
       )}
 
-      {config?.show_home_stats && !isPreSeason && (
-        <StatLeaders goals={goalLeaders} assists={assistLeaders} saves={saveLeaders} />
+      {/* Playoffs reorders the usual stats-then-teams flow: meet the teams,
+          see where they stand, then the bracket and the final -- the bracket
+          leads that section, with the championship game underneath it. */}
+      {phase === 'playoffs' ? (
+        <>
+          <TeamLogos showingLastSeason={showsLastSeasonTeams(phase)} />
+          {config?.show_home_stats && (
+            <StatLeaders goals={goalLeaders} assists={assistLeaders} saves={saveLeaders} />
+          )}
+          <PlayoffBracketGenerator />
+          <PlayoffBracket />
+          <ChampionshipGameCard />
+        </>
+      ) : (
+        <>
+          {config?.show_home_stats && !isPreSeason && (
+            <StatLeaders goals={goalLeaders} assists={assistLeaders} saves={saveLeaders} />
+          )}
+          <TeamLogos showingLastSeason={showsLastSeasonTeams(phase)} />
+        </>
       )}
-
-      <TeamLogos showingLastSeason={showsLastSeasonTeams(phase)} />
     </div>
   )
 }

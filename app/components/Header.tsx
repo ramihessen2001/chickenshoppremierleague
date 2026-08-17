@@ -62,7 +62,15 @@ export function Header() {
           </span>
         </Link>
 
-        <nav className="ml-auto flex items-center gap-1" aria-label="Main">
+        {/* min-w-0 lets this shrink inside the flex row instead of pushing
+            the row wider than the screen -- the admin-only links (Signups,
+            Inbox) are what make this overflow on a phone. Scrollbar hidden
+            since a swipe is how this gets scrolled on the touch devices
+            narrow enough to need it. */}
+        <nav
+          className="ml-auto flex min-w-0 items-center gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          aria-label="Main"
+        >
           {nav.map(({ href, label }) => {
             const isActive = pathname === href || pathname.startsWith(`${href}/`)
             return (
@@ -70,7 +78,7 @@ export function Header() {
                 key={href}
                 href={href}
                 aria-current={isActive ? 'page' : undefined}
-                className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                className={`shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
                   isActive
                     ? 'text-ink'
                     : 'text-ink-secondary hover:text-ink'
