@@ -569,6 +569,7 @@ export interface LeagueConfigWriteFields {
   endDate?: string
   phase?: LeaguePhase
   standingsImageUrl?: string | null
+  draftStreamUrl?: string | null
 }
 
 export async function updateLeagueConfig(

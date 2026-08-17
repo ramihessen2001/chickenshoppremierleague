@@ -128,6 +128,9 @@ CREATE TABLE league_config (
   --   playoffs  bracket and final
   phase VARCHAR(20) NOT NULL DEFAULT 'signups'
     CHECK (phase IN ('signups', 'draft', 'season', 'playoffs')),
+  -- YouTube watch or live URL for the draft broadcast, set by the admin
+  -- before the draft starts. The homepage's "Watch Live" button points here.
+  draft_stream_url TEXT,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 

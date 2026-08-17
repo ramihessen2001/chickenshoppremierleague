@@ -95,7 +95,14 @@
 
 /* ===========================================================================
    Base
+
+   Layered so Tailwind utilities always win over these -- unlayered CSS beats
+   every layer regardless of specificity, which let `a { color: inherit }`
+   silently blank out white text on any inverse-styled link (the homepage's
+   primary "draft" button, invisible black-on-black, was this bug).
    =========================================================================== */
+
+@layer base {
 
 * {
   -webkit-font-smoothing: antialiased;
@@ -168,4 +175,6 @@ a {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
 }

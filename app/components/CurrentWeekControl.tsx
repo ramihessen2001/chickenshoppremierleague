@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { fieldClass } from './Modal'
 import { LeaguePhase } from '@/lib/supabase'
 import { updateLeagueConfig, notifyDataUpdated } from '@/lib/supabaseData'
 
@@ -15,6 +16,8 @@ interface CurrentWeekControlProps {
   phase: LeaguePhase
   currentWeek: number
   totalWeeks: number
+  /** The YouTube link the homepage's "Watch Live" button points to during the draft. */
+  draftStreamUrl: string | null
   onWeekChange: (newWeek: number) => void
   /** Called after a change the parent should re-read config for. */
   onConfigChange?: () => void
@@ -39,11 +42,13 @@ export function CurrentWeekControl({
   phase,
   currentWeek,
   totalWeeks,
+  draftStreamUrl,
   onWeekChange,
   onConfigChange,
 }: CurrentWeekControlProps) {
   const [isUpdating, setIsUpdating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [streamUrlInput, setStreamUrlInput] = useState(draftStreamUrl ?? '')
 
   const run = async (work: () => Promise<void>) => {
     setIsUpdating(true)
@@ -61,6 +66,12 @@ export function CurrentWeekControl({
   const changePhase = (next: LeaguePhase) =>
     run(async () => {
       await updateLeagueConfig({ phase: next })
+      onConfigChange?.()
+    })
+
+  const saveStreamUrl = () =>
+    run(async () => {
+      await updateLeagueConfig({ draftStreamUrl: streamUrlInput.trim() || null })
       onConfigChange?.()
     })
 
@@ -101,7 +112,7 @@ export function CurrentWeekControl({
 
           <p className="mt-2.5 text-[13px] text-ink-tertiary">
             {PHASE_EXPLANATION[phase]}
-            {(phase === 'signups' || phase === 'draft') && (
+            {phase === 'signups' && (
               <>
                 {' '}
                 <Link
@@ -112,7 +123,43 @@ export function CurrentWeekControl({
                 </Link>
               </>
             )}
+            {phase === 'draft' && (
+              <>
+                {' '}
+                <Link
+                  href="/draft"
+                  className="text-accent-ink transition-opacity hover:opacity-70"
+                >
+                  Open draft board →
+                </Link>
+              </>
+            )}
           </p>
+
+          {phase === 'draft' && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <label htmlFor="draft-stream-url" className="sr-only">
+                Draft livestream URL
+              </label>
+              <input
+                id="draft-stream-url"
+                type="text"
+                placeholder="Draft livestream URL (YouTube)"
+                value={streamUrlInput}
+                onChange={(e) => setStreamUrlInput(e.target.value)}
+                className={`max-w-xs ${fieldClass}`}
+              />
+              <button
+                onClick={saveStreamUrl}
+                disabled={
+                  isUpdating || streamUrlInput.trim() === (draftStreamUrl ?? '')
+                }
+                className="rounded-pill border border-hairline-strong px-3 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-surface-hover disabled:opacity-50"
+              >
+                Save
+              </button>
+            </div>
+          )}
         </div>
 
         {phase === 'season' && (

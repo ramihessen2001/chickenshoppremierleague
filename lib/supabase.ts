@@ -113,6 +113,7 @@ export interface LeagueConfig {
   total_weeks: number
   standings_image_url?: string | null
   phase: LeaguePhase
+  draft_stream_url?: string | null
   updated_at: string
 }
 

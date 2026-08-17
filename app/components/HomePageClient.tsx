@@ -41,7 +41,7 @@ const HERO_COPY: Record<LeaguePhase, { title: string; body: string }> = {
   },
   draft: {
     title: 'Draft in progress',
-    body: 'Teams are being picked right now. Follow every pick as it happens on the live board.',
+    body: 'Teams are being picked right now. Watch it happen live.',
   },
   season: {
     title: LEAGUE.name,
@@ -128,8 +128,9 @@ function heroActions(state: {
   hasTeams: boolean
   hasFixtures: boolean
   awardsOpen: boolean
+  draftStreamUrl: string | null
 }): HeroAction[] {
-  const { phase, hasTeams, hasFixtures, awardsOpen } = state
+  const { phase, hasTeams, hasFixtures, awardsOpen, draftStreamUrl } = state
   const meetTheTeams = (variant: HeroAction['variant']): HeroAction[] =>
     hasTeams
       ? [
@@ -151,13 +152,17 @@ function heroActions(state: {
     case 'signups':
       return meetTheTeams('secondary')
 
-    // Draft night: the board is the thing to be on, so it takes the primary
-    // button and the team list steps back to secondary.
+    // Draft night: the stream is the thing to be on, so it takes the primary
+    // button and the team list steps back to secondary. Only shown once the
+    // admin has set a stream to point at -- the draft board itself is no
+    // longer linked from here, since admin runs it from the admin bar.
     case 'draft':
-      return [
-        { href: '/draft', label: 'Watch the draft live', variant: 'primary' },
-        ...meetTheTeams('secondary'),
-      ]
+      return draftStreamUrl
+        ? [
+            { href: draftStreamUrl, label: 'Watch Live', variant: 'primary' },
+            ...meetTheTeams('secondary'),
+          ]
+        : meetTheTeams('primary')
 
     case 'season':
       return hasFixtures
@@ -262,6 +267,7 @@ export function HomePageClient() {
     hasTeams: teams.length > 0,
     hasFixtures: gameCount > 0,
     awardsOpen,
+    draftStreamUrl: config?.draft_stream_url ?? null,
   })
 
   // Only ever rendered under `isRegistering`, but computed here so the deadline
@@ -312,6 +318,16 @@ export function HomePageClient() {
                 {actions.map(({ href, label, variant }) =>
                   href.startsWith('#') ? (
                     <a key={href} href={href} className={BUTTON_STYLES[variant]}>
+                      {label}
+                    </a>
+                  ) : href.startsWith('http') ? (
+                    <a
+                      key={href}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={BUTTON_STYLES[variant]}
+                    >
                       {label}
                     </a>
                   ) : (
@@ -387,6 +403,7 @@ export function HomePageClient() {
             phase={phase}
             currentWeek={currentWeek}
             totalWeeks={totalWeeks}
+            draftStreamUrl={config?.draft_stream_url ?? null}
             onWeekChange={handleWeekChange}
             onConfigChange={fetchData}
           />
