@@ -23,7 +23,6 @@ interface CurrentWeekControlProps {
 /** In the order a season actually runs. */
 const PHASES: [LeaguePhase, string][] = [
   ['signups', 'Signups'],
-  ['preseason', 'Preseason'],
   ['draft', 'Draft'],
   ['season', 'Season'],
   ['playoffs', 'Playoffs'],
@@ -31,7 +30,6 @@ const PHASES: [LeaguePhase, string][] = [
 
 const PHASE_EXPLANATION: Record<LeaguePhase, string> = {
   signups: 'Registration form is open on the homepage.',
-  preseason: 'Registration closed. Waiting on the draft.',
   draft: 'Draft under way. Assign players from the signups page.',
   season: 'Weekly fixtures on the homepage.',
   playoffs: 'Bracket and final on the homepage.',
@@ -103,7 +101,7 @@ export function CurrentWeekControl({
 
           <p className="mt-2.5 text-[13px] text-ink-tertiary">
             {PHASE_EXPLANATION[phase]}
-            {(phase === 'signups' || phase === 'preseason' || phase === 'draft') && (
+            {(phase === 'signups' || phase === 'draft') && (
               <>
                 {' '}
                 <Link

@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fail, readJson, requireAdmin } from '@/lib/apiAuth'
 
-const VALID_PHASES = ['signups', 'preseason', 'draft', 'season', 'playoffs']
+const VALID_PHASES = ['signups', 'draft', 'season', 'playoffs']
 
 interface UpdateConfigBody {
   currentWeek?: number

@@ -123,12 +123,11 @@ CREATE TABLE league_config (
   -- Where the league is in its lifecycle. This drives what the homepage leads
   -- with, so the site follows the season without a code change:
   --   signups   registration form is open
-  --   preseason registration closed, draft not yet held
-  --   draft     draft under way
+  --   draft     draft under way (starts as soon as signups close)
   --   season    weekly fixtures
   --   playoffs  bracket and final
   phase VARCHAR(20) NOT NULL DEFAULT 'signups'
-    CHECK (phase IN ('signups', 'preseason', 'draft', 'season', 'playoffs')),
+    CHECK (phase IN ('signups', 'draft', 'season', 'playoffs')),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 

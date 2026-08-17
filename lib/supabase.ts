@@ -99,7 +99,6 @@ export interface GameStatistic {
 /** Where the league is in its lifecycle. Drives what the homepage leads with. */
 export type LeaguePhase =
   | 'signups'
-  | 'preseason'
   | 'draft'
   | 'season'
   | 'playoffs'

@@ -39,10 +39,6 @@ const HERO_COPY: Record<LeaguePhase, { title: string; body: string }> = {
     title: `${LEAGUE.shortName} registration is open`,
     body: 'Sign up to play this season. Once registration closes we hold the draft, and teams are announced here.',
   },
-  preseason: {
-    title: 'Registration is closed',
-    body: 'Thanks to everyone who signed up. The draft is next — teams and the fixture list will appear here.',
-  },
   draft: {
     title: 'Draft in progress',
     body: 'Teams are being picked right now. Follow every pick as it happens on the live board.',
@@ -113,12 +109,11 @@ function formatDeadline(deadline: string): string {
 /**
  * Whether the teams currently in the database are last season's.
  *
- * True until the draft starts: registration and the wait before the draft both
- * show the previous season's teams, because this season's do not exist yet.
- * From `draft` onwards the rosters being filled are the current ones.
+ * True only during registration, because the draft starts as soon as signups
+ * close -- from `draft` onwards the rosters being filled are the current ones.
  */
 function showsLastSeasonTeams(phase: LeaguePhase): boolean {
-  return phase === 'signups' || phase === 'preseason'
+  return phase === 'signups'
 }
 
 /**
@@ -155,9 +150,6 @@ function heroActions(state: {
     // action; a button pointing at it would be redundant.
     case 'signups':
       return meetTheTeams('secondary')
-
-    case 'preseason':
-      return meetTheTeams('primary')
 
     // Draft night: the board is the thing to be on, so it takes the primary
     // button and the team list steps back to secondary.
@@ -263,8 +255,7 @@ export function HomePageClient() {
   const hero = HERO_COPY[phase]
 
   const isRegistering = phase === 'signups'
-  const isPreSeason =
-    phase === 'signups' || phase === 'preseason' || phase === 'draft'
+  const isPreSeason = phase === 'signups' || phase === 'draft'
 
   const actions = heroActions({
     phase,
