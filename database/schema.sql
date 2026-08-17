@@ -109,6 +109,26 @@ CREATE TABLE game_statistics (
 );
 
 -- ---------------------------------------------------------------------------
+-- Standings
+-- ---------------------------------------------------------------------------
+-- One row per team, entered by hand from the admin panel rather than derived
+-- from `games` -- the league runs on reported results, not everything being
+-- logged as a completed game with a final score. Goal difference and points
+-- are computed from these columns wherever the table is read/shown, not
+-- stored, so they can never drift out of sync with them.
+CREATE TABLE standings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  team_id UUID NOT NULL UNIQUE REFERENCES teams(id) ON DELETE CASCADE,
+  games_played INTEGER NOT NULL DEFAULT 0 CHECK (games_played >= 0),
+  wins        INTEGER NOT NULL DEFAULT 0 CHECK (wins >= 0),
+  draws       INTEGER NOT NULL DEFAULT 0 CHECK (draws >= 0),
+  losses      INTEGER NOT NULL DEFAULT 0 CHECK (losses >= 0),
+  goals_for     INTEGER NOT NULL DEFAULT 0 CHECK (goals_for >= 0),
+  goals_against INTEGER NOT NULL DEFAULT 0 CHECK (goals_against >= 0),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ---------------------------------------------------------------------------
 -- League configuration (single row)
 -- ---------------------------------------------------------------------------
 CREATE TABLE league_config (
@@ -119,7 +139,6 @@ CREATE TABLE league_config (
   end_date DATE NOT NULL,
   current_week INTEGER DEFAULT 1,
   total_weeks INTEGER NOT NULL,
-  standings_image_url TEXT,
   -- Where the league is in its lifecycle. This drives what the homepage leads
   -- with, so the site follows the season without a code change:
   --   signups   registration form is open
@@ -249,6 +268,24 @@ CREATE TABLE questions (
 );
 
 -- ---------------------------------------------------------------------------
+-- Commissioner's board
+-- ---------------------------------------------------------------------------
+-- A running feed of posts from the league admin, shown beside the homepage
+-- headline once the season is under way. Each post is text with at most one
+-- piece of media attached.
+CREATE TABLE commissioner_posts (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  body TEXT NOT NULL,
+  media_type VARCHAR(10) NOT NULL DEFAULT 'none'
+    CHECK (media_type IN ('none', 'youtube', 'image')),
+  -- YouTube watch/live URL when media_type = 'youtube'; uploaded image URL
+  -- when media_type = 'image'; null when media_type = 'none'.
+  media_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ---------------------------------------------------------------------------
 -- Indexes
 -- ---------------------------------------------------------------------------
 CREATE INDEX idx_teams_order          ON teams(display_order);
@@ -271,6 +308,7 @@ CREATE INDEX idx_signups_status       ON signups(status);
 CREATE INDEX idx_signups_season       ON signups(season);
 CREATE INDEX idx_questions_status     ON questions(status);
 CREATE INDEX idx_questions_created    ON questions(created_at DESC);
+CREATE INDEX idx_commissioner_posts_created ON commissioner_posts(created_at DESC);
 
 -- ---------------------------------------------------------------------------
 -- updated_at triggers
@@ -281,6 +319,8 @@ CREATE TRIGGER update_players_updated_at       BEFORE UPDATE ON players
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_games_updated_at         BEFORE UPDATE ON games
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_standings_updated_at     BEFORE UPDATE ON standings
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_league_config_updated_at BEFORE UPDATE ON league_config
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_awards_updated_at        BEFORE UPDATE ON awards
@@ -288,6 +328,8 @@ CREATE TRIGGER update_awards_updated_at        BEFORE UPDATE ON awards
 CREATE TRIGGER update_signups_updated_at       BEFORE UPDATE ON signups
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_questions_updated_at     BEFORE UPDATE ON questions
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_commissioner_posts_updated_at BEFORE UPDATE ON commissioner_posts
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ---------------------------------------------------------------------------
@@ -299,21 +341,25 @@ ALTER TABLE teams            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE players          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE games            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE game_statistics  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE standings        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE league_config    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE awards           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE award_nominees   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE award_votes      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE signups          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE questions        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commissioner_posts ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "public read" ON teams           FOR SELECT USING (true);
 CREATE POLICY "public read" ON players         FOR SELECT USING (true);
 CREATE POLICY "public read" ON games           FOR SELECT USING (true);
 CREATE POLICY "public read" ON game_statistics FOR SELECT USING (true);
+CREATE POLICY "public read" ON standings       FOR SELECT USING (true);
 CREATE POLICY "public read" ON league_config   FOR SELECT USING (true);
 CREATE POLICY "public read" ON awards          FOR SELECT USING (true);
 CREATE POLICY "public read" ON award_nominees  FOR SELECT USING (true);
 CREATE POLICY "public read" ON award_votes     FOR SELECT USING (true);
+CREATE POLICY "public read" ON commissioner_posts FOR SELECT USING (true);
 
 -- Deliberately NO policy for `signups` or `questions`: they hold email
 -- addresses and phone numbers. With RLS on and no policy, the anon key can

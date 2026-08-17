@@ -30,6 +30,9 @@ import {
 import { Game } from '@/types/game'
 import { Player } from '@/types/player'
 import { GameStatistic as LocalGameStatistic, StatType } from '@/types/statistic'
+import { Standing, StandingWriteFields } from '@/types/standing'
+import { CommissionerPost, CommissionerPostWriteFields } from '@/types/commissionerPost'
+import { calculatePoints, rankStandings } from './standings'
 
 /* -------------------------------------------------------------------------- */
 /* Shared query fragments                                                      */
@@ -152,6 +155,57 @@ export async function getLeagueConfig(): Promise<LeagueConfig | null> {
 export async function getCurrentWeek(): Promise<number> {
   const config = await getLeagueConfig()
   return config?.current_week ?? 1
+}
+
+/**
+ * The league table, ranked (points, then goal difference, then goals for).
+ *
+ * Joined from `teams` rather than `standings` so a team with no standings row
+ * yet (freshly added, before the migration backfill reaches it) still shows
+ * up, at 0-0-0-0.
+ */
+export async function getStandings(): Promise<Standing[]> {
+  const { data, error } = await supabase.from('teams').select(`
+    id, name, slug, logo_url,
+    standings(games_played, wins, draws, losses, goals_for, goals_against)
+  `)
+
+  if (error) {
+    console.error('Error fetching standings:', error)
+    return []
+  }
+
+  const rows: Standing[] = (data ?? []).map((team: any) => {
+    const row = one<any>(team.standings)
+    const wins = row?.wins ?? 0
+    const draws = row?.draws ?? 0
+    const goalsFor = row?.goals_for ?? 0
+    const goalsAgainst = row?.goals_against ?? 0
+
+    return {
+      teamId: team.id,
+      teamName: team.name,
+      teamSlug: team.slug,
+      logoUrl: team.logo_url,
+      gamesPlayed: row?.games_played ?? 0,
+      wins,
+      draws,
+      losses: row?.losses ?? 0,
+      goalsFor,
+      goalsAgainst,
+      goalDifference: goalsFor - goalsAgainst,
+      points: calculatePoints(wins, draws),
+    }
+  })
+
+  return rankStandings(rows)
+}
+
+export async function updateStanding(
+  teamId: string,
+  fields: StandingWriteFields
+): Promise<void> {
+  await apiRequest(`/api/admin/standings/${teamId}`, { method: 'PATCH', body: fields })
 }
 
 export async function getTeams(): Promise<Team[]> {
@@ -581,7 +635,6 @@ export interface LeagueConfigWriteFields {
   startDate?: string
   endDate?: string
   phase?: LeaguePhase
-  standingsImageUrl?: string | null
   draftStreamUrl?: string | null
 }
 
@@ -599,9 +652,6 @@ export async function updateLeagueConfig(
       ...(fields.startDate !== undefined && { start_date: fields.startDate }),
       ...(fields.endDate !== undefined && { end_date: fields.endDate }),
       ...(fields.phase !== undefined && { phase: fields.phase }),
-      ...(fields.standingsImageUrl !== undefined && {
-        standings_image_url: fields.standingsImageUrl,
-      }),
       ...(fields.draftStreamUrl !== undefined && {
         draft_stream_url: fields.draftStreamUrl,
       }),
@@ -629,14 +679,71 @@ export async function setDraftOrder(order: string[]): Promise<void> {
   await apiRequest('/api/admin/draft/order', { method: 'PATCH', body: { order } })
 }
 
-export async function uploadStandingsImage(file: File): Promise<string> {
+/* -------------------------------------------------------------------------- */
+/* Commissioner's board                                                        */
+/* -------------------------------------------------------------------------- */
+
+function transformCommissionerPost(raw: any): CommissionerPost {
+  return {
+    id: raw.id,
+    body: raw.body,
+    mediaType: raw.media_type,
+    mediaUrl: raw.media_url,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  }
+}
+
+/** Newest first. `limit` keeps the homepage feed from growing unbounded. */
+export async function getCommissionerPosts(limit = 20): Promise<CommissionerPost[]> {
+  const { data, error } = await supabase
+    .from('commissioner_posts')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error('Error fetching commissioner posts:', error)
+    return []
+  }
+  return (data ?? []).map(transformCommissionerPost)
+}
+
+function commissionerPostFormData(fields: CommissionerPostWriteFields): FormData {
   const formData = new FormData()
-  formData.append('file', file)
-  const { url } = await apiRequest<{ url: string }>('/api/admin/standings', {
+  formData.append('body', fields.body)
+  formData.append('mediaType', fields.mediaType)
+  if (fields.mediaType === 'youtube' && fields.mediaUrl) {
+    formData.append('mediaUrl', fields.mediaUrl)
+  }
+  if (fields.mediaType === 'image' && fields.imageFile) {
+    formData.append('file', fields.imageFile)
+  }
+  return formData
+}
+
+export async function createCommissionerPost(
+  fields: CommissionerPostWriteFields
+): Promise<string> {
+  const { id } = await apiRequest<{ id: string }>('/api/admin/commissioner-posts', {
     method: 'POST',
-    formData,
+    formData: commissionerPostFormData(fields),
   })
-  return url
+  return id
+}
+
+export async function updateCommissionerPost(
+  postId: string,
+  fields: CommissionerPostWriteFields
+): Promise<void> {
+  await apiRequest(`/api/admin/commissioner-posts/${postId}`, {
+    method: 'PATCH',
+    formData: commissionerPostFormData(fields),
+  })
+}
+
+export async function deleteCommissionerPost(postId: string): Promise<void> {
+  await apiRequest(`/api/admin/commissioner-posts/${postId}`, { method: 'DELETE' })
 }
 
 /* -------------------------------------------------------------------------- */

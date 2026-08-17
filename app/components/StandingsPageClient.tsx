@@ -1,67 +1,59 @@
 /**
  * League standings.
  *
- * Standings are an image the admin uploads rather than a computed table. The
- * upload goes through /api/admin/standings so the storage bucket can stay
- * read-only to the public.
+ * A real table, edited by hand from the admin panel one team at a time --
+ * the league runs on reported results rather than every game being logged
+ * with a final score, so the numbers here are entered directly instead of
+ * being computed from `games`. Goal difference and points are computed at
+ * read time (see lib/standings.ts) so they can never drift from the games
+ * played/wins/draws/losses/goals a row was built from.
  */
 
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import { Upload } from 'lucide-react'
-import { getLeagueConfig, uploadStandingsImage } from '@/lib/supabaseData'
+import { Pencil } from 'lucide-react'
+import { getStandings, getLeagueConfig } from '@/lib/supabaseData'
 import { useAdmin } from '@/lib/adminContext'
+import { fallbackTeamLogo } from '@/config/league'
+import { Standing } from '@/types/standing'
 import { PageHeader } from './PageHeader'
+import { EditStandingModal } from './EditStandingModal'
+
+/** Column abbreviation -> what it means, for the key under the table. */
+const KEY: [string, string][] = [
+  ['GP', 'Games played'],
+  ['W', 'Wins'],
+  ['D', 'Draws'],
+  ['L', 'Losses'],
+  ['GF', 'Goals for'],
+  ['GA', 'Goals against'],
+  ['GD', 'Goal difference'],
+  ['Pts', 'Points (3 for a win, 1 for a draw)'],
+]
 
 export function StandingsPageClient() {
   const { isAdmin } = useAdmin()
-  const fileInput = useRef<HTMLInputElement>(null)
-  const [standingsImageUrl, setStandingsImageUrl] = useState<string | null>(null)
+  const [standings, setStandings] = useState<Standing[]>([])
   const [season, setSeason] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isUploading, setIsUploading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [editing, setEditing] = useState<Standing | null>(null)
 
   useEffect(() => {
-    getLeagueConfig()
-      .then((config) => {
-        setStandingsImageUrl(config?.standings_image_url ?? null)
-        setSeason(config?.season ?? null)
-      })
-      .catch(() => setStandingsImageUrl(null))
-      .finally(() => setIsLoading(false))
+    const load = () => {
+      Promise.all([getStandings(), getLeagueConfig()])
+        .then(([rows, config]) => {
+          setStandings(rows)
+          setSeason(config?.season ?? null)
+        })
+        .finally(() => setIsLoading(false))
+    }
+
+    load()
+    window.addEventListener('dataUpdated', load)
+    return () => window.removeEventListener('dataUpdated', load)
   }, [])
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const input = event.target
-    const file = input.files?.[0]
-    if (!file) return
-
-    setError(null)
-
-    if (!file.type.startsWith('image/')) {
-      setError('Please choose an image file')
-      input.value = ''
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Image must be 5MB or smaller')
-      input.value = ''
-      return
-    }
-
-    setIsUploading(true)
-    try {
-      setStandingsImageUrl(await uploadStandingsImage(file))
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Upload failed')
-    } finally {
-      setIsUploading(false)
-      input.value = ''
-    }
-  }
 
   if (isLoading) {
     return (
@@ -73,68 +65,135 @@ export function StandingsPageClient() {
 
   return (
     <>
-      <PageHeader
-        eyebrow={season ?? undefined}
-        title="Standings"
-        actions={
-          isAdmin ? (
-            <>
-              <input
-                ref={fileInput}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={handleFileUpload}
-                className="sr-only"
-              />
-              <button
-                onClick={() => fileInput.current?.click()}
-                disabled={isUploading}
-                className="inline-flex items-center gap-1.5 rounded-pill bg-surface-inverse px-4 py-2 text-[13px] font-medium text-ink-inverse transition-opacity hover:opacity-85 disabled:opacity-50"
-              >
-                <Upload size={15} />
-                {isUploading
-                  ? 'Uploading…'
-                  : standingsImageUrl
-                    ? 'Replace image'
-                    : 'Upload image'}
-              </button>
-            </>
-          ) : undefined
-        }
-      />
+      <PageHeader eyebrow={season ?? undefined} title="Standings" />
 
       <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
-        {error && (
-          <p
-            className="mb-6 rounded-lg border border-hairline bg-negative-wash px-4 py-3 text-[14px] text-negative"
-            role="alert"
-          >
-            {error}
-          </p>
-        )}
-
-        {standingsImageUrl ? (
-          <div className="overflow-hidden rounded-lg border border-hairline">
-            <Image
-              src={standingsImageUrl}
-              alt="League standings table"
-              width={1600}
-              height={1000}
-              className="h-auto w-full"
-              priority
-            />
-          </div>
-        ) : (
+        {standings.length === 0 ? (
           <div className="rounded-lg border border-dashed border-hairline-strong px-6 py-20 text-center">
-            <p className="text-[17px] font-medium text-ink">No standings yet</p>
+            <p className="text-[17px] font-medium text-ink">No teams yet</p>
             <p className="mx-auto mt-2 max-w-sm text-[15px] text-ink-secondary">
-              {isAdmin
-                ? 'Upload the current table using the button above.'
-                : 'The table will appear here once the season is underway.'}
+              The table will appear here once teams are added.
             </p>
           </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[38rem] border-collapse">
+                <thead>
+                  <tr className="border-b border-hairline-strong">
+                    <th
+                      scope="col"
+                      className="py-3 pr-3 text-left text-[12px] font-semibold uppercase tracking-wider text-ink-tertiary"
+                    >
+                      #
+                    </th>
+                    <th
+                      scope="col"
+                      className="py-3 pr-4 text-left text-[12px] font-semibold uppercase tracking-wider text-ink-tertiary"
+                    >
+                      Team
+                    </th>
+                    {KEY.map(([abbr]) => (
+                      <th
+                        key={abbr}
+                        scope="col"
+                        className="py-3 px-2 text-right text-[12px] font-semibold uppercase tracking-wider text-ink-tertiary"
+                      >
+                        {abbr}
+                      </th>
+                    ))}
+                    {isAdmin && (
+                      <th scope="col" className="py-3 pl-2">
+                        <span className="sr-only">Edit</span>
+                      </th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {standings.map((row, index) => (
+                    <tr
+                      key={row.teamId}
+                      className="border-b border-hairline transition-colors hover:bg-surface-hover"
+                    >
+                      <td className="tabular py-3 pr-3 text-[14px] text-ink-tertiary">
+                        {index + 1}
+                      </td>
+                      <td className="py-3 pr-4">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <Image
+                            src={row.logoUrl || fallbackTeamLogo(row.teamSlug)}
+                            alt=""
+                            width={22}
+                            height={22}
+                            className="h-[22px] w-[22px] shrink-0 object-contain"
+                          />
+                          <span className="truncate text-[14px] font-medium text-ink">
+                            {row.teamName}
+                          </span>
+                        </div>
+                      </td>
+                      <Cell value={row.gamesPlayed} />
+                      <Cell value={row.wins} />
+                      <Cell value={row.draws} />
+                      <Cell value={row.losses} />
+                      <Cell value={row.goalsFor} />
+                      <Cell value={row.goalsAgainst} />
+                      <Cell value={row.goalDifference} signed />
+                      <td className="tabular py-3 px-2 text-right text-[14px] font-semibold text-ink">
+                        {row.points}
+                      </td>
+                      {isAdmin && (
+                        <td className="py-3 pl-2 text-right">
+                          <button
+                            onClick={() => setEditing(row)}
+                            className="rounded-md p-1.5 text-ink-tertiary transition-colors hover:bg-surface-sunken hover:text-ink"
+                            aria-label={`Edit ${row.teamName}`}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Key ---------------------------------------------------------- */}
+            <div className="mt-8 rounded-lg border border-hairline bg-surface-sunken px-5 py-4">
+              <p className="eyebrow">Key</p>
+              <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
+                {KEY.map(([abbr, meaning]) => (
+                  <div key={abbr} className="flex items-baseline gap-1.5">
+                    <dt className="text-[13px] font-semibold text-ink">{abbr}</dt>
+                    <dd className="text-[13px] text-ink-tertiary">{meaning}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </>
         )}
       </div>
+
+      <EditStandingModal
+        standing={editing}
+        isOpen={editing !== null}
+        onClose={() => setEditing(null)}
+      />
     </>
+  )
+}
+
+/** A zero is greyed so the eye lands on teams that have actually played. */
+function Cell({ value, signed }: { value: number; signed?: boolean }) {
+  const display = signed && value > 0 ? `+${value}` : String(value)
+  return (
+    <td className="py-3 px-2 text-right">
+      <span
+        className={`tabular text-[14px] ${value === 0 ? 'text-ink-tertiary' : 'text-ink'}`}
+      >
+        {display}
+      </span>
+    </td>
   )
 }

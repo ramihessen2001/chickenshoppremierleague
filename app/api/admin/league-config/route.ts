@@ -2,7 +2,7 @@
  * Update league configuration. Admin only.
  *
  *   PATCH -> { currentWeek?, season?, leagueName?, startDate?, endDate?,
- *              totalWeeks?, phase?, standingsImageUrl?, draftStreamUrl? }
+ *              totalWeeks?, phase?, draftStreamUrl? }
  *
  * league_config holds exactly one row (enforced by a unique index in the
  * schema), so this updates whichever row exists rather than taking an id.
@@ -22,7 +22,6 @@ interface UpdateConfigBody {
   startDate?: string
   endDate?: string
   phase?: string
-  standingsImageUrl?: string | null
   draftStreamUrl?: string | null
 }
 
@@ -58,9 +57,6 @@ export async function PATCH(request: Request) {
       return fail(`phase must be one of: ${VALID_PHASES.join(', ')}`)
     }
     columns.phase = body.phase
-  }
-  if (body.standingsImageUrl !== undefined) {
-    columns.standings_image_url = body.standingsImageUrl
   }
   if (body.draftStreamUrl !== undefined) {
     columns.draft_stream_url = body.draftStreamUrl

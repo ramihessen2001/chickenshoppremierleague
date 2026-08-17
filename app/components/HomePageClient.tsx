@@ -19,6 +19,7 @@ import { PlayoffBracket } from './PlayoffBracket'
 import { ChampionshipGameCard } from './ChampionshipGameCard'
 import { SignupForm } from './SignupForm'
 import { LiveNow } from './LiveNow'
+import { CommissionersBoard } from './CommissionersBoard'
 import { useAdmin } from '@/lib/adminContext'
 import { useTeams } from '@/lib/teamsContext'
 import { LEAGUE } from '@/config/league'
@@ -261,6 +262,7 @@ export function HomePageClient() {
 
   const isRegistering = phase === 'signups'
   const isPreSeason = phase === 'signups' || phase === 'draft'
+  const showsCommissionersBoard = phase === 'season'
 
   const actions = heroActions({
     phase,
@@ -279,11 +281,13 @@ export function HomePageClient() {
       <LiveNow />
 
       <section className="mx-auto max-w-6xl px-5 pt-20 pb-16 sm:px-8 sm:pt-28 sm:pb-20">
-        {/* While registration is open the form sits beside the headline, so the
-            first thing on the page is the thing we want people to do. */}
+        {/* While registration is open the form sits beside the headline, and
+            once the season starts the commissioner's board takes that slot
+            instead, so the first thing on the page is always the thing that
+            changes most often. */}
         <div
           className={
-            isRegistering
+            isRegistering || showsCommissionersBoard
               ? 'grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:gap-16'
               : ''
           }
@@ -394,6 +398,8 @@ export function HomePageClient() {
               <SignupForm />
             </div>
           )}
+
+          {showsCommissionersBoard && <CommissionersBoard />}
         </div>
       </section>
 
@@ -417,11 +423,11 @@ export function HomePageClient() {
         </>
       )}
 
-      {phase === 'season' && (
+      {LEAGUE.showHomeFixtures && phase === 'season' && (
         <WeeklyGames games={currentWeekGames} weekNumber={currentWeek} />
       )}
 
-      {!isPreSeason && (
+      {LEAGUE.showHomeStats && !isPreSeason && (
         <StatLeaders goals={goalLeaders} assists={assistLeaders} saves={saveLeaders} />
       )}
 

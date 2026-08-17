@@ -10,7 +10,6 @@ export interface LeagueConfig {
   end_date: string
   current_week: number
   total_weeks: number
-  standings_image_url?: string
   updated_at: string
 }
 

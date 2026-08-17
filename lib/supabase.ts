@@ -111,7 +111,6 @@ export interface LeagueConfig {
   end_date: string
   current_week: number
   total_weeks: number
-  standings_image_url?: string | null
   phase: LeaguePhase
   draft_stream_url?: string | null
   updated_at: string
