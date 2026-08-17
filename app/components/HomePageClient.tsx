@@ -16,6 +16,7 @@ import { TeamLogos } from './TeamLogos'
 import { StatLeaders } from './StatLeaders'
 import { CurrentWeekControl } from './CurrentWeekControl'
 import { PlayoffBracket } from './PlayoffBracket'
+import { PlayoffBracketGenerator } from './PlayoffBracketGenerator'
 import { ChampionshipGameCard } from './ChampionshipGameCard'
 import { SignupForm } from './SignupForm'
 import { LiveNow } from './LiveNow'
@@ -262,7 +263,7 @@ export function HomePageClient() {
 
   const isRegistering = phase === 'signups'
   const isPreSeason = phase === 'signups' || phase === 'draft'
-  const showsCommissionersBoard = phase === 'season'
+  const showsCommissionersBoard = phase === 'season' || phase === 'playoffs'
 
   const actions = heroActions({
     phase,
@@ -282,9 +283,9 @@ export function HomePageClient() {
 
       <section className="mx-auto max-w-6xl px-5 pt-20 pb-16 sm:px-8 sm:pt-28 sm:pb-20">
         {/* While registration is open the form sits beside the headline, and
-            once the season starts the commissioner's board takes that slot
-            instead, so the first thing on the page is always the thing that
-            changes most often. */}
+            once the season starts (through to the playoffs) the commissioner's
+            board takes that slot instead, so the first thing on the page is
+            always the thing that changes most often. */}
         <div
           className={
             isRegistering || showsCommissionersBoard
@@ -418,16 +419,17 @@ export function HomePageClient() {
 
       {phase === 'playoffs' && (
         <>
+          <PlayoffBracketGenerator />
           <ChampionshipGameCard />
           <PlayoffBracket />
         </>
       )}
 
-      {LEAGUE.showHomeFixtures && phase === 'season' && (
+      {config?.show_home_fixtures && phase === 'season' && (
         <WeeklyGames games={currentWeekGames} weekNumber={currentWeek} />
       )}
 
-      {LEAGUE.showHomeStats && !isPreSeason && (
+      {config?.show_home_stats && !isPreSeason && (
         <StatLeaders goals={goalLeaders} assists={assistLeaders} saves={saveLeaders} />
       )}
 

@@ -9,9 +9,10 @@
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import { Megaphone, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { getCommissionerPosts, deleteCommissionerPost, notifyDataUpdated } from '@/lib/supabaseData'
 import { useAdmin } from '@/lib/adminContext'
+import { LEAGUE } from '@/config/league'
 import { CommissionerPost } from '@/types/commissionerPost'
 import { youTubeVideoId, youTubeEmbedUrl } from '@/lib/youtube'
 import { EditCommissionerPostModal } from './EditCommissionerPostModal'
@@ -63,7 +64,14 @@ export function CommissionersBoard() {
     <div className="flex h-full flex-col rounded-lg border border-hairline bg-surface">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-hairline px-5 py-4">
         <p className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wider text-ink-tertiary">
-          <Megaphone size={14} />
+          {/* The black wordmark: this header sits on a light surface. */}
+          <Image
+            src={LEAGUE.wordmarkUrl}
+            alt=""
+            width={128}
+            height={40}
+            className="h-3.5 w-auto object-contain"
+          />
           Commissioner&rsquo;s board
         </p>
         {isAdmin && (

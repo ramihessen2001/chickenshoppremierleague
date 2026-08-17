@@ -12,6 +12,7 @@ import { PageHeader } from './PageHeader'
 import { BoxScoreModal } from './BoxScoreModal'
 import { EditBoxScoreModal } from './EditBoxScoreModal'
 import { EditGameModal } from './EditGameModal'
+import { SeasonScheduler } from './SeasonScheduler'
 import { useAdmin } from '@/lib/adminContext'
 import { getGameById } from '@/lib/supabaseData'
 
@@ -102,6 +103,8 @@ export function FullSchedule({
       />
 
       <div className="mx-auto max-w-6xl px-5 pb-20 sm:px-8">
+        <SeasonScheduler hasGames={hasAnyGames} />
+
         {Array.from({ length: totalWeeks }, (_, i) => i + 1).map((week) => (
           <WeekSection
             key={week}

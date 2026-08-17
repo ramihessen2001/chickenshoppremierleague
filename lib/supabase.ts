@@ -113,6 +113,8 @@ export interface LeagueConfig {
   total_weeks: number
   phase: LeaguePhase
   draft_stream_url?: string | null
+  show_home_fixtures: boolean
+  show_home_stats: boolean
   updated_at: string
 }
 

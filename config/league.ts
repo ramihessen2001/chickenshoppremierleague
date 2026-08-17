@@ -111,17 +111,6 @@ export const LEAGUE = {
     // the white version was invisible after the redesign.
     badgeImageUrl: '/images/puro_wordmark.png',
   },
-
-  /**
-   * Whether the homepage shows this week's fixtures and the stat leaders once
-   * `phase` reaches "season". Off for the start of a new season: `games` and
-   * `game_statistics` still hold last season's rows (there is no per-season
-   * archive table yet), so turning these on before real games are scheduled
-   * would show last year's results as if they were this year's. Flip back on
-   * once this season's fixtures exist.
-   */
-  showHomeFixtures: false,
-  showHomeStats: false,
 }
 
 /** Fallback logo path for a team with no logo_url set in the database. */

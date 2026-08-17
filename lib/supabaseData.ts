@@ -636,6 +636,8 @@ export interface LeagueConfigWriteFields {
   endDate?: string
   phase?: LeaguePhase
   draftStreamUrl?: string | null
+  showHomeFixtures?: boolean
+  showHomeStats?: boolean
 }
 
 export async function updateLeagueConfig(
@@ -654,6 +656,12 @@ export async function updateLeagueConfig(
       ...(fields.phase !== undefined && { phase: fields.phase }),
       ...(fields.draftStreamUrl !== undefined && {
         draft_stream_url: fields.draftStreamUrl,
+      }),
+      ...(fields.showHomeFixtures !== undefined && {
+        show_home_fixtures: fields.showHomeFixtures,
+      }),
+      ...(fields.showHomeStats !== undefined && {
+        show_home_stats: fields.showHomeStats,
       }),
     })
     return {} as LeagueConfig

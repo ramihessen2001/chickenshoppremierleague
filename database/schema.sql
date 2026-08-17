@@ -150,6 +150,14 @@ CREATE TABLE league_config (
   -- YouTube watch or live URL for the draft broadcast, set by the admin
   -- before the draft starts. The homepage's "Watch Live" button points here.
   draft_stream_url TEXT,
+  -- Whether the homepage shows this week's fixtures / the stat leaders.
+  -- `games` and `game_statistics` have no season column, so last season's
+  -- rows are still sitting there at the start of a new one -- these stay off
+  -- until this season has real games, rather than showing last year's as if
+  -- they were current. The schedule generator turns show_home_fixtures on
+  -- once it creates the season's games.
+  show_home_fixtures BOOLEAN NOT NULL DEFAULT false,
+  show_home_stats    BOOLEAN NOT NULL DEFAULT false,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 

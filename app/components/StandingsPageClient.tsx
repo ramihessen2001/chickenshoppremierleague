@@ -63,6 +63,11 @@ export function StandingsPageClient() {
     )
   }
 
+  // The play-in format below is specific to an 8-team field (top 4 bye,
+  // bottom 4 play in). Shown only once there actually are 8 teams, so it
+  // doesn't say something untrue about this season's current 6.
+  const eightTeamPlayoffs = standings.length === 8
+
   return (
     <>
       <PageHeader eyebrow={season ?? undefined} title="Standings" />
@@ -113,7 +118,11 @@ export function StandingsPageClient() {
                   {standings.map((row, index) => (
                     <tr
                       key={row.teamId}
-                      className="border-b border-hairline transition-colors hover:bg-surface-hover"
+                      className={`transition-colors hover:bg-surface-hover ${
+                        eightTeamPlayoffs && index === 3
+                          ? 'border-b-2 border-ink-tertiary'
+                          : 'border-b border-hairline'
+                      }`}
                     >
                       <td className="tabular py-3 pr-3 text-[14px] text-ink-tertiary">
                         {index + 1}
@@ -170,6 +179,14 @@ export function StandingsPageClient() {
                   </div>
                 ))}
               </dl>
+
+              {eightTeamPlayoffs && (
+                <p className="mt-4 border-t border-hairline pt-4 text-[13px] leading-relaxed text-ink-secondary">
+                  <span className="font-semibold text-ink">Playoffs.</span>{' '}
+                  The top 4 go straight through. 5th–8th play a knockout
+                  round first (5th v 8th, 6th v 7th) for the final two spots.
+                </p>
+              )}
             </div>
           </>
         )}
