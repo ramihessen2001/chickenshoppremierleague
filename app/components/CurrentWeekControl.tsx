@@ -9,6 +9,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { fieldClass } from './Modal'
+import { ArchiveSeasonControl } from './ArchiveSeasonControl'
 import { LeaguePhase } from '@/lib/supabase'
 import { updateLeagueConfig, notifyDataUpdated } from '@/lib/supabaseData'
 
@@ -18,6 +19,8 @@ interface CurrentWeekControlProps {
   totalWeeks: number
   /** The YouTube link the homepage's "Watch Live" button points to during the draft. */
   draftStreamUrl: string | null
+  /** For the "type the season name to confirm" archive control. */
+  seasonLabel: string
   onWeekChange: (newWeek: number) => void
   /** Called after a change the parent should re-read config for. */
   onConfigChange?: () => void
@@ -43,6 +46,7 @@ export function CurrentWeekControl({
   currentWeek,
   totalWeeks,
   draftStreamUrl,
+  seasonLabel,
   onWeekChange,
   onConfigChange,
 }: CurrentWeekControlProps) {
@@ -201,6 +205,14 @@ export function CurrentWeekControl({
       )}
       {isUpdating && (
         <p className="mt-4 text-[13px] text-ink-tertiary">Updating…</p>
+      )}
+
+      {/* Only once the season's actually over -- this is not something to
+          leave lying around during the regular season. */}
+      {phase === 'playoffs' && (
+        <div className="mt-5 border-t border-hairline pt-5">
+          <ArchiveSeasonControl currentSeasonLabel={seasonLabel} />
+        </div>
       )}
     </div>
   )

@@ -13,9 +13,21 @@ interface StatLeadersProps {
   goals: LeaderboardEntry[]
   assists: LeaderboardEntry[]
   saves: LeaderboardEntry[]
+  /** Where "All players" points. Pass null to hide it, e.g. on the archive
+   *  page, where there is no full player-stats page to send someone to. */
+  allPlayersHref?: string | null
+  /** Small label above "Leaders", e.g. "Last season" while showing archived
+   *  numbers during the draft, so they never read as this season's live ones. */
+  eyebrow?: string
 }
 
-export function StatLeaders({ goals, assists, saves }: StatLeadersProps) {
+export function StatLeaders({
+  goals,
+  assists,
+  saves,
+  allPlayersHref = '/stats',
+  eyebrow,
+}: StatLeadersProps) {
   const hasAny = goals.length > 0 || assists.length > 0 || saves.length > 0
 
   return (
@@ -25,18 +37,23 @@ export function StatLeaders({ goals, assists, saves }: StatLeadersProps) {
     >
       <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8">
         <div className="flex items-baseline justify-between gap-4">
-          <h2
-            id="leaders-heading"
-            className="text-[28px] font-semibold text-ink sm:text-[32px]"
-          >
-            Leaders
-          </h2>
-          <Link
-            href="/stats"
-            className="shrink-0 text-[14px] font-medium text-accent-ink transition-opacity hover:opacity-70"
-          >
-            All players →
-          </Link>
+          <div>
+            {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+            <h2
+              id="leaders-heading"
+              className="text-[28px] font-semibold text-ink sm:text-[32px]"
+            >
+              Leaders
+            </h2>
+          </div>
+          {allPlayersHref && (
+            <Link
+              href={allPlayersHref}
+              className="shrink-0 text-[14px] font-medium text-accent-ink transition-opacity hover:opacity-70"
+            >
+              All players →
+            </Link>
+          )}
         </div>
 
         {!hasAny ? (

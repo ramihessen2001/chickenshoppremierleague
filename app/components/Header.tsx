@@ -19,6 +19,7 @@ const NAV = [
   { href: '/schedule', label: 'Schedule' },
   { href: '/standings', label: 'Standings' },
   { href: '/stats', label: 'Stats' },
+  { href: '/archive', label: 'Archive' },
 ]
 
 export function Header() {

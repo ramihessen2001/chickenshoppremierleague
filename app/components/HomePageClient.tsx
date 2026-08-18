@@ -29,6 +29,8 @@ import {
   getStatLeaders,
   getLeagueConfig,
   countGames,
+  getLatestArchiveSeason,
+  getArchiveStatLeaders,
 } from '@/lib/supabaseData'
 import { hasOpenAwards } from '@/lib/supabaseAwards'
 import { LeagueConfig, LeaguePhase } from '@/lib/supabase'
@@ -203,6 +205,12 @@ export function HomePageClient() {
   const [goalLeaders, setGoalLeaders] = useState<LeaderboardEntry[]>([])
   const [assistLeaders, setAssistLeaders] = useState<LeaderboardEntry[]>([])
   const [saveLeaders, setSaveLeaders] = useState<LeaderboardEntry[]>([])
+  /** Last season's leaders, shown during the draft so the site isn't empty
+   *  before this season has games of its own. Null once nothing's archived. */
+  const [archiveLabel, setArchiveLabel] = useState<string | null>(null)
+  const [archiveGoals, setArchiveGoals] = useState<LeaderboardEntry[]>([])
+  const [archiveAssists, setArchiveAssists] = useState<LeaderboardEntry[]>([])
+  const [archiveSaves, setArchiveSaves] = useState<LeaderboardEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
   /** Mobile only: the league details table starts collapsed. */
   const [showDetails, setShowDetails] = useState(false)
@@ -229,6 +237,28 @@ export function HomePageClient() {
       setGoalLeaders(goals)
       setAssistLeaders(assists)
       setSaveLeaders(saves)
+
+      // Last season's leaders populate the draft-phase homepage instead of
+      // this season's (still empty at that point) -- read only then, since
+      // nowhere else on the homepage needs them.
+      if (leagueConfig?.phase === 'draft') {
+        const latestArchive = await getLatestArchiveSeason()
+        if (latestArchive) {
+          const [aGoals, aAssists, aSaves] = await Promise.all([
+            getArchiveStatLeaders(latestArchive.id, 'goal'),
+            getArchiveStatLeaders(latestArchive.id, 'assist'),
+            getArchiveStatLeaders(latestArchive.id, 'save'),
+          ])
+          setArchiveLabel(latestArchive.label)
+          setArchiveGoals(aGoals)
+          setArchiveAssists(aAssists)
+          setArchiveSaves(aSaves)
+        } else {
+          setArchiveLabel(null)
+        }
+      } else {
+        setArchiveLabel(null)
+      }
     } catch (error) {
       console.error('Error loading homepage data:', error)
     } finally {
@@ -411,6 +441,7 @@ export function HomePageClient() {
             currentWeek={currentWeek}
             totalWeeks={totalWeeks}
             draftStreamUrl={config?.draft_stream_url ?? null}
+            seasonLabel={config?.season ?? ''}
             onWeekChange={handleWeekChange}
             onConfigChange={fetchData}
           />
@@ -436,8 +467,22 @@ export function HomePageClient() {
         </>
       ) : (
         <>
-          {config?.show_home_stats && !isPreSeason && (
-            <StatLeaders goals={goalLeaders} assists={assistLeaders} saves={saveLeaders} />
+          {/* Draft: last season's leaders stand in until this season has
+              games of its own -- clearly labelled, so they never read as
+              current. Everywhere else, this season's leaders as usual. */}
+          {phase === 'draft' && archiveLabel ? (
+            <StatLeaders
+              goals={archiveGoals}
+              assists={archiveAssists}
+              saves={archiveSaves}
+              allPlayersHref={null}
+              eyebrow={`Last season · ${archiveLabel}`}
+            />
+          ) : (
+            config?.show_home_stats &&
+            !isPreSeason && (
+              <StatLeaders goals={goalLeaders} assists={assistLeaders} saves={saveLeaders} />
+            )
           )}
           <TeamLogos showingLastSeason={showsLastSeasonTeams(phase)} />
         </>

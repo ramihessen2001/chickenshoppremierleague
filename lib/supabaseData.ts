@@ -35,9 +35,14 @@ import {
 } from './devSandbox'
 import { Game } from '@/types/game'
 import { Player } from '@/types/player'
-import { GameStatistic as LocalGameStatistic, StatType } from '@/types/statistic'
+import {
+  GameStatistic as LocalGameStatistic,
+  StatType,
+  LeaderboardEntry,
+} from '@/types/statistic'
 import { Standing, StandingWriteFields } from '@/types/standing'
 import { CommissionerPost, CommissionerPostWriteFields } from '@/types/commissionerPost'
+import { ArchiveSeason, ArchiveStanding, ArchiveGame } from '@/types/archive'
 import { calculatePoints, rankStandings } from './standings'
 
 /* -------------------------------------------------------------------------- */
@@ -212,6 +217,168 @@ export async function updateStanding(
   fields: StandingWriteFields
 ): Promise<void> {
   await apiRequest(`/api/admin/standings/${teamId}`, { method: 'PATCH', body: fields })
+}
+
+/* -------------------------------------------------------------------------- */
+/* Season archive -- read-only snapshots written by "archive & reset season"   */
+/* -------------------------------------------------------------------------- */
+
+export async function getArchiveSeasons(): Promise<ArchiveSeason[]> {
+  const { data, error } = await supabase
+    .from('archive_seasons')
+    .select('*')
+    .order('archived_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching archived seasons:', error)
+    return []
+  }
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    label: row.label,
+    archivedAt: row.archived_at,
+  }))
+}
+
+/** The most recently archived season, or null if nothing has been archived yet. */
+export async function getLatestArchiveSeason(): Promise<ArchiveSeason | null> {
+  const seasons = await getArchiveSeasons()
+  return seasons[0] ?? null
+}
+
+export async function getArchiveStandings(archiveSeasonId: string): Promise<ArchiveStanding[]> {
+  const { data, error } = await supabase
+    .from('archive_standings')
+    .select('*, team:archive_teams(id, name, slug, logo_url)')
+    .eq('archive_season_id', archiveSeasonId)
+
+  if (error) {
+    console.error('Error fetching archived standings:', error)
+    return []
+  }
+
+  const rows: ArchiveStanding[] = (data ?? [])
+    .map((row: any) => {
+      const team = one<any>(row.team)
+      if (!team) return null
+      const goalsFor = row.goals_for ?? 0
+      const goalsAgainst = row.goals_against ?? 0
+      const wins = row.wins ?? 0
+      const draws = row.draws ?? 0
+      return {
+        teamId: team.id,
+        teamName: team.name,
+        teamSlug: team.slug,
+        logoUrl: team.logo_url,
+        gamesPlayed: row.games_played ?? 0,
+        wins,
+        draws,
+        losses: row.losses ?? 0,
+        goalsFor,
+        goalsAgainst,
+        goalDifference: goalsFor - goalsAgainst,
+        points: calculatePoints(wins, draws),
+      }
+    })
+    .filter((row): row is ArchiveStanding => row !== null)
+
+  return rankStandings(rows)
+}
+
+export async function getArchiveGames(archiveSeasonId: string): Promise<ArchiveGame[]> {
+  const { data, error } = await supabase
+    .from('archive_games')
+    .select(
+      '*, home_team:archive_teams!home_archive_team_id(name, slug), away_team:archive_teams!away_archive_team_id(name, slug)'
+    )
+    .eq('archive_season_id', archiveSeasonId)
+    .order('date')
+    .order('time')
+
+  if (error) {
+    console.error('Error fetching archived games:', error)
+    return []
+  }
+
+  return (data ?? []).map((row: any) => {
+    const homeTeam = one<any>(row.home_team)
+    const awayTeam = one<any>(row.away_team)
+    return {
+      id: row.id,
+      gameNumber: row.game_number,
+      weekNumber: row.week_number,
+      date: row.date,
+      time: row.time,
+      location: row.location,
+      homeTeamName: homeTeam?.name ?? 'TBD',
+      awayTeamName: awayTeam?.name ?? 'TBD',
+      homeTeamSlug: homeTeam?.slug ?? null,
+      awayTeamSlug: awayTeam?.slug ?? null,
+      homeScore: row.home_score,
+      awayScore: row.away_score,
+      status: row.status,
+      isPlayoff: row.is_playoff ?? false,
+      playoffRound: row.playoff_round,
+    }
+  })
+}
+
+/**
+ * Two reads rather than one PostgREST call with a nested filter --
+ * archive_game_statistics has no archive_season_id of its own, and filtering
+ * through an embedded resource is fussy to get right. This is simple to
+ * reason about instead: get this season's player ids, then their stats.
+ */
+export async function getArchiveStatLeaders(
+  archiveSeasonId: string,
+  statType: 'goal' | 'assist' | 'save',
+  limit = 5
+): Promise<LeaderboardEntry[]> {
+  const { data: players, error: playersError } = await supabase
+    .from('archive_players')
+    .select('id, name, archive_team_id')
+    .eq('archive_season_id', archiveSeasonId)
+
+  if (playersError) {
+    console.error('Error fetching archived players:', playersError)
+    return []
+  }
+  if (!players || players.length === 0) return []
+
+  const playerIds = players.map((p: any) => p.id)
+  const { data: stats, error: statsError } = await supabase
+    .from('archive_game_statistics')
+    .select('archive_player_id, count')
+    .eq('stat_type', statType)
+    .in('archive_player_id', playerIds)
+
+  if (statsError) {
+    console.error(`Error fetching archived ${statType} leaders:`, statsError)
+    return []
+  }
+
+  const playerById = new Map(players.map((p: any) => [p.id, p]))
+  const totals = new Map<string, number>()
+  for (const stat of stats ?? []) {
+    const amount = (stat as any).count || 1
+    const playerId = (stat as any).archive_player_id
+    totals.set(playerId, (totals.get(playerId) ?? 0) + amount)
+  }
+
+  return Array.from(totals.entries())
+    .map(([playerId, count]) => {
+      const player = playerById.get(playerId) as any
+      return {
+        player: {
+          id: playerId,
+          name: player?.name ?? 'Unknown',
+          teamId: player?.archive_team_id ?? '',
+        },
+        count,
+      }
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
 }
 
 export async function getTeams(): Promise<Team[]> {
@@ -790,6 +957,17 @@ export async function setDraftOrder(order: string[]): Promise<void> {
     return
   }
   await apiRequest('/api/admin/draft/order', { method: 'PATCH', body: { order } })
+}
+
+/**
+ * Archives the current season's rosters, games, stats and standings under
+ * `label`, then clears the live tables so the next season starts from zero.
+ * Not available in the local sandbox -- unlike picks, games and phase
+ * changes, this always writes to the real Supabase project, so it should
+ * only ever be run for real, deliberately, once a season has actually ended.
+ */
+export async function archiveSeason(label: string): Promise<void> {
+  await apiRequest('/api/admin/archive-season', { method: 'POST', body: { label } })
 }
 
 /* -------------------------------------------------------------------------- */

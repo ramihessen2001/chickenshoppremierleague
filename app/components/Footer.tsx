@@ -26,6 +26,7 @@ export function Footer() {
                 ['/schedule', 'Schedule'],
                 ['/standings', 'Standings'],
                 ['/stats', 'Stats'],
+                ['/archive', 'Archive'],
                 ['/contact', 'Questions'],
               ].map(([href, label]) => (
                 <Link
