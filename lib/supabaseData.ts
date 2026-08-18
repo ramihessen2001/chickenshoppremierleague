@@ -40,10 +40,10 @@ import {
   StatType,
   LeaderboardEntry,
 } from '@/types/statistic'
-import { Standing, StandingWriteFields } from '@/types/standing'
+import { Standing } from '@/types/standing'
 import { CommissionerPost, CommissionerPostWriteFields } from '@/types/commissionerPost'
 import { ArchiveSeason, ArchiveStanding, ArchiveGame } from '@/types/archive'
-import { calculatePoints, rankStandings } from './standings'
+import { buildStandings } from './standings'
 
 /* -------------------------------------------------------------------------- */
 /* Shared query fragments                                                      */
@@ -171,52 +171,44 @@ export async function getCurrentWeek(): Promise<number> {
 /**
  * The league table, ranked (points, then goal difference, then goals for).
  *
- * Joined from `teams` rather than `standings` so a team with no standings row
- * yet (freshly added, before the migration backfill reaches it) still shows
- * up, at 0-0-0-0.
+ * Built from completed, non-playoff games rather than a hand-entered table,
+ * so it can never fall out of sync with the scores actually recorded -- a
+ * team's row updates the moment its game's box score is saved.
  */
 export async function getStandings(): Promise<Standing[]> {
-  const { data, error } = await supabase.from('teams').select(`
-    id, name, slug, logo_url,
-    standings(games_played, wins, draws, losses, goals_for, goals_against)
-  `)
+  const [{ data: teams, error: teamsError }, { data: games, error: gamesError }] =
+    await Promise.all([
+      supabase.from('teams').select('id, name, slug, logo_url'),
+      supabase
+        .from('games')
+        .select('home_team_id, away_team_id, home_score, away_score, status, is_playoff'),
+    ])
 
-  if (error) {
-    console.error('Error fetching standings:', error)
+  if (teamsError) {
+    console.error('Error fetching teams for standings:', teamsError)
+    return []
+  }
+  if (gamesError) {
+    console.error('Error fetching games for standings:', gamesError)
     return []
   }
 
-  const rows: Standing[] = (data ?? []).map((team: any) => {
-    const row = one<any>(team.standings)
-    const wins = row?.wins ?? 0
-    const draws = row?.draws ?? 0
-    const goalsFor = row?.goals_for ?? 0
-    const goalsAgainst = row?.goals_against ?? 0
-
-    return {
-      teamId: team.id,
-      teamName: team.name,
-      teamSlug: team.slug,
-      logoUrl: team.logo_url,
-      gamesPlayed: row?.games_played ?? 0,
-      wins,
-      draws,
-      losses: row?.losses ?? 0,
-      goalsFor,
-      goalsAgainst,
-      goalDifference: goalsFor - goalsAgainst,
-      points: calculatePoints(wins, draws),
-    }
-  })
-
-  return rankStandings(rows)
-}
-
-export async function updateStanding(
-  teamId: string,
-  fields: StandingWriteFields
-): Promise<void> {
-  await apiRequest(`/api/admin/standings/${teamId}`, { method: 'PATCH', body: fields })
+  return buildStandings(
+    (teams ?? []).map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      slug: t.slug,
+      logoUrl: t.logo_url,
+    })),
+    (games ?? [])
+      .filter((g: any) => g.status === 'completed' && !g.is_playoff)
+      .map((g: any) => ({
+        homeTeamId: g.home_team_id,
+        awayTeamId: g.away_team_id,
+        homeScore: g.home_score,
+        awayScore: g.away_score,
+      }))
+  )
 }
 
 /* -------------------------------------------------------------------------- */
@@ -246,43 +238,52 @@ export async function getLatestArchiveSeason(): Promise<ArchiveSeason | null> {
   return seasons[0] ?? null
 }
 
+/**
+ * Built from the archived games the same way `getStandings` builds the live
+ * table, rather than read back from a separately-archived copy -- so it
+ * reflects the actual results on record even if the live table was never
+ * filled in by hand before the season was archived.
+ */
 export async function getArchiveStandings(archiveSeasonId: string): Promise<ArchiveStanding[]> {
-  const { data, error } = await supabase
-    .from('archive_standings')
-    .select('*, team:archive_teams(id, name, slug, logo_url)')
-    .eq('archive_season_id', archiveSeasonId)
+  const [{ data: teams, error: teamsError }, { data: games, error: gamesError }] =
+    await Promise.all([
+      supabase
+        .from('archive_teams')
+        .select('id, name, slug, logo_url')
+        .eq('archive_season_id', archiveSeasonId),
+      supabase
+        .from('archive_games')
+        .select(
+          'home_archive_team_id, away_archive_team_id, home_score, away_score, status, is_playoff'
+        )
+        .eq('archive_season_id', archiveSeasonId),
+    ])
 
-  if (error) {
-    console.error('Error fetching archived standings:', error)
+  if (teamsError) {
+    console.error('Error fetching archived teams for standings:', teamsError)
+    return []
+  }
+  if (gamesError) {
+    console.error('Error fetching archived games for standings:', gamesError)
     return []
   }
 
-  const rows: ArchiveStanding[] = (data ?? [])
-    .map((row: any) => {
-      const team = one<any>(row.team)
-      if (!team) return null
-      const goalsFor = row.goals_for ?? 0
-      const goalsAgainst = row.goals_against ?? 0
-      const wins = row.wins ?? 0
-      const draws = row.draws ?? 0
-      return {
-        teamId: team.id,
-        teamName: team.name,
-        teamSlug: team.slug,
-        logoUrl: team.logo_url,
-        gamesPlayed: row.games_played ?? 0,
-        wins,
-        draws,
-        losses: row.losses ?? 0,
-        goalsFor,
-        goalsAgainst,
-        goalDifference: goalsFor - goalsAgainst,
-        points: calculatePoints(wins, draws),
-      }
-    })
-    .filter((row): row is ArchiveStanding => row !== null)
-
-  return rankStandings(rows)
+  return buildStandings(
+    (teams ?? []).map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      slug: t.slug,
+      logoUrl: t.logo_url,
+    })),
+    (games ?? [])
+      .filter((g: any) => g.status === 'completed' && !g.is_playoff)
+      .map((g: any) => ({
+        homeTeamId: g.home_archive_team_id,
+        awayTeamId: g.away_archive_team_id,
+        homeScore: g.home_score,
+        awayScore: g.away_score,
+      }))
+  )
 }
 
 export async function getArchiveGames(archiveSeasonId: string): Promise<ArchiveGame[]> {

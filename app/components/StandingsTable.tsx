@@ -2,12 +2,11 @@
  * League table: rank, team, and the usual GP/W/D/L/GF/GA/GD/Pts columns.
  *
  * Shared between the live standings page and the archive, which show the
- * same shape of data (`Standing` and `ArchiveStanding` are structurally
- * identical) but differ in whether a row can be edited.
+ * same shape of data -- `Standing` and `ArchiveStanding` are structurally
+ * identical, both computed from games rather than stored.
  */
 
 import Image from 'next/image'
-import { Pencil } from 'lucide-react'
 import { fallbackTeamLogo } from '@/config/league'
 import { Standing } from '@/types/standing'
 
@@ -25,8 +24,6 @@ const KEY: [string, string][] = [
 
 interface StandingsTableProps {
   standings: Standing[]
-  /** Presence adds an edit column; omit for a read-only table (e.g. the archive). */
-  onEdit?: (row: Standing) => void
   /** True once there are exactly 8 teams -- shows the playoff-line divider and blurb. */
   showPlayoffFormat?: boolean
   emptyTitle?: string
@@ -35,7 +32,6 @@ interface StandingsTableProps {
 
 export function StandingsTable({
   standings,
-  onEdit,
   showPlayoffFormat = false,
   emptyTitle = 'No standings yet',
   emptyMessage = 'The table will appear here once teams are added.',
@@ -76,22 +72,17 @@ export function StandingsTable({
                   {abbr}
                 </th>
               ))}
-              {onEdit && (
-                <th scope="col" className="py-3 pl-2">
-                  <span className="sr-only">Edit</span>
-                </th>
-              )}
             </tr>
           </thead>
           <tbody>
             {standings.map((row, index) => (
               <tr
                 key={row.teamId}
-                className={`transition-colors ${onEdit ? 'hover:bg-surface-hover' : ''} ${
+                className={
                   showPlayoffFormat && index === 3
                     ? 'border-b-2 border-ink-tertiary'
                     : 'border-b border-hairline'
-                }`}
+                }
               >
                 <td className="tabular py-3 pr-3 text-[14px] text-ink-tertiary">
                   {index + 1}
@@ -120,17 +111,6 @@ export function StandingsTable({
                 <td className="tabular py-3 px-2 text-right text-[14px] font-semibold text-ink">
                   {row.points}
                 </td>
-                {onEdit && (
-                  <td className="py-3 pl-2 text-right">
-                    <button
-                      onClick={() => onEdit(row)}
-                      className="rounded-md p-1.5 text-ink-tertiary transition-colors hover:bg-surface-sunken hover:text-ink"
-                      aria-label={`Edit ${row.teamName}`}
-                    >
-                      <Pencil size={14} />
-                    </button>
-                  </td>
-                )}
               </tr>
             ))}
           </tbody>

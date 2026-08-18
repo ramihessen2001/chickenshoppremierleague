@@ -1,6 +1,8 @@
 /**
- * Archives the current season's rosters, games, stats and standings, then
- * resets the live tables so the next season starts from zero. Admin only.
+ * Archives the current season's rosters, games and stats, then resets the
+ * live tables so the next season starts from zero. Admin only. Standings
+ * aren't archived directly -- they're computed from games (see
+ * lib/standings.ts), so archiving the games is what preserves the table.
  *
  *   POST -> { label }   the season being archived, e.g. "Fall 2025"
  *
@@ -43,21 +45,17 @@ export async function POST(request: Request) {
   const label = body.label.trim()
 
   // ---- Read everything live, up front. -----------------------------------
-  const [teamsResult, playersResult, gamesResult, statsResult, standingsResult] =
-    await Promise.all([
-      supabaseAdmin.from('teams').select('*'),
-      supabaseAdmin.from('players').select('*'),
-      supabaseAdmin.from('games').select('*'),
-      supabaseAdmin.from('game_statistics').select('*'),
-      supabaseAdmin.from('standings').select('*'),
-    ])
+  // Standings aren't read here -- the table is computed from games (see
+  // lib/standings.ts), so archiving the games is what preserves it.
+  const [teamsResult, playersResult, gamesResult, statsResult] = await Promise.all([
+    supabaseAdmin.from('teams').select('*'),
+    supabaseAdmin.from('players').select('*'),
+    supabaseAdmin.from('games').select('*'),
+    supabaseAdmin.from('game_statistics').select('*'),
+  ])
 
   const readError =
-    teamsResult.error ||
-    playersResult.error ||
-    gamesResult.error ||
-    statsResult.error ||
-    standingsResult.error
+    teamsResult.error || playersResult.error || gamesResult.error || statsResult.error
   if (readError) {
     console.error('Error reading live data to archive:', readError)
     return fail('Failed to read the current season', 500)
@@ -67,7 +65,6 @@ export async function POST(request: Request) {
   const players = playersResult.data ?? []
   const games = gamesResult.data ?? []
   const stats = statsResult.data ?? []
-  const standingsRows = standingsResult.data ?? []
 
   // ---- Copy phase: nothing below is deleted until this all succeeds. -----
   const archiveSeasonId = await insertOne('archive_seasons', { label })
@@ -140,38 +137,13 @@ export async function POST(request: Request) {
     if (!archiveId) return fail('Failed to archive a game statistic', 500)
   }
 
-  for (const row of standingsRows) {
-    const archiveTeamId = teamIdMap.get(row.team_id)
-    if (!archiveTeamId) continue
-    const archiveId = await insertOne('archive_standings', {
-      archive_season_id: archiveSeasonId,
-      archive_team_id: archiveTeamId,
-      games_played: row.games_played,
-      wins: row.wins,
-      draws: row.draws,
-      losses: row.losses,
-      goals_for: row.goals_for,
-      goals_against: row.goals_against,
-    })
-    if (!archiveId) return fail('Failed to archive a standings row', 500)
-  }
-
   // ---- Reset phase: only reached once every copy above has succeeded. ----
+  // Standings need no reset of their own -- once `games` is cleared below,
+  // the computed table is empty right along with it.
   const resetSteps = await Promise.all([
     supabaseAdmin.from('game_statistics').delete().not('id', 'is', null),
     supabaseAdmin.from('games').delete().not('id', 'is', null),
     supabaseAdmin.from('players').delete().not('id', 'is', null),
-    supabaseAdmin
-      .from('standings')
-      .update({
-        games_played: 0,
-        wins: 0,
-        draws: 0,
-        losses: 0,
-        goals_for: 0,
-        goals_against: 0,
-      })
-      .not('id', 'is', null),
     supabaseAdmin.from('teams').update({ draft_position: null }).not('id', 'is', null),
   ])
 

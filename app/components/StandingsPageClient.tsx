@@ -1,17 +1,15 @@
 /**
  * League standings.
  *
- * A real table, edited by hand from the admin panel one team at a time --
- * the league runs on reported results rather than every game being logged
- * with a final score, so the numbers here are entered directly instead of
- * being computed from `games`. Goal difference and points are computed at
- * read time (see lib/standings.ts) so they can never drift from the games
- * played/wins/draws/losses/goals a row was built from.
+ * The table is computed from completed games (see lib/standings.ts), never
+ * hand-entered, so it can't drift out of sync with the scores a game's box
+ * score was actually saved with.
  *
  * What shows depends on `league_config.phase`: signups and draft have no
- * current-season games yet, so this shows last season's final table
- * (read-only, from the archive) instead of an empty live one. Season shows
- * the live editable table. Playoffs shows the bracket above the live table.
+ * current-season games yet, so this shows last season's final table (from
+ * the archive) instead of an empty live one. Season shows the live table.
+ * Playoffs shows the bracket generator, then the bracket, above the live
+ * table -- the same order as the homepage's playoffs section.
  */
 
 'use client'
@@ -23,21 +21,18 @@ import {
   getLatestArchiveSeason,
   getArchiveStandings,
 } from '@/lib/supabaseData'
-import { useAdmin } from '@/lib/adminContext'
 import { Standing } from '@/types/standing'
 import { LeaguePhase } from '@/lib/supabase'
 import { PageHeader } from './PageHeader'
-import { EditStandingModal } from './EditStandingModal'
 import { PlayoffBracket } from './PlayoffBracket'
+import { PlayoffBracketGenerator } from './PlayoffBracketGenerator'
 import { StandingsTable } from './StandingsTable'
 
 export function StandingsPageClient() {
-  const { isAdmin } = useAdmin()
   const [standings, setStandings] = useState<Standing[]>([])
   const [phase, setPhase] = useState<LeaguePhase>('season')
   const [eyebrow, setEyebrow] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [editing, setEditing] = useState<Standing | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -96,12 +91,16 @@ export function StandingsPageClient() {
         }
       />
 
-      {phase === 'playoffs' && <PlayoffBracket />}
+      {phase === 'playoffs' && (
+        <>
+          <PlayoffBracketGenerator />
+          <PlayoffBracket />
+        </>
+      )}
 
       <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
         <StandingsTable
           standings={standings}
-          onEdit={!isArchiveView && isAdmin ? setEditing : undefined}
           showPlayoffFormat={!isArchiveView && eightTeamPlayoffs}
           emptyTitle={isArchiveView ? 'Nothing archived yet' : undefined}
           emptyMessage={
@@ -111,14 +110,6 @@ export function StandingsPageClient() {
           }
         />
       </div>
-
-      {!isArchiveView && (
-        <EditStandingModal
-          standing={editing}
-          isOpen={editing !== null}
-          onClose={() => setEditing(null)}
-        />
-      )}
     </>
   )
 }
