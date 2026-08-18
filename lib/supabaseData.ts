@@ -658,6 +658,95 @@ export async function getAllPlayersWithStats() {
   return Array.from(byPlayer.values())
 }
 
+/**
+ * Every archived player with their season totals -- the archive equivalent
+ * of `getAllPlayersWithStats`, shown on the stats page during signups and
+ * draft, before this season has players of its own.
+ */
+export async function getArchivePlayersWithStats(archiveSeasonId: string) {
+  const { data: players, error: playersError } = await supabase
+    .from('archive_players')
+    .select('id, name, jersey_number, position, team:archive_teams(id, name, slug, logo_url)')
+    .eq('archive_season_id', archiveSeasonId)
+    .order('name')
+
+  if (playersError) {
+    console.error('Error fetching archived players:', playersError)
+    return []
+  }
+  if (!players || players.length === 0) return []
+
+  const playerIds = players.map((p: any) => p.id)
+
+  const [{ data: statistics, error: statsError }, { data: motmGames, error: motmError }] =
+    await Promise.all([
+      supabase
+        .from('archive_game_statistics')
+        .select('archive_game_id, archive_player_id, stat_type, count')
+        .in('archive_player_id', playerIds),
+      supabase
+        .from('archive_games')
+        .select('player_of_game_archive_id')
+        .eq('archive_season_id', archiveSeasonId)
+        .not('player_of_game_archive_id', 'is', null),
+    ])
+
+  if (statsError) {
+    console.error('Error fetching archived statistics:', statsError)
+    return []
+  }
+  if (motmError) {
+    console.error('Error fetching archived man-of-the-match games:', motmError)
+  }
+
+  const motmCount = new Map<string, number>()
+  for (const game of motmGames ?? []) {
+    const id = (game as any).player_of_game_archive_id
+    if (id) motmCount.set(id, (motmCount.get(id) ?? 0) + 1)
+  }
+
+  const byPlayer = new Map<string, any>()
+  for (const player of players as any[]) {
+    const team = one<any>(player.team)
+    byPlayer.set(player.id, {
+      id: player.id,
+      name: player.name,
+      jerseyNumber: player.jersey_number,
+      position: player.position,
+      team: team
+        ? { id: team.id, name: team.name, slug: team.slug, logoUrl: team.logo_url }
+        : null,
+      goals: 0,
+      assists: 0,
+      saves: 0,
+      gamesPlayed: 0,
+      manOfTheMatchCount: motmCount.get(player.id) ?? 0,
+    })
+  }
+
+  const gamesByPlayer = new Map<string, Set<string>>()
+  for (const stat of (statistics ?? []) as any[]) {
+    const player = byPlayer.get(stat.archive_player_id)
+    if (!player) continue
+
+    const amount = stat.count || 1
+    if (stat.stat_type === 'goal') player.goals += amount
+    else if (stat.stat_type === 'assist') player.assists += amount
+    else if (stat.stat_type === 'save') player.saves += amount
+
+    if (!gamesByPlayer.has(stat.archive_player_id)) {
+      gamesByPlayer.set(stat.archive_player_id, new Set())
+    }
+    gamesByPlayer.get(stat.archive_player_id)!.add(stat.archive_game_id)
+  }
+
+  for (const [playerId, player] of byPlayer) {
+    player.gamesPlayed = gamesByPlayer.get(playerId)?.size ?? 0
+  }
+
+  return Array.from(byPlayer.values())
+}
+
 /* -------------------------------------------------------------------------- */
 /* Writes -- all routed through the server                                     */
 /* -------------------------------------------------------------------------- */

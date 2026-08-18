@@ -1,8 +1,8 @@
 /**
  * Playoff bracket.
  *
- * Rounds, matchups and dates all come from the database. The final is rendered
- * separately by ChampionshipGameCard, so it is skipped here.
+ * Rounds, matchups and dates all come from the database, including the final,
+ * which is just the last round in the sequence rather than a card of its own.
  */
 
 'use client'
@@ -19,12 +19,13 @@ import { getPlayoffGames, getGameById } from '@/lib/supabaseData'
 import { formatDate, formatTime } from '@/lib/dateUtils'
 
 /** Rounds in the order they are played. */
-const ROUND_ORDER = ['play-in', 'quarterfinal', 'semifinal'] as const
+const ROUND_ORDER = ['play-in', 'quarterfinal', 'semifinal', 'final'] as const
 
 const ROUND_LABELS: Record<string, string> = {
   'play-in': 'Play-in',
   quarterfinal: 'Quarterfinals',
   semifinal: 'Semifinals',
+  final: 'Final',
 }
 
 export function PlayoffBracket() {
@@ -64,12 +65,10 @@ export function PlayoffBracket() {
     }
   }
 
-  // The final has its own section, so it is excluded here. Unrecognised round
-  // names are still shown rather than silently dropped.
+  // Unrecognised round names are still shown rather than silently dropped.
   const byRound = new Map<string, Game[]>()
   for (const game of playoffGames) {
     const round = game.playoffRound || 'other'
-    if (round === 'final') continue
     if (!byRound.has(round)) byRound.set(round, [])
     byRound.get(round)!.push(game)
   }

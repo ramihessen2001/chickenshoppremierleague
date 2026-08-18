@@ -14,17 +14,26 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LEAGUE } from '@/config/league'
 import { useAdmin } from '@/lib/adminContext'
+import { usePhase } from '@/lib/usePhase'
 
-const NAV = [
+const BASE_NAV = [
   { href: '/schedule', label: 'Schedule' },
   { href: '/standings', label: 'Standings' },
   { href: '/stats', label: 'Stats' },
-  { href: '/archive', label: 'Archive' },
 ]
 
 export function Header() {
   const pathname = usePathname()
   const { isAdmin } = useAdmin()
+  const phase = usePhase()
+
+  // Signups and draft show last season's data on the standings and stats
+  // pages instead, so the archive link is redundant until this season is
+  // actually under way.
+  const showsArchive = phase === 'season' || phase === 'playoffs'
+  const NAV = showsArchive
+    ? [...BASE_NAV, { href: '/archive', label: 'Archive' }]
+    : BASE_NAV
 
   // Signups and questions both hold contact details, so those links only
   // appear once signed in.

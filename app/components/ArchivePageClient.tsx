@@ -9,18 +9,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
 import {
   getLatestArchiveSeason,
   getArchiveStandings,
   getArchiveGames,
   getArchiveStatLeaders,
 } from '@/lib/supabaseData'
-import { fallbackTeamLogo } from '@/config/league'
 import { ArchiveSeason, ArchiveStanding, ArchiveGame } from '@/types/archive'
 import { LeaderboardEntry } from '@/types/statistic'
 import { PageHeader } from './PageHeader'
 import { StatLeaders } from './StatLeaders'
+import { StandingsTable } from './StandingsTable'
 import { formatDate, formatTime } from '@/lib/dateUtils'
 
 export function ArchivePageClient() {
@@ -108,73 +107,13 @@ export function ArchivePageClient() {
             Final standings
           </h2>
 
-          {standings.length === 0 ? (
-            <p className="mt-4 text-[14px] text-ink-tertiary">No standings were recorded.</p>
-          ) : (
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[34rem] border-collapse">
-                <thead>
-                  <tr className="border-b border-hairline-strong">
-                    <th className="py-2.5 pr-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-tertiary">
-                      #
-                    </th>
-                    <th className="py-2.5 pr-4 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-tertiary">
-                      Team
-                    </th>
-                    {['GP', 'W', 'D', 'L', 'GD', 'Pts'].map((label) => (
-                      <th
-                        key={label}
-                        className="py-2.5 px-2 text-right text-[11px] font-semibold uppercase tracking-wider text-ink-tertiary"
-                      >
-                        {label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {standings.map((row, index) => (
-                    <tr key={row.teamId} className="border-b border-hairline">
-                      <td className="tabular py-2.5 pr-3 text-[13px] text-ink-tertiary">
-                        {index + 1}
-                      </td>
-                      <td className="py-2.5 pr-4">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <Image
-                            src={row.logoUrl || fallbackTeamLogo(row.teamSlug)}
-                            alt=""
-                            width={20}
-                            height={20}
-                            className="h-5 w-5 shrink-0 object-contain"
-                          />
-                          <span className="truncate text-[13px] font-medium text-ink">
-                            {row.teamName}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="tabular py-2.5 px-2 text-right text-[13px] text-ink">
-                        {row.gamesPlayed}
-                      </td>
-                      <td className="tabular py-2.5 px-2 text-right text-[13px] text-ink">
-                        {row.wins}
-                      </td>
-                      <td className="tabular py-2.5 px-2 text-right text-[13px] text-ink">
-                        {row.draws}
-                      </td>
-                      <td className="tabular py-2.5 px-2 text-right text-[13px] text-ink">
-                        {row.losses}
-                      </td>
-                      <td className="tabular py-2.5 px-2 text-right text-[13px] text-ink">
-                        {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
-                      </td>
-                      <td className="tabular py-2.5 px-2 text-right text-[13px] font-semibold text-ink">
-                        {row.points}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div className="mt-4">
+            <StandingsTable
+              standings={standings}
+              emptyTitle="No standings were recorded"
+              emptyMessage="This season ended without a final table on record."
+            />
+          </div>
         </section>
 
         {/* Results --------------------------------------------------------- */}

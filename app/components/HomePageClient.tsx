@@ -17,7 +17,6 @@ import { StatLeaders } from './StatLeaders'
 import { CurrentWeekControl } from './CurrentWeekControl'
 import { PlayoffBracket } from './PlayoffBracket'
 import { PlayoffBracketGenerator } from './PlayoffBracketGenerator'
-import { ChampionshipGameCard } from './ChampionshipGameCard'
 import { SignupForm } from './SignupForm'
 import { LiveNow } from './LiveNow'
 import { CommissionersBoard } from './CommissionersBoard'
@@ -452,41 +451,33 @@ export function HomePageClient() {
         <WeeklyGames games={currentWeekGames} weekNumber={currentWeek} />
       )}
 
-      {/* Playoffs reorders the usual stats-then-teams flow: meet the teams,
-          see where they stand, then the bracket and the final -- the bracket
-          leads that section, with the championship game underneath it. */}
-      {phase === 'playoffs' ? (
+      {/* Playoffs: the bracket leads, right after the fixtures slot above. */}
+      {phase === 'playoffs' && (
         <>
-          <TeamLogos showingLastSeason={showsLastSeasonTeams(phase)} />
-          {config?.show_home_stats && (
-            <StatLeaders goals={goalLeaders} assists={assistLeaders} saves={saveLeaders} />
-          )}
           <PlayoffBracketGenerator />
           <PlayoffBracket />
-          <ChampionshipGameCard />
-        </>
-      ) : (
-        <>
-          {/* Draft: last season's leaders stand in until this season has
-              games of its own -- clearly labelled, so they never read as
-              current. Everywhere else, this season's leaders as usual. */}
-          {phase === 'draft' && archiveLabel ? (
-            <StatLeaders
-              goals={archiveGoals}
-              assists={archiveAssists}
-              saves={archiveSaves}
-              allPlayersHref={null}
-              eyebrow={`Last season · ${archiveLabel}`}
-            />
-          ) : (
-            config?.show_home_stats &&
-            !isPreSeason && (
-              <StatLeaders goals={goalLeaders} assists={assistLeaders} saves={saveLeaders} />
-            )
-          )}
-          <TeamLogos showingLastSeason={showsLastSeasonTeams(phase)} />
         </>
       )}
+
+      {/* Draft: last season's leaders stand in until this season has games
+          of its own -- clearly labelled, so they never read as current.
+          Everywhere else, this season's leaders as usual. Teams always come
+          last, regardless of phase. */}
+      {phase === 'draft' && archiveLabel ? (
+        <StatLeaders
+          goals={archiveGoals}
+          assists={archiveAssists}
+          saves={archiveSaves}
+          allPlayersHref={null}
+          eyebrow={`Last season · ${archiveLabel}`}
+        />
+      ) : (
+        config?.show_home_stats &&
+        !isPreSeason && (
+          <StatLeaders goals={goalLeaders} assists={assistLeaders} saves={saveLeaders} />
+        )
+      )}
+      <TeamLogos showingLastSeason={showsLastSeasonTeams(phase)} />
     </div>
   )
 }

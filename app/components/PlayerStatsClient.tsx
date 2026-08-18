@@ -11,8 +11,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import { ArrowUp, ArrowDown, Search, Star } from 'lucide-react'
-import { getAllPlayersWithStats } from '@/lib/supabaseData'
+import {
+  getAllPlayersWithStats,
+  getArchivePlayersWithStats,
+  getLatestArchiveSeason,
+} from '@/lib/supabaseData'
 import { useTeams } from '@/lib/teamsContext'
+import { usePhase } from '@/lib/usePhase'
 import { displayJersey } from '@/types/player'
 import { fallbackTeamLogo } from '@/config/league'
 import { useAdmin } from '@/lib/adminContext'
@@ -42,7 +47,11 @@ const NUMERIC_FIELDS: SortField[] = ['goals', 'assists', 'saves']
 export function PlayerStatsClient() {
   const { isAdmin } = useAdmin()
   const { teams } = useTeams()
+  const phase = usePhase()
   const [players, setPlayers] = useState<PlayerStats[]>([])
+  /** Set while showing last season's totals during signups/draft, before
+   *  this season has players of its own. Null otherwise. */
+  const [archiveLabel, setArchiveLabel] = useState<string | null>(null)
   const [selectedTeam, setSelectedTeam] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -50,20 +59,48 @@ export function PlayerStatsClient() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
 
   useEffect(() => {
+    if (phase === null) return
     let cancelled = false
 
-    getAllPlayersWithStats()
-      .then((data) => {
-        if (!cancelled) setPlayers(data)
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false)
-      })
+    const load = async () => {
+      if (phase === 'signups' || phase === 'draft') {
+        const archive = await getLatestArchiveSeason()
+        if (cancelled) return
+        if (archive) {
+          setArchiveLabel(archive.label)
+          setPlayers(await getArchivePlayersWithStats(archive.id))
+        } else {
+          setArchiveLabel(null)
+          setPlayers([])
+        }
+      } else {
+        setArchiveLabel(null)
+        setPlayers(await getAllPlayersWithStats())
+      }
+    }
+
+    load().finally(() => {
+      if (!cancelled) setIsLoading(false)
+    })
 
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [phase])
+
+  const isArchiveMode = archiveLabel !== null
+
+  // During signups/draft the players shown belong to last season's archived
+  // teams, not this year's live ones, so the filter options come from the
+  // data itself rather than the (possibly different) current team list.
+  const teamOptions = useMemo(() => {
+    if (!isArchiveMode) return teams.map((team) => ({ slug: team.slug, name: team.name }))
+    const bySlug = new Map<string, { slug: string; name: string }>()
+    for (const player of players) {
+      if (player.team) bySlug.set(player.team.slug, player.team)
+    }
+    return Array.from(bySlug.values()).sort((a, b) => a.name.localeCompare(b.name))
+  }, [isArchiveMode, teams, players])
 
   const filteredPlayers = useMemo(() => {
     let result = players
@@ -124,8 +161,13 @@ export function PlayerStatsClient() {
   return (
     <>
       <PageHeader
+        eyebrow={isArchiveMode ? `Last season · ${archiveLabel}` : undefined}
         title="Players"
-        description="Season totals for every player in the league."
+        description={
+          isArchiveMode
+            ? "Last season's totals, shown until this season's players are added."
+            : 'Season totals for every player in the league.'
+        }
       />
 
       <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
@@ -156,7 +198,7 @@ export function PlayerStatsClient() {
             className="rounded-pill border border-hairline-strong bg-surface px-4 py-2 text-[14px] text-ink focus:border-ink focus:outline-none"
           >
             <option value="all">All teams</option>
-            {teams.map((team) => (
+            {teamOptions.map((team) => (
               <option key={team.slug} value={team.slug}>
                 {team.name}
               </option>
@@ -173,7 +215,9 @@ export function PlayerStatsClient() {
           <div className="mt-8 rounded-lg border border-dashed border-hairline-strong px-6 py-16 text-center">
             <p className="text-[15px] text-ink-secondary">
               {players.length === 0
-                ? 'No players have been added yet.'
+                ? isArchiveMode
+                  ? 'Nothing archived yet.'
+                  : 'No players have been added yet.'
                 : 'No players match those filters.'}
             </p>
           </div>
