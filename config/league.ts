@@ -71,7 +71,7 @@ export const LEAGUE = {
    * Last day to register, ISO. The hero counts down to this, so the deadline is
    * written once here rather than restated in copy that would go stale.
    */
-  registrationDeadline: '2026-08-28',
+  registrationDeadline: '2026-08-29',
 
   /**
    * How many players the league has room for.
