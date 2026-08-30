@@ -110,16 +110,6 @@ function formatDeadline(deadline: string): string {
 }
 
 /**
- * Whether the teams currently in the database are last season's.
- *
- * True only during registration, because the draft starts as soon as signups
- * close -- from `draft` onwards the rosters being filled are the current ones.
- */
-function showsLastSeasonTeams(phase: LeaguePhase): boolean {
-  return phase === 'signups'
-}
-
-/**
  * The hero's buttons for the current phase.
  *
  * The governing rule is that a button never points at a page that is empty in
@@ -139,11 +129,7 @@ function heroActions(state: {
       ? [
           {
             href: '#teams',
-            // Pre-draft the button leads to last season's teams, so it says so
-            // rather than implying these are the sides you could be drafted to.
-            label: showsLastSeasonTeams(phase)
-              ? "See last year's teams"
-              : 'Meet the teams',
+            label: 'Meet the teams',
             variant,
           },
         ]
@@ -280,7 +266,7 @@ export function HomePageClient() {
   if (isLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-[15px] text-ink-tertiary">Loading…</p>
+        <p className="loading">Loading</p>
       </div>
     )
   }
@@ -410,10 +396,10 @@ export function HomePageClient() {
                       key={label}
                       className="grid gap-1 border-t border-hairline px-5 py-3.5 first:border-t-0 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4 sm:px-6"
                     >
-                      <dt className="text-[13px] font-medium text-ink-tertiary">
+                      <dt className="font-util text-[10.5px] uppercase leading-tight tracking-[0.1em] text-ink-secondary">
                         {label}
                       </dt>
-                      <dd className="whitespace-pre-line text-[14px] leading-relaxed text-ink">
+                      <dd className="whitespace-pre-line text-[15px] leading-relaxed text-ink">
                         {value}
                       </dd>
                     </div>
@@ -477,7 +463,7 @@ export function HomePageClient() {
           <StatLeaders goals={goalLeaders} assists={assistLeaders} saves={saveLeaders} />
         )
       )}
-      <TeamLogos showingLastSeason={showsLastSeasonTeams(phase)} />
+      <TeamLogos />
     </div>
   )
 }

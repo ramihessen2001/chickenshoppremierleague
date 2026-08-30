@@ -1,11 +1,28 @@
 {
   "_comment": [
-    "Season data for database/seed.js. Replace the placeholder teams below with",
-    "the real eight, then run: npm run seed",
+    "Season data for database/seed.js. Fall 2026: the eight teams below are the",
+    "real ones. Run: npm run seed  (add --reset to clear the previous season).",
+    "",
+    "Slugs are set explicitly rather than derived from the name, because the",
+    "names slugify into unusable URLs (\"S.C Cairo\" -> \"s-c-cairo\"). The slug",
+    "chosen is the same prefix the design files use, so one identifier ties the",
+    "team row, /teams/<slug>, the crest, and the kit artwork together.",
+    "",
+    "Colours are each kit's dominant colour, with one exception: cscp is the",
+    "deeper #4F8A8A rather than the pale #a1cbcc its crest is drawn in. Nothing",
+    "renders primaryColor yet, but the pale teal is 1.76:1 on white -- unusable",
+    "the moment anything does -- so the stored value is a strength of the same",
+    "hue that would actually work as an accent.",
+    "",
+    "sponsorName/sponsorLogoUrl are omitted for teams whose sponsorship has not",
+    "been sold yet -- the team page just leaves the block out. Add them here and",
+    "re-run the seed when a sponsor signs.",
     "",
     "teams[].players accepts either a plain name (jersey number left as TBD) or",
     "an object: { \"name\": \"...\", \"jerseyNumber\": 7, \"position\": \"Forward\" }.",
     "Jersey numbers must be unique within a team; omit the field for TBD.",
+    "Rosters are empty here because the league drafts on 30 August 2026 -- the",
+    "picks land through the live draft board, not through this file.",
     "",
     "games[] is optional -- fixtures can also be added from the admin UI.",
     "A playoff game sets \"playoffRound\" to one of: play-in, quarterfinal,",
@@ -13,14 +30,73 @@
   ],
 
   "teams": [
-    { "name": "Team 1", "primaryColor": "#B23A48", "players": [] },
-    { "name": "Team 2", "primaryColor": "#1D3557", "players": [] },
-    { "name": "Team 3", "primaryColor": "#2A9D8F", "players": [] },
-    { "name": "Team 4", "primaryColor": "#E9C46A", "players": [] },
-    { "name": "Team 5", "primaryColor": "#6A4C93", "players": [] },
-    { "name": "Team 6", "primaryColor": "#F4A261", "players": [] },
-    { "name": "Team 7", "primaryColor": "#264653", "players": [] },
-    { "name": "Team 8", "primaryColor": "#8AB17D", "players": [] }
+    {
+      "name": "Central Sporting Club Of PURO",
+      "slug": "cscp",
+      "shortName": "CSCP",
+      "primaryColor": "#4F8A8A",
+      "sponsorName": "JAX FISH AND CHICKEN",
+      "sponsorLogoUrl": "/images/sponsors/jaxfnc.svg",
+      "kitImageUrl": "/images/teams/kits/cscp.svg",
+      "players": []
+    },
+    {
+      "name": "S.C Cairo",
+      "slug": "sccairo",
+      "primaryColor": "#283878",
+      "kitImageUrl": "/images/teams/kits/sccairo.svg",
+      "players": []
+    },
+    {
+      "name": "S.C Paris",
+      "slug": "scparis",
+      "primaryColor": "#084868",
+      "kitImageUrl": "/images/teams/kits/scparis.svg",
+      "players": []
+    },
+    {
+      "name": "S.C Dakar",
+      "slug": "scdakar",
+      "primaryColor": "#088848",
+      "sponsorName": "USWAH INSTITUTE",
+      "sponsorLogoUrl": "/images/sponsors/uswah.svg",
+      "kitImageUrl": "/images/teams/kits/scdakar.svg",
+      "players": []
+    },
+    {
+      "name": "S.C Ramallah",
+      "slug": "scramallah",
+      "primaryColor": "#282878",
+      "sponsorName": "HOOKS FISH AND CHICKEN",
+      "sponsorLogoUrl": "/images/sponsors/hooks.svg",
+      "kitImageUrl": "/images/teams/kits/scramallah.svg",
+      "players": []
+    },
+    {
+      "name": "S.C Kabul",
+      "slug": "sckabul",
+      "primaryColor": "#C82828",
+      "sponsorName": "VIP AUTOMOTIVE",
+      "sponsorLogoUrl": "/images/sponsors/vipauto.svg",
+      "kitImageUrl": "/images/teams/kits/sckabul.svg",
+      "players": []
+    },
+    {
+      "name": "S.C Istanbul Black",
+      "slug": "scistanbul",
+      "primaryColor": "#1A1A1A",
+      "sponsorName": "BLACK SEA AUTO",
+      "sponsorLogoUrl": "/images/sponsors/blacksea.svg",
+      "kitImageUrl": "/images/teams/kits/scistanbul.svg",
+      "players": []
+    },
+    {
+      "name": "S.C Mansoura",
+      "slug": "scmansoura",
+      "primaryColor": "#D97C24",
+      "kitImageUrl": "/images/teams/kits/scmansoura.svg",
+      "players": []
+    }
   ],
 
   "games": []

@@ -9,6 +9,8 @@
 export interface Standing {
   teamId: string
   teamName: string
+  /** What a results row prints. Falls back to the full name. */
+  teamShortName: string
   teamSlug: string
   logoUrl: string | null
   gamesPlayed: number

@@ -30,9 +30,17 @@ export interface Team {
   id: string
   name: string
   slug: string
+  /** Name for tables and fixtures where the full name will not fit. */
+  short_name: string | null
   logo_url: string | null
   primary_color: string
   display_order: number
+  /** Sponsor trading name, null until a sponsorship is sold. */
+  sponsor_name: string | null
+  /** Sponsor logo path. Only meaningful alongside `sponsor_name`. */
+  sponsor_logo_url: string | null
+  /** Kit mockup showing the full set, home and away in one image. */
+  kit_image_url: string | null
   created_at: string
   updated_at: string
 }

@@ -30,9 +30,18 @@ export interface LeagueTeam {
   /** URL-friendly identifier, used throughout the UI and in /teams/[slug]. */
   slug: string
   name: string
+  /** Name for tables and tiles where the full one will not fit, e.g. "CSCP".
+   *  Falls back to `name`, so it is always safe to render. */
+  shortName: string
   logoUrl: string
   primaryColor: string
   displayOrder: number
+  /** Sponsor trading name, or null while the sponsorship is unsold. */
+  sponsorName: string | null
+  /** Sponsor logo path. Only meaningful alongside `sponsorName`. */
+  sponsorLogoUrl: string | null
+  /** Kit mockup showing the full set, or null if no artwork is in yet. */
+  kitImageUrl: string | null
 }
 
 interface TeamsContextValue {
@@ -58,7 +67,10 @@ export function TeamsProvider({ children }: { children: ReactNode }) {
   const load = useCallback(async () => {
     const { data, error } = await supabase
       .from('teams')
-      .select('id, name, slug, logo_url, primary_color, display_order')
+      // `*` rather than a column list: short_name arrived in migration 014,
+      // and naming a column the database does not have yet fails the whole
+      // query -- which would empty the site of teams rather than fall back.
+      .select('*')
       .order('display_order')
       .order('name')
 
@@ -73,9 +85,15 @@ export function TeamsProvider({ children }: { children: ReactNode }) {
         id: row.id,
         slug: row.slug,
         name: row.name,
+        shortName: row.short_name || row.name,
         logoUrl: row.logo_url || fallbackTeamLogo(row.slug),
         primaryColor: row.primary_color || '#523232',
         displayOrder: row.display_order ?? 0,
+        // Empty string and null both mean "not sponsored yet", so they are
+        // flattened to null here rather than reaching the UI as a falsy string.
+        sponsorName: row.sponsor_name || null,
+        sponsorLogoUrl: row.sponsor_logo_url || null,
+        kitImageUrl: row.kit_image_url || null,
       }))
     )
     setIsLoading(false)

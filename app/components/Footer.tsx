@@ -31,7 +31,7 @@ export function Footer() {
 
   return (
     <>
-      <footer className="mt-24 border-t border-hairline bg-surface-sunken">
+      <footer className="mt-24 border-t-[2.5px] border-hairline-strong bg-surface">
         <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <nav className="flex flex-wrap gap-x-6 gap-y-2" aria-label="Footer">
@@ -39,7 +39,7 @@ export function Footer() {
                 <Link
                   key={href}
                   href={href}
-                  className="text-[13px] text-ink-secondary transition-colors hover:text-ink"
+                  className="font-util text-[12px] text-ink-secondary transition-colors hover:text-court"
                 >
                   {label}
                 </Link>
@@ -49,7 +49,7 @@ export function Footer() {
             <AdminButton onClick={() => setIsPasswordModalOpen(true)} />
           </div>
 
-          <p className="mt-8 text-[12px] text-ink-tertiary">
+          <p className="mt-8 font-util text-[11px] text-ink-tertiary">
             &copy; {new Date().getFullYear()} {LEAGUE.name}
           </p>
         </div>

@@ -47,19 +47,19 @@ export function StandingsTable({
 
   return (
     <>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto border border-hairline">
         <table className="w-full min-w-[38rem] border-collapse">
           <thead>
-            <tr className="border-b border-hairline-strong">
+            <tr className="border-b-[2.5px] border-hairline-strong">
               <th
                 scope="col"
-                className="py-3 pr-3 text-left text-[12px] font-semibold uppercase tracking-wider text-ink-tertiary"
+                className="py-2 pl-3 pr-2 text-left font-util text-[9.5px] font-normal uppercase tracking-[0.1em] text-ink-secondary"
               >
                 #
               </th>
               <th
                 scope="col"
-                className="py-3 pr-4 text-left text-[12px] font-semibold uppercase tracking-wider text-ink-tertiary"
+                className="py-2 pr-4 text-left font-util text-[9.5px] font-normal uppercase tracking-[0.1em] text-ink-secondary"
               >
                 Team
               </th>
@@ -67,7 +67,7 @@ export function StandingsTable({
                 <th
                   key={abbr}
                   scope="col"
-                  className="py-3 px-2 text-right text-[12px] font-semibold uppercase tracking-wider text-ink-tertiary"
+                  className="py-2 px-[7px] text-right font-util text-[9.5px] font-normal uppercase tracking-[0.1em] text-ink-secondary"
                 >
                   {abbr}
                 </th>
@@ -78,26 +78,33 @@ export function StandingsTable({
             {standings.map((row, index) => (
               <tr
                 key={row.teamId}
-                className={
+                className={`transition-colors hover:bg-ink/[0.04] ${
                   showPlayoffFormat && index === 3
-                    ? 'border-b-2 border-ink-tertiary'
-                    : 'border-b border-hairline'
-                }
+                    ? 'border-b-[2.5px] border-hairline-strong'
+                    : 'border-b border-hairline last:border-b-0'
+                }`}
               >
-                <td className="tabular py-3 pr-3 text-[14px] text-ink-tertiary">
+                <td className="w-[26px] py-2 pl-3 pr-2 text-left font-util text-[12px] text-ink-tertiary">
                   {index + 1}
                 </td>
-                <td className="py-3 pr-4">
+                {/* A club is a thing, not a section, so the name is upright
+                    condensed rather than the oblique used for headings. */}
+                <td className="py-2 pr-4">
                   <div className="flex min-w-0 items-center gap-2.5">
-                    <Image
-                      src={row.logoUrl || fallbackTeamLogo(row.teamSlug)}
-                      alt=""
-                      width={22}
-                      height={22}
-                      className="h-[22px] w-[22px] shrink-0 object-contain"
-                    />
-                    <span className="truncate text-[14px] font-medium text-ink">
-                      {row.teamName}
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center border border-hairline">
+                      <Image
+                        src={row.logoUrl || fallbackTeamLogo(row.teamSlug)}
+                        alt=""
+                        width={22}
+                        height={22}
+                        className="h-[18px] w-[18px] object-contain"
+                      />
+                    </span>
+                    <span
+                      className="truncate font-display text-[14px] font-bold uppercase tracking-[0.01em] text-ink"
+                      title={row.teamName}
+                    >
+                      {row.teamShortName}
                     </span>
                   </div>
                 </td>
@@ -108,7 +115,7 @@ export function StandingsTable({
                 <Cell value={row.goalsFor} />
                 <Cell value={row.goalsAgainst} />
                 <Cell value={row.goalDifference} signed />
-                <td className="tabular py-3 px-2 text-right text-[14px] font-semibold text-ink">
+                <td className="py-2 px-[7px] text-right font-util text-[12px] font-bold text-ink">
                   {row.points}
                 </td>
               </tr>
@@ -145,9 +152,9 @@ export function StandingsTable({
 function Cell({ value, signed }: { value: number; signed?: boolean }) {
   const display = signed && value > 0 ? `+${value}` : String(value)
   return (
-    <td className="py-3 px-2 text-right">
+    <td className="py-2 px-[7px] text-right">
       <span
-        className={`tabular text-[14px] ${value === 0 ? 'text-ink-tertiary' : 'text-ink'}`}
+        className={`font-util text-[12px] ${value === 0 ? 'text-ink-tertiary' : 'text-ink'}`}
       >
         {display}
       </span>

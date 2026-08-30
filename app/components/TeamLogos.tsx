@@ -3,6 +3,12 @@
  *
  * The section always renders, so `#teams` is a reliable anchor and so the
  * pre-draft state says something useful rather than being absent.
+ *
+ * This used to take a `showingLastSeason` flag, because the league only
+ * replaced its teams at the draft and registration therefore ran against the
+ * previous season's line-up. Teams are now swapped in before registration
+ * opens, so whatever is in the table is the current season's and the caveat
+ * the flag printed would be untrue.
  */
 
 'use client'
@@ -11,16 +17,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useTeams } from '@/lib/teamsContext'
 
-interface TeamLogosProps {
-  /**
-   * Before this season's draft, the teams in the database are still last
-   * season's. The section says so rather than presenting them as the current
-   * line-up, so nobody registers expecting to join one of them.
-   */
-  showingLastSeason?: boolean
-}
-
-export function TeamLogos({ showingLastSeason = false }: TeamLogosProps) {
+export function TeamLogos() {
   const { teams, isLoading } = useTeams()
 
   return (
@@ -33,21 +30,13 @@ export function TeamLogos({ showingLastSeason = false }: TeamLogosProps) {
         id="teams-heading"
         className="text-[28px] font-semibold text-ink sm:text-[32px]"
       >
-        {showingLastSeason ? "Last season's teams" : 'Teams'}
+        Teams
       </h2>
-
-      {showingLastSeason && teams.length > 0 && (
-        <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-ink-secondary">
-          These are last season&rsquo;s teams and results, shown so you can see
-          how the league runs. This season&rsquo;s teams are drafted once
-          registration closes.
-        </p>
-      )}
 
       {isLoading ? (
         <p className="mt-8 text-[15px] text-ink-tertiary">Loading…</p>
       ) : teams.length === 0 ? (
-        <div className="mt-8 rounded-lg border border-dashed border-hairline-strong px-6 py-16 text-center">
+        <div className="mt-8 border border-hairline px-6 py-10 text-left">
           <p className="text-[17px] font-medium text-ink">Coming soon</p>
           <p className="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-ink-secondary">
             Teams are announced after the draft.
@@ -59,7 +48,7 @@ export function TeamLogos({ showingLastSeason = false }: TeamLogosProps) {
             <li key={team.slug}>
               <Link
                 href={`/teams/${team.slug}`}
-                className="flex items-center gap-3.5 rounded-lg border border-hairline bg-surface p-4 transition-colors hover:bg-surface-hover"
+                className="flex items-center gap-3.5 border border-hairline p-3 transition-colors hover:bg-ink/[0.04]"
               >
                 <Image
                   src={team.logoUrl}
@@ -68,8 +57,13 @@ export function TeamLogos({ showingLastSeason = false }: TeamLogosProps) {
                   height={36}
                   className="h-9 w-9 shrink-0 object-contain"
                 />
-                <span className="truncate text-[15px] font-medium text-ink">
-                  {team.name}
+                {/* title carries the full name, since the short one is what a
+                    tile has room for. */}
+                <span
+                  className="truncate font-display text-[17px] font-bold uppercase leading-tight tracking-[0.01em] text-ink"
+                  title={team.name}
+                >
+                  {team.shortName}
                 </span>
               </Link>
             </li>

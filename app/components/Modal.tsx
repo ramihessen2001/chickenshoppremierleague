@@ -106,16 +106,32 @@ export function Modal({
 /* Shared form controls, so every dialog looks like the same product           */
 /* -------------------------------------------------------------------------- */
 
+/*
+ * Fields are transparent, so the page's bone shows through and the rule around
+ * them is what says "type here". The token file reserves --white as a plane
+ * for tables and inputs, but a white box on bone reads as a separate sheet
+ * laid over the page, and the site is meant to be one surface.
+ *
+ * min-h-11 is 44px: the touch target the guide asks for, and taller than the
+ * old px-3 py-2 produced.
+ */
 export const fieldClass =
-  'w-full rounded-md border border-hairline-strong bg-surface px-3 py-2 text-[14px] text-ink transition-colors placeholder:text-ink-tertiary focus:border-ink focus:outline-none disabled:opacity-60'
+  'w-full min-h-11 border border-hairline bg-transparent px-[11px] py-[10px] text-[15px] text-ink transition-colors focus:border-[1.5px] focus:border-court focus:outline-none disabled:text-ink-tertiary'
 
-export const labelClass = 'block text-[13px] font-medium text-ink mb-1.5'
+/* Labels are utility type: Courier, small, wide-tracked, upper. They name a
+   field rather than saying anything, which is the role that face carries
+   everywhere else on the site. */
+export const labelClass =
+  'block mb-1 font-util text-[10.5px] uppercase tracking-[0.1em] text-ink'
 
+/* Buttons are names of things, so they are upright condensed rather than the
+   oblique used for sections. Width is left to the call site: these sit inline
+   in dialog footers as often as they run full-bleed under a form. */
 export const buttonPrimary =
-  'rounded-pill bg-surface-inverse px-4 py-2 text-[13px] font-medium text-ink-inverse transition-opacity hover:opacity-85 disabled:opacity-50'
+  'inline-flex items-center justify-center gap-1.5 min-h-11 border-0 bg-black px-4 py-3 font-display text-[13px] font-bold uppercase tracking-[0.06em] text-ink-inverse transition-colors hover:bg-red disabled:bg-surface disabled:text-ink-tertiary disabled:border disabled:border-hairline'
 
 export const buttonSecondary =
-  'rounded-pill border border-hairline-strong px-4 py-2 text-[13px] font-medium text-ink transition-colors hover:bg-surface-hover disabled:opacity-50'
+  'inline-flex items-center justify-center gap-1.5 min-h-11 border border-hairline-strong bg-transparent px-4 py-3 font-display text-[13px] font-bold uppercase tracking-[0.06em] text-ink transition-colors hover:bg-black hover:text-ink-inverse disabled:bg-surface disabled:text-ink-tertiary'
 
 /** Inline error message shown inside a dialog. */
 export function FormError({ children }: { children: ReactNode }) {

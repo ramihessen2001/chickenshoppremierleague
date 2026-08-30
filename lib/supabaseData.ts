@@ -178,7 +178,12 @@ export async function getCurrentWeek(): Promise<number> {
 export async function getStandings(): Promise<Standing[]> {
   const [{ data: teams, error: teamsError }, { data: games, error: gamesError }] =
     await Promise.all([
-      supabase.from('teams').select('id, name, slug, logo_url'),
+      // `*` rather than a column list: short_name arrived in migration 014, and
+      // naming it explicitly would make the whole query fail on a database that
+      // has not been migrated yet -- emptying the table instead of quietly
+      // falling back to full club names. Eight rows, so the extra columns are
+      // free.
+      supabase.from('teams').select('*'),
       supabase
         .from('games')
         .select('home_team_id, away_team_id, home_score, away_score, status, is_playoff'),
@@ -197,6 +202,7 @@ export async function getStandings(): Promise<Standing[]> {
     (teams ?? []).map((t: any) => ({
       id: t.id,
       name: t.name,
+      shortName: t.short_name,
       slug: t.slug,
       logoUrl: t.logo_url,
     })),

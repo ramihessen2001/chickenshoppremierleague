@@ -13,6 +13,16 @@ export interface Team {
   logoUrl: string
   roster: Player[]
   primaryColor?: string
+  /**
+   * The sponsor's trading name, e.g. "JAX FISH AND CHICKEN" -- deliberately not
+   * the team name. Undefined for a team whose sponsorship has not been sold
+   * yet, which is the state most teams start a season in.
+   */
+  sponsorName?: string
+  /** Sponsor logo path. Only meaningful alongside `sponsorName`. */
+  sponsorLogoUrl?: string
+  /** Kit mockup showing the full set, home and away in one image. */
+  kitImageUrl?: string
   createdAt: string
   updatedAt: string
 }

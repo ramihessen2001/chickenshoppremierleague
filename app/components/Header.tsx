@@ -14,7 +14,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LEAGUE } from '@/config/league'
 import { useAdmin } from '@/lib/adminContext'
-import { usePhase } from '@/lib/usePhase'
 
 const BASE_NAV = [
   { href: '/schedule', label: 'Schedule' },
@@ -25,15 +24,12 @@ const BASE_NAV = [
 export function Header() {
   const pathname = usePathname()
   const { isAdmin } = useAdmin()
-  const phase = usePhase()
 
-  // Signups and draft show last season's data on the standings and stats
-  // pages instead, so the archive link is redundant until this season is
-  // actually under way.
-  const showsArchive = phase === 'season' || phase === 'playoffs'
-  const NAV = showsArchive
-    ? [...BASE_NAV, { href: '/archive', label: 'Archive' }]
-    : BASE_NAV
+  // Archive is always linked. It used to be hidden during signups and draft,
+  // on the grounds that the standings page was showing last season's table
+  // anyway -- but standings now shows this season's teams in every phase, so
+  // hiding the link would leave no route to the past season at all.
+  const NAV = [...BASE_NAV, { href: '/archive', label: 'Archive' }]
 
   // Signups and questions both hold contact details, so those links only
   // appear once signed in.
@@ -88,10 +84,8 @@ export function Header() {
                 key={href}
                 href={href}
                 aria-current={isActive ? 'page' : undefined}
-                className={`shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                  isActive
-                    ? 'text-ink'
-                    : 'text-ink-secondary hover:text-ink'
+                className={`shrink-0 whitespace-nowrap px-3 py-1.5 font-display text-[14px] font-bold uppercase tracking-[0.01em] transition-colors ${
+                  isActive ? 'text-court' : 'text-ink hover:text-court'
                 }`}
               >
                 {label}

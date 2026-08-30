@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
-import { ArrowUp, ArrowDown, Search, Star } from 'lucide-react'
+import { Search, Star } from 'lucide-react'
 import {
   getAllPlayersWithStats,
   getArchivePlayersWithStats,
@@ -187,7 +187,7 @@ export function PlayerStatsClient() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               aria-label="Search players"
-              className="w-full rounded-pill border border-hairline-strong bg-surface py-2 pl-9 pr-4 text-[14px] text-ink placeholder:text-ink-tertiary focus:border-ink focus:outline-none"
+              className="min-h-11 w-full border border-hairline bg-transparent py-2 pl-9 pr-4 text-[15px] text-ink focus:border-[1.5px] focus:border-court focus:outline-none"
             />
           </div>
 
@@ -195,7 +195,7 @@ export function PlayerStatsClient() {
             value={selectedTeam}
             onChange={(e) => setSelectedTeam(e.target.value)}
             aria-label="Filter by team"
-            className="rounded-pill border border-hairline-strong bg-surface px-4 py-2 text-[14px] text-ink focus:border-ink focus:outline-none"
+            className="min-h-11 border border-hairline bg-transparent px-[11px] py-2 text-[15px] text-ink focus:border-[1.5px] focus:border-court focus:outline-none"
           >
             <option value="all">All teams</option>
             {teamOptions.map((team) => (
@@ -205,14 +205,14 @@ export function PlayerStatsClient() {
             ))}
           </select>
 
-          <p className="tabular ml-auto text-[13px] text-ink-tertiary">
+          <p className="ml-auto font-util text-[12px] text-ink-tertiary">
             {filteredPlayers.length}{' '}
             {filteredPlayers.length === 1 ? 'player' : 'players'}
           </p>
         </div>
 
         {filteredPlayers.length === 0 ? (
-          <div className="mt-8 rounded-lg border border-dashed border-hairline-strong px-6 py-16 text-center">
+          <div className="mt-8 border border-hairline bg-surface px-6 py-10 text-left">
             <p className="text-[15px] text-ink-secondary">
               {players.length === 0
                 ? isArchiveMode
@@ -222,10 +222,10 @@ export function PlayerStatsClient() {
             </p>
           </div>
         ) : (
-          <div className="mt-6 overflow-x-auto">
+          <div className="mt-6 overflow-x-auto border border-hairline">
             <table className="w-full min-w-[42rem] border-collapse">
               <thead>
-                <tr className="border-b border-hairline-strong">
+                <tr className="border-b-[2.5px] border-hairline-strong">
                   {(
                     [
                       ['name', 'Player', 'left'],
@@ -251,21 +251,23 @@ export function PlayerStatsClient() {
                 {filteredPlayers.map((player) => (
                   <tr
                     key={player.id}
-                    className="border-b border-hairline transition-colors hover:bg-surface-hover"
+                    className="border-b border-hairline transition-colors last:border-b-0 hover:bg-ink/[0.04]"
                   >
-                    <td className="py-3 pr-4">
+                    <td className="py-2 pl-3 pr-4">
                       <div className="flex items-center gap-3">
-                        <span className="tabular w-7 shrink-0 text-[13px] text-ink-tertiary">
+                        <span className="w-7 shrink-0 text-right font-util text-[12px] text-ink-tertiary">
                           {displayJersey(player.jerseyNumber)}
                         </span>
-                        <span className="text-[14px] text-ink">{player.name}</span>
+                        <span className="font-display text-[14px] font-bold uppercase tracking-[0.01em] text-ink">
+                          {player.name}
+                        </span>
                         {player.manOfTheMatchCount > 0 && (
                           <span
                             className="inline-flex shrink-0 items-center gap-0.5 text-[12px] text-ink-tertiary"
                             title={`Man of the match ×${player.manOfTheMatchCount}`}
                           >
                             <Star size={11} className="fill-gold text-gold" />
-                            <span className="tabular">{player.manOfTheMatchCount}</span>
+                            <span className="font-util">{player.manOfTheMatchCount}</span>
                           </span>
                         )}
                       </div>
@@ -283,7 +285,7 @@ export function PlayerStatsClient() {
                             height={18}
                             className="h-[18px] w-[18px] shrink-0 object-contain"
                           />
-                          <span className="text-[14px] text-ink-secondary">
+                          <span className="text-[13.5px] text-ink-secondary">
                             {player.team.name}
                           </span>
                         </div>
@@ -309,10 +311,10 @@ export function PlayerStatsClient() {
 /** A zero is greyed so the eye lands on players who actually contributed. */
 function StatCell({ value }: { value: number }) {
   return (
-    <td className="py-3 text-right">
+    <td className="py-2 pr-3 text-right">
       <span
-        className={`tabular text-[14px] ${
-          value === 0 ? 'text-ink-tertiary' : 'font-medium text-ink'
+        className={`font-util text-[12px] ${
+          value === 0 ? 'text-ink-tertiary' : 'font-bold text-ink'
         }`}
       >
         {value}
@@ -343,17 +345,15 @@ function SortableHeader({
     <th
       scope="col"
       aria-sort={isActive ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
-      className={align === 'right' ? 'text-right' : 'text-left'}
+      className={align === 'right' ? 'pr-3 text-right' : 'pl-3 text-left'}
     >
       <button
         onClick={() => onSort(field)}
-        className={`inline-flex items-center gap-1 py-3 text-[12px] font-semibold uppercase tracking-wider transition-colors hover:text-ink ${
-          isActive ? 'text-ink' : 'text-ink-tertiary'
+        className={`inline-flex items-center gap-1 py-2 font-util text-[9.5px] uppercase tracking-[0.1em] transition-colors hover:text-court ${
+          isActive ? 'text-court' : 'text-ink-secondary'
         }`}
       >
         {label}
-        {isActive &&
-          (sortOrder === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
       </button>
     </th>
   )

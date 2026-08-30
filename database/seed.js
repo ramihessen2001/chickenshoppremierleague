@@ -98,9 +98,34 @@ async function reset() {
   }
 }
 
+/**
+ * Whether migration 013 has been run against this project.
+ *
+ * Probed rather than assumed: the sponsor and kit columns arrived after the
+ * first seasons were already seeded, and a project that has not had the
+ * migration applied would otherwise fail every team insert with a column
+ * error that does not say which migration is missing.
+ */
+async function hasSponsorAndKitColumns() {
+  const { error } = await supabase
+    .from('teams')
+    .select('sponsor_name, sponsor_logo_url, kit_image_url')
+    .limit(1)
+  return !error
+}
+
 async function seedTeams() {
   console.log(`\nInserting ${teams.length} teams...`)
   const idBySlug = new Map()
+
+  const withExtras = await hasSponsorAndKitColumns()
+  if (!withExtras) {
+    console.warn(
+      '  ! sponsor and kit columns are missing -- seeding without them.\n' +
+        '    Run database/migrations/013_team_sponsor_and_kit.sql in the Supabase\n' +
+        '    SQL editor, then re-run this seed to fill them in.'
+    )
+  }
 
   for (const [index, team] of teams.entries()) {
     const slug = team.slug || slugify(team.name)
@@ -111,9 +136,20 @@ async function seedTeams() {
         {
           name: team.name,
           slug,
-          logo_url: team.logoUrl ?? `/images/teams/${slug}.png`,
+          short_name: team.shortName ?? null,
+          logo_url: team.logoUrl ?? `/images/teams/${slug}.svg`,
           primary_color: team.primaryColor ?? '#523232',
           display_order: team.displayOrder ?? index,
+          // Written as null rather than left out, so re-running the seed after
+          // dropping a sponsor from seed-data.json actually clears the row
+          // instead of leaving last season's sponsor on the team page.
+          ...(withExtras
+            ? {
+                sponsor_name: team.sponsorName ?? null,
+                sponsor_logo_url: team.sponsorLogoUrl ?? null,
+                kit_image_url: team.kitImageUrl ?? null,
+              }
+            : {}),
         },
         { onConflict: 'slug' }
       )
@@ -126,7 +162,12 @@ async function seedTeams() {
     }
 
     idBySlug.set(slug, data.id)
-    console.log(`  ${team.name} (${slug})`)
+    const extras = withExtras
+      ? [team.sponsorName && `sponsor: ${team.sponsorName}`, team.kitImageUrl && 'kit']
+          .filter(Boolean)
+          .join(', ')
+      : ''
+    console.log(`  ${team.name} (${slug})${extras ? ` -- ${extras}` : ''}`)
 
     const players = team.players ?? []
     if (players.length === 0) continue

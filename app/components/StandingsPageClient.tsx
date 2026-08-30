@@ -5,22 +5,20 @@
  * hand-entered, so it can't drift out of sync with the scores a game's box
  * score was actually saved with.
  *
- * What shows depends on `league_config.phase`: signups and draft have no
- * current-season games yet, so this shows last season's final table (from
- * the archive) instead of an empty live one. Season shows the live table.
- * Playoffs shows the bracket generator, then the bracket, above the live
- * table -- the same order as the homepage's playoffs section.
+ * Always this season's table. Before any game is played that is every current
+ * team on nil, which is the point: from registration onwards the teams are
+ * already the ones being drafted to, so the table names them. It used to fall
+ * back to last season's archived table during signups and draft, which now
+ * would show a different set of clubs than the rest of the site.
+ *
+ * Playoffs additionally shows the bracket generator, then the bracket, above
+ * the table -- the same order as the homepage's playoffs section.
  */
 
 'use client'
 
 import { useEffect, useState } from 'react'
-import {
-  getStandings,
-  getLeagueConfig,
-  getLatestArchiveSeason,
-  getArchiveStandings,
-} from '@/lib/supabaseData'
+import { getStandings, getLeagueConfig } from '@/lib/supabaseData'
 import { Standing } from '@/types/standing'
 import { LeaguePhase } from '@/lib/supabase'
 import { PageHeader } from './PageHeader'
@@ -40,21 +38,8 @@ export function StandingsPageClient() {
       const currentPhase = config?.phase ?? 'season'
       setPhase(currentPhase)
 
-      // Before this season has games, show last season's final table instead
-      // of an empty live one.
-      if (currentPhase === 'signups' || currentPhase === 'draft') {
-        const archive = await getLatestArchiveSeason()
-        if (archive) {
-          setEyebrow(`Last season · ${archive.label}`)
-          setStandings(await getArchiveStandings(archive.id))
-        } else {
-          setEyebrow(null)
-          setStandings([])
-        }
-      } else {
-        setEyebrow(config?.season ?? null)
-        setStandings(await getStandings())
-      }
+      setEyebrow(config?.season ?? null)
+      setStandings(await getStandings())
 
       setIsLoading(false)
     }
@@ -67,12 +52,14 @@ export function StandingsPageClient() {
   if (isLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-[15px] text-ink-tertiary">Loading…</p>
+        <p className="loading">Loading</p>
       </div>
     )
   }
 
-  const isArchiveView = phase === 'signups' || phase === 'draft'
+  // Nil across the board until the season starts. Saying so beats leaving a
+  // table of zeroes to look like something failed to load.
+  const beforeKickoff = phase === 'signups' || phase === 'draft'
 
   // The play-in format below is specific to an 8-team field (top 4 bye,
   // bottom 4 play in). Shown only once there actually are 8 teams, so it
@@ -85,8 +72,8 @@ export function StandingsPageClient() {
         eyebrow={eyebrow ?? undefined}
         title="Standings"
         description={
-          isArchiveView
-            ? "Last season's final table, shown until this season's games begin."
+          beforeKickoff
+            ? 'This season\'s teams. The table fills in as results come in.'
             : undefined
         }
       />
@@ -99,16 +86,7 @@ export function StandingsPageClient() {
       )}
 
       <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
-        <StandingsTable
-          standings={standings}
-          showPlayoffFormat={!isArchiveView && eightTeamPlayoffs}
-          emptyTitle={isArchiveView ? 'Nothing archived yet' : undefined}
-          emptyMessage={
-            isArchiveView
-              ? 'Past seasons show up here once one has been archived from the admin bar.'
-              : undefined
-          }
-        />
+        <StandingsTable standings={standings} showPlayoffFormat={eightTeamPlayoffs} />
       </div>
     </>
   )

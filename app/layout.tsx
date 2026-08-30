@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { IBM_Plex_Sans, IBM_Plex_Sans_Condensed, Courier_Prime } from 'next/font/google'
 import './globals.css'
 import { Header } from './components/Header'
 import { Footer } from './components/Footer'
@@ -9,16 +9,41 @@ import { AdminBanner } from './components/AdminBanner'
 import { LEAGUE } from '@/config/league'
 
 /**
- * One typeface, used at every size.
+ * Three faces, one job each.
  *
- * The old build paired Inter with Rajdhani -- a condensed geometric face that
- * reads as sports-broadcast graphics, not as the restrained look we want.
- * Inter is the closest widely available stand-in for SF Pro, and its variable
- * axes cover everything from captions to the hero.
+ * Condensed bold for section names, set italic -- the oblique rule is the
+ * signature of the PURO system. Plex Sans for reading copy. Courier Prime for
+ * every figure and label, which is what makes a results table read as printed
+ * matter rather than as a web app.
+ *
+ * The italic is loaded as a real cut rather than left to the browser to slant
+ * synthetically: a faux-oblique condensed face is exactly the tell this
+ * system is trying to avoid.
+ *
+ * `next/font/google` downloads these at build time and serves them from our
+ * own origin, so there is no request to Google at runtime and no flash of
+ * unstyled text on route change.
  */
-const inter = Inter({
-  variable: '--font-inter',
+const plexCondensed = IBM_Plex_Sans_Condensed({
+  variable: '--font-display',
   subsets: ['latin'],
+  weight: ['600', '700'],
+  style: ['normal', 'italic'],
+  display: 'swap',
+})
+
+const plexSans = IBM_Plex_Sans({
+  variable: '--font-text',
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  style: ['normal', 'italic'],
+  display: 'swap',
+})
+
+const courierPrime = Courier_Prime({
+  variable: '--font-util',
+  subsets: ['latin'],
+  weight: ['400', '700'],
   display: 'swap',
 })
 
@@ -58,7 +83,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} antialiased min-h-screen flex flex-col`}>
+      <body
+        className={`${plexCondensed.variable} ${plexSans.variable} ${courierPrime.variable} antialiased min-h-screen flex flex-col`}
+      >
         <AdminProvider>
           <TeamsProvider>
             <AdminBanner />

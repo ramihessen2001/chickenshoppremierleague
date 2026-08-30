@@ -16,7 +16,7 @@ import Link from 'next/link'
 import { Check, Clock } from 'lucide-react'
 import { submitSignup } from '@/lib/supabaseData'
 import { LEAGUE } from '@/config/league'
-import { fieldClass, labelClass } from './Modal'
+import { fieldClass, labelClass, buttonPrimary } from './Modal'
 import { SafetyWaiverModal } from './SafetyWaiverModal'
 
 const POSITIONS = ['Goalkeeper', 'Defender', 'Midfielder', 'Forward', 'Any']
@@ -421,7 +421,7 @@ export function SignupForm() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="mt-7 w-full rounded-pill bg-surface-inverse px-6 py-2.5 text-[14px] font-medium text-ink-inverse transition-opacity hover:opacity-85 disabled:opacity-50"
+          className={`${buttonPrimary} mt-7 w-full`}
         >
           {isSubmitting ? 'Submitting…' : 'Register'}
         </button>

@@ -3,60 +3,147 @@
 /* ===========================================================================
    Chicken Shop Premier League — design tokens
 
-   Light, quiet, content-first. The Puro palette appears as accent only: a
-   link colour, a thin rule, the odd highlight. Everything structural is
-   neutral, so the data is what carries the page.
+   The PURO system, from the visual audit and the colour system in the brand
+   guide. Printed-matter rules: one ground per surface, depth from rules and
+   temperature rather than shadow, square corners, and figures that line up
+   down a column.
 
-   Token names describe what a value IS, not what it looks like. The previous
+   HOW THE MIGRATION WORKS
+   The PURO values are defined once, in the first block. The block after it
+   keeps every name the components already reference -- `--surface`, `--ink`,
+   `--radius-lg` and the rest -- and repoints each at a PURO value. Those
+   names are what `@theme inline` turns into Tailwind utilities, so a
+   component written as `bg-surface text-ink rounded-lg` inherits the new
+   system without being touched. That indirection is the whole point: it is
+   what let the palette change without a rewrite.
+
+   Token names describe what a value IS, not what it looks like. An earlier
    stylesheet had `--bg-black: #A0CAC9` (a teal) and `--text-white: #000000`,
-   which is how half the components ended up styled for a theme that no longer
-   existed.
+   which is how half the components ended up styled for a theme that no
+   longer existed.
    =========================================================================== */
 
 :root {
-  /* --- Surfaces --------------------------------------------------------- */
-  --surface: #ffffff;          /* page and card background */
-  --surface-sunken: #f5f5f7;   /* recessed areas, table headers, page bands */
-  --surface-hover: #fafafa;    /* row and card hover */
-  --surface-inverse: #1d1d1f;  /* dark surfaces: primary buttons, modals */
+  /* --- PURO system ------------------------------------------------------ */
+  /* Source of truth. Nothing below this block defines a colour. */
 
-  /* --- Text ------------------------------------------------------------- */
-  --ink: #1d1d1f;              /* headings, primary copy */
-  --ink-secondary: #6e6e73;    /* supporting copy, labels */
-  --ink-tertiary: #86868b;     /* captions, metadata, empty states */
-  --ink-inverse: #ffffff;      /* text on --surface-inverse */
+  /* Ground. One per surface, never two in a view. */
+  --bone: #efede8;             /* the page */
+  --black: #0d0d0d;
+  /* Defined for completeness, but nothing on the site paints with it: white
+     boxes on bone read as separate sheets laid over the page rather than as
+     one surface, so tables, tiles and fields are transparent and their rules
+     do the delineating. */
+  --white: #ffffff;
+  --wash: #a5c6cf;             /* phase panels, kit swatches. Ground on light
+                                  surfaces -- never type there. Valid as type
+                                  on --black, where it is 10.7:1. */
 
-  /* --- Lines ------------------------------------------------------------ */
-  --hairline: #e5e5e7;         /* default separators */
-  --hairline-strong: #d2d2d7;  /* card and input borders */
+  /* Ink */
+  --puro-ink: #0d0d0d;
+  --puro-ink-2: #55524c;
+  --puro-ink-3: #8b877f;       /* dimmed zeros, disabled. 3.1:1 -- never copy */
+  --puro-ink-inv: #efede8;
 
-  /* --- Accent (Puro) ---------------------------------------------------- */
-  /* --accent is the brand rose. At 2.7:1 on white it is decorative only:
-     fills, rules, dots. --accent-ink is the darkened version that clears
-     4.5:1 for text and links. */
-  --accent: #d47f7d;
-  --accent-ink: #a2494a;
-  --accent-wash: #fdf4f3;      /* tinted background for selected states */
+  /* Line */
+  --rule: #cfcac1;
+  --rule-heavy: #0d0d0d;
+  --rule-inverse: #2a2a2a;
+  --rule-w: 1px;
+  --rule-heavy-w: 2.5px;
 
-  --gold: #b8860b;             /* champions and first place, used sparingly */
+  /* Signal */
+  --red: #cc0000;              /* at most ONE per view: the deadline */
+  --red-lift: #e31b1b;         /* mandatory on --black, where --red is 3.2:1 */
+  --red-wash: #f5e4e1;         /* fill only, never type */
+  --court: #3d6b85;            /* links, active nav, sort state.
+                                  Fails on --black -- use --wash instead. */
+  --steel: #5b6165;            /* admin chrome */
 
-  /* --- Semantic --------------------------------------------------------- */
-  --positive: #1d7a4c;
-  --negative: #b3261e;
-  --positive-wash: #f0f9f4;
-  --negative-wash: #fdf2f1;
+  /* --- Compatibility layer ---------------------------------------------- */
+  /* The names the components already use, repointed at the values above.
+     Do not delete these: removing one is a rewrite of every file that
+     references it. */
 
-  /* --- Elevation -------------------------------------------------------- */
-  /* Hairlines do most of the work. Shadows stay near-invisible. */
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-raised: 0 4px 16px rgba(0, 0, 0, 0.08);
-  --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.24);
+  --surface: var(--bone);
+  --surface-sunken: var(--bone);   /* was #f5f5f7. Same ground as the page
+                                      now, so a panel reads as a panel only
+                                      once it carries a --hairline border. */
+  --surface-hover: var(--bone);
+  --surface-inverse: var(--black);
 
-  /* --- Radius ----------------------------------------------------------- */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
-  --radius-pill: 980px;        /* Apple's button radius */
+  --ink: var(--puro-ink);
+  --ink-secondary: var(--puro-ink-2);
+  --ink-tertiary: var(--puro-ink-3);
+  --ink-inverse: var(--puro-ink-inv);
+
+  --hairline: var(--rule);
+  --hairline-strong: var(--rule-heavy);
+
+  /* --accent and --accent-wash stay red: they are fills and rules, which is
+     what the deadline badge needs.
+
+     --accent-ink is the one deliberate departure from the token file, which
+     aliases it to --red as well. In this codebase --accent-ink is not a fill,
+     it is the *link and interactive text* colour, used in around thirty
+     places -- the waiver links, the live-match link, the draft board, the
+     admin controls. Pointing it at red put red a dozen times on a single
+     view, which breaks the system's own rule that red appears at most once.
+     The guide assigns links to --court, so that is what it resolves to. */
+  --accent: var(--red);
+  --accent-ink: var(--court);
+  --accent-wash: var(--red-wash);
+
+  /* #b8860b deleted. Anything still reaching for --gold is decoration. */
+  --gold: var(--puro-ink-3);
+
+  /* #1d7a4c deleted. Results encode by fill weight, not hue -- a green tick
+     is both off-system and colour-only encoding. */
+  --positive: var(--puro-ink);
+  --positive-wash: var(--bone);
+  --negative: var(--red);
+  --negative-wash: var(--red-wash);
+
+  /* Depth comes from rules and from warm/cool temperature. */
+  --shadow-card: none;
+  --shadow-raised: none;
+  --shadow-modal: none;
+
+  /* All four resolve to 0. The last one is doing the most work: it was 980px,
+     and it is what rounded the buttons, the badge, the search field and the
+     team select. */
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-pill: 0;
+
+  /* --- Type ------------------------------------------------------------- */
+  /* The font-* variables are set by next/font in app/layout.tsx. */
+  --display: var(--font-display), 'IBM Plex Sans Condensed', 'Arial Narrow', sans-serif;
+  --text: var(--font-text), 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+  --util: var(--font-util), 'Courier Prime', 'Courier New', monospace;
+
+  /* Space. 4px base -- the guide is dense where the old scale was airy.
+     Applied per component rather than through a global rule, so a section
+     inside a grid does not inherit page-level padding. */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 72px;
+
+  /* Tracking flips sign here. The old scale set -0.035em on the h1, tuned for
+     Inter; Plex Condensed is already narrow, and negative tracking closes it
+     into a solid block. */
+  --t-h1: 52px;    --lh-h1: 0.94;     --ls-h1: 0.005em;
+  --t-h2: 26px;    --lh-h2: 1.04;     --ls-h2: 0.01em;
+  --t-object: 17px; --lh-object: 1.10; --ls-object: 0.01em;
+  --t-body: 15px;  --lh-body: 1.50;
+  --t-util: 12px;  --lh-util: 1.35;   --ls-util: 0.02em;
+  --t-label: 10.5px; --lh-label: 1.30; --ls-label: 0.10em;
 }
 
 @theme inline {
@@ -83,6 +170,24 @@
   --color-positive-wash: var(--positive-wash);
   --color-negative-wash: var(--negative-wash);
 
+  /* PURO values that have no pre-existing alias, exposed so components can
+     reach them directly: bg-bone, text-court, border-rule and so on. */
+  --color-bone: var(--bone);
+  --color-black: var(--black);
+  --color-white: var(--white);
+  --color-wash: var(--wash);
+  --color-court: var(--court);
+  --color-steel: var(--steel);
+  --color-red: var(--red);
+  --color-red-lift: var(--red-lift);
+  --color-red-wash: var(--red-wash);
+  --color-rule: var(--rule);
+  --color-rule-heavy: var(--rule-heavy);
+
+  --font-display: var(--display);
+  --font-text: var(--text);
+  --font-util: var(--util);
+
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
@@ -94,13 +199,38 @@
 }
 
 /* ===========================================================================
-   Base
+   Hard resets
 
-   Layered so Tailwind utilities always win over these -- unlayered CSS beats
-   every layer regardless of specificity, which let `a { color: inherit }`
-   silently blank out white text on any inverse-styled link (the homepage's
-   primary "draft" button, invisible black-on-black, was this bug).
+   Unlayered on purpose. Tailwind's own `rounded-full`, `rounded-xl` and
+   `shadow-*` utilities do not read our tokens -- they carry their own scale --
+   so zeroing the tokens alone leaves them rounded. These two declarations are
+   what actually make the corners square everywhere.
    =========================================================================== */
+
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* The select chevron, drawn as two clipped squares rather than a font glyph so
+   it stays sharp and square at any zoom and inherits --ink like the type.
+   
+   Unlayered for the same reason as the rules above: the shared field class
+   sets horizontal padding as a utility, and a utility beats anything in
+   @layer base. Left there, the right padding lost and the option text ran
+   underneath the arrow. The space the chevron occupies is not negotiable per
+   component, so this is the right place for it to win.  */
+select {
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink) 50%),
+    linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 34px !important;
+}
 
 @layer base {
 
@@ -112,47 +242,98 @@
 body {
   background: var(--surface);
   color: var(--ink);
-  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui,
-    sans-serif;
-  font-size: 1rem;
-  line-height: 1.5;
+  font-family: var(--text);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  /* The cheapest change on the site: it lines up every column in the
+     standings and the stats tables, every score, every jersey number. */
+  font-variant-numeric: tabular-nums;
   min-height: 100vh;
 }
 
-/* Large type gets tighter tracking, the way optically-sized faces do. The old
-   stylesheet uppercased every heading and added positive letter-spacing, which
-   is the opposite of what reads as considered. */
+/* The oblique rule, and the signature of the system.
+
+     italic  -> names of SECTIONS: page titles, Schedule, Standings, Roster
+     upright -> names of THINGS:   clubs, players, buttons, weeks
+
+   Sizes are deliberately not set here. Components carry their own responsive
+   type scale in utilities, which would win over this layer anyway; what these
+   rules contribute is the family, the slant and the case. */
 h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-weight: 600;
-  letter-spacing: -0.021em;
-  line-height: 1.08;
+h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-h2);
+  line-height: var(--lh-h2);
   text-wrap: balance;
 }
 
 h1 {
-  letter-spacing: -0.035em;
+  line-height: var(--lh-h1);
+  letter-spacing: var(--ls-h1);
 }
 
-/* Tabular figures everywhere numbers are compared down a column: scores,
-   standings, statistics. Without this, digits jitter between rows. */
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--display);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-object);
+  line-height: var(--lh-object);
+  text-wrap: balance;
+}
+
+/* Tabular figures everywhere numbers are compared down a column. Now that
+   the body sets this too, the class is a no-op that stays for the components
+   already carrying it. */
 .tabular {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
 }
 
-/* The small all-caps label above a section. The one place uppercase earns its
-   place, because it is set small with wide tracking on purpose. */
+/* The small all-caps label above a section: FALL 2026, ROSTER, FIXTURES, KEY.
+   Structurally these were already right -- they only move from Inter to
+   Courier Prime. */
 .eyebrow {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-family: var(--util);
+  font-size: var(--t-label);
+  font-weight: 400;
+  /* Explicit, because some eyebrows are h2 (ROSTER, FIXTURES) and would
+     otherwise inherit the oblique from the heading rule while the ones set on
+     a div (FALL 2026) stayed upright. An eyebrow is a utility label, not a
+     section name -- one role, one treatment, whatever element carries it. */
+  font-style: normal;
+  letter-spacing: var(--ls-label);
+  line-height: var(--lh-label);
   text-transform: uppercase;
-  color: var(--ink-tertiary);
+  color: var(--ink-secondary);
+}
+
+/* Utility type carries every figure and every label on this site. */
+.t-util {
+  font-family: var(--util);
+  font-size: var(--t-util);
+  line-height: var(--lh-util);
+  letter-spacing: var(--ls-util);
+}
+
+.t-label {
+  font-family: var(--util);
+  font-size: var(--t-label);
+  line-height: var(--lh-label);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--ink-secondary);
+}
+
+/* Many player names are transliterated Arabic and the league sits inside
+   ICNEF. The lang/dir markup is still to come; the hook is ready for it. */
+[lang="ar"] {
+  font-family: 'IBM Plex Sans Arabic', var(--text);
 }
 
 a {
@@ -160,13 +341,107 @@ a {
   text-decoration: none;
 }
 
-:focus-visible {
-  outline: 2px solid var(--accent-ink);
-  outline-offset: 3px;
-  border-radius: 4px;
+/* ---------------------------------------------------------------------------
+   Controls
+
+   The shared classes in app/components/Modal.tsx carry the look of every
+   input, label and button; what is left here is the part utilities cannot
+   express -- native widget suppression, the drawn chevron, and the checkbox.
+   The registration form is the most exposed surface on the site, so these are
+   deliberately element selectors: a control added later inherits them without
+   anyone remembering to.
+   --------------------------------------------------------------------------- */
+
+/* The OS renders these as its own widgets, which breaks the surface. */
+select,
+input[type="number"],
+input[type="search"] {
+  appearance: none;
 }
 
-/* Respect the OS setting. Every transition below is decorative. */
+::placeholder {
+  color: var(--ink-tertiary);
+  opacity: 1;   /* Firefox dims placeholders again on top of the colour. */
+}
+
+textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+input[type="checkbox"] {
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  min-height: 0;
+  padding: 0;
+  border: var(--rule-w) solid var(--rule-heavy);
+  background: transparent;
+  display: inline-block;
+  vertical-align: -2px;
+  flex-shrink: 0;
+}
+
+/* The tick is a clipped band rather than a glyph, for the same reason as the
+   chevron: no font dependency, and it stays crisp at any size. */
+input[type="checkbox"]:checked {
+  background: var(--black);
+  background-image: linear-gradient(
+    45deg,
+    transparent 42%,
+    var(--bone) 42%,
+    var(--bone) 58%,
+    transparent 58%
+  );
+}
+
+/* The sort indicator is drawn from aria-sort, which the stats table already
+   sets for assistive tech -- so the arrow and the announcement can never
+   disagree. A solid triangle rather than a glyph, for the same reason as the
+   select chevron. Inactive columns carry aria-sort="none", hence the :not(). */
+th[aria-sort]:not([aria-sort="none"]) {
+  color: var(--court);
+}
+
+th[aria-sort]:not([aria-sort="none"])::after {
+  content: '';
+  display: inline-block;
+  margin-left: 5px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+}
+
+th[aria-sort="descending"]::after {
+  border-top: 5px solid var(--court);
+}
+
+th[aria-sort="ascending"]::after {
+  border-bottom: 5px solid var(--court);
+}
+
+/* Loading and empty states hold the shape of the filled state: left-aligned
+   at the indent the real rows will use, set in utility type. No spinner, no
+   skeleton shimmer, no centred grey sentence. */
+.loading {
+  font-family: var(--util);
+  font-size: var(--t-label);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+  text-align: left;
+}
+
+::selection {
+  background: var(--black);
+  color: var(--bone);
+}
+
+:focus-visible {
+  outline: 2px solid var(--court);
+  outline-offset: 2px;
+}
+
+/* Respect the OS setting. Every transition on the site is decorative. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -14,6 +14,12 @@ export function calculatePoints(wins: number, draws: number): number {
 export interface StandingsBuildTeam {
   id: string
   name: string
+  /**
+   * Table name, where the full one will not fit. Omitted or null means use
+   * `name` -- which is also how archived seasons arrive, since `archive_teams`
+   * predates the column.
+   */
+  shortName?: string | null
   slug: string
   logoUrl: string | null
 }
@@ -28,6 +34,8 @@ export interface StandingsBuildGame {
 export interface StandingsRow {
   teamId: string
   teamName: string
+  /** What a results row should print. Falls back to the full name. */
+  teamShortName: string
   teamSlug: string
   logoUrl: string | null
   gamesPlayed: number
@@ -54,6 +62,7 @@ export function buildStandings(
     byTeam.set(team.id, {
       teamId: team.id,
       teamName: team.name,
+      teamShortName: team.shortName || team.name,
       teamSlug: team.slug,
       logoUrl: team.logoUrl,
       gamesPlayed: 0,

@@ -35,10 +35,20 @@ CREATE TABLE teams (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name VARCHAR(100) NOT NULL UNIQUE,
   slug VARCHAR(50) NOT NULL UNIQUE,          -- URL-friendly, used in /teams/[slug]
+  -- Used in tables and fixtures where the full name will not fit. NULL means
+  -- the full name is short enough, which is the usual case.
+  short_name VARCHAR(40),                    -- e.g. "CSCP"
   logo_url TEXT,                             -- e.g. /images/teams/falcons.png
   primary_color VARCHAR(7) DEFAULT '#523232',-- hex, used for UI accents
   display_order INTEGER NOT NULL DEFAULT 0,  -- controls ordering in the UI
   draft_position SMALLINT UNIQUE,            -- slot in the snake draft, 1..N
+  -- Sponsorship is sold per team and turns over between seasons, so it sits on
+  -- the team row: a team has at most one, and nothing else references it. Both
+  -- stay NULL until a sponsor is signed, and the team page omits the block.
+  sponsor_name VARCHAR(120),                 -- e.g. "JAX FISH AND CHICKEN"
+  sponsor_logo_url TEXT,                     -- e.g. /images/sponsors/jaxfnc.png
+  -- One image per team showing the full set, home and away in a single export.
+  kit_image_url TEXT,                        -- e.g. /images/teams/kits/cscp.png
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

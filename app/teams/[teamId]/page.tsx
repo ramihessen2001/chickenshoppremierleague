@@ -54,6 +54,11 @@ export default function TeamPage() {
         logoUrl: record.logo_url || fallbackTeamLogo(record.slug),
         roster,
         primaryColor: record.primary_color || getTeam(teamId)?.primaryColor,
+        // Undefined rather than null or '': the sponsor block is rendered only
+        // when a name is present, and most teams start a season unsponsored.
+        sponsorName: record.sponsor_name || undefined,
+        sponsorLogoUrl: record.sponsor_logo_url || undefined,
+        kitImageUrl: record.kit_image_url || undefined,
         createdAt: record.created_at,
         updatedAt: record.updated_at,
       })
@@ -76,11 +81,11 @@ export default function TeamPage() {
 
   if (isLoading) {
     return (
-      <div className="w-full min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-hairline-strong mx-auto mb-4" />
-          <p className="text-ink-secondary">Loading team...</p>
-        </div>
+      <div className="mx-auto w-full max-w-6xl px-5 pt-14 sm:px-8 sm:pt-20">
+        {/* No spinner: a rotating ring is the one shape this system has no
+            room for, and with square corners it degrades into a stray line.
+            The label sits at the indent the real content will use. */}
+        <p className="loading">Loading team</p>
       </div>
     )
   }

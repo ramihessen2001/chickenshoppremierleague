@@ -12,6 +12,9 @@ export interface ArchiveSeason {
 export interface ArchiveStanding {
   teamId: string
   teamName: string
+  /** Always the full name for archived seasons: `archive_teams` has no
+   *  short_name column, so the builder falls back. */
+  teamShortName: string
   teamSlug: string
   logoUrl: string | null
   gamesPlayed: number

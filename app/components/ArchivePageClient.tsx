@@ -68,7 +68,7 @@ export function ArchivePageClient() {
   if (isLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-[15px] text-ink-tertiary">Loading…</p>
+        <p className="loading">Loading</p>
       </div>
     )
   }

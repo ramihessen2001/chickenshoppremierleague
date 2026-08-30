@@ -56,7 +56,7 @@ export const LEAGUE = {
     ['League dates', 'September 28, 2026 – November 27, 2026'],
     [
       'Format',
-      '7 Week League Format\n2 Week Playoffs\nAll Teams are drafted on August 29, 2026',
+      '7 Week League Format\n2 Week Playoffs\nAll Teams are drafted on Sunday, August 30, 2026 at 6:00 PM',
     ],
     [
       'Matchdays',
@@ -113,7 +113,14 @@ export const LEAGUE = {
   },
 }
 
-/** Fallback logo path for a team with no logo_url set in the database. */
+/**
+ * Fallback logo path for a team with no logo_url set in the database.
+ *
+ * SVG: crests are vector exports, so one file covers every size the site draws
+ * a crest at, from the 20px it uses in a fixtures row to the 72px on a team
+ * page -- and stays sharp on retina, which a raster crest only manages by
+ * shipping the pixels for the largest use everywhere.
+ */
 export function fallbackTeamLogo(slug: string): string {
-  return `/images/teams/${slug}.png`
+  return `/images/teams/${slug}.svg`
 }
