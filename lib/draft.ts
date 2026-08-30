@@ -65,36 +65,97 @@ export function draftOrder<T extends { draftPosition: number | null }>(
     .sort((a, b) => a.draftPosition - b.draftPosition)
 }
 
+/** The minimum shape the snake needs from a team. */
+export interface DraftableTeam {
+  draftPosition: number | null
+  /**
+   * How many rounds this team takes part in, or null for every round.
+   *
+   * Set where a club starts the draft with players already on its books and so
+   * needs fewer picks to reach the same squad size -- Fall 2026 gives Dakar
+   * and Mansoura three players each before a pick is made, so they take part
+   * in six rounds while everyone else keeps going.
+   */
+  draftRounds?: number | null
+}
+
+/** Nothing sane reaches this; it only stops a malformed order looping forever. */
+const MAX_ROUNDS = 200
+
+function roundsFor(team: DraftableTeam): number {
+  return team.draftRounds ?? Number.POSITIVE_INFINITY
+}
+
 /**
- * Which team makes pick `pickNumber` (1-indexed).
+ * Walks the draft one pick at a time.
  *
- * Odd rounds run down the order and even rounds back up it, so the team
- * picking last in one round picks first in the next.
+ * Modular arithmetic used to be enough here -- with a fixed set of teams, the
+ * team on pick N is a division and a remainder. It stops working the moment a
+ * team can finish early, because every later round has a different length, so
+ * the sequence is generated rather than calculated.
  *
- *   6 teams: picks 1-6 -> A B C D E F, picks 7-12 -> F E D C B A
- *
- * Returns null when there are no teams, or once every roster is full.
+ * Odd rounds run down the order and even rounds back up it, among whichever
+ * teams are still picking.
  */
-export function teamOnPick<T extends { draftPosition: number | null }>(
+function* pickSequence<T extends DraftableTeam>(
+  teams: T[],
+  maxPicks?: number
+): Generator<{ team: T; round: number; pickNumber: number }> {
+  const order = draftOrder(teams)
+  if (order.length === 0) return
+
+  let pickNumber = 0
+  for (let round = 1; round <= MAX_ROUNDS; round++) {
+    const active = order.filter((team) => roundsFor(team) >= round)
+    if (active.length === 0) return
+
+    const sequence = round % 2 === 1 ? active : [...active].reverse()
+    for (const team of sequence) {
+      pickNumber++
+      if (maxPicks !== undefined && pickNumber > maxPicks) return
+      yield { team, round, pickNumber }
+    }
+  }
+}
+
+/**
+ * Which team makes pick `pickNumber` (1-indexed), and in which round.
+ *
+ * Returns null when there are no teams, once every roster is full, or once
+ * every team has used the rounds it was given.
+ */
+export function resolvePick<T extends DraftableTeam>(
+  teams: T[],
+  pickNumber: number,
+  maxPicks?: number
+): { team: T; round: number } | null {
+  if (pickNumber < 1) return null
+  for (const slot of pickSequence(teams, maxPicks)) {
+    if (slot.pickNumber === pickNumber) return { team: slot.team, round: slot.round }
+  }
+  return null
+}
+
+/** Which team makes pick `pickNumber` (1-indexed), or null. */
+export function teamOnPick<T extends DraftableTeam>(
   teams: T[],
   pickNumber: number,
   maxPicks?: number
 ): T | null {
-  const order = draftOrder(teams)
-  if (order.length === 0 || pickNumber < 1) return null
-  if (maxPicks !== undefined && pickNumber > maxPicks) return null
-
-  const round = Math.floor((pickNumber - 1) / order.length)
-  const index = (pickNumber - 1) % order.length
-
-  // Even rounds (0, 2, ...) run forwards; odd rounds run back.
-  return round % 2 === 0 ? order[index] : order[order.length - 1 - index]
+  return resolvePick(teams, pickNumber, maxPicks)?.team ?? null
 }
 
-/** The round a pick falls in, 1-indexed, for display. */
-export function roundForPick(teamCount: number, pickNumber: number): number {
-  if (teamCount < 1) return 1
-  return Math.floor((pickNumber - 1) / teamCount) + 1
+/**
+ * The round a pick falls in, 1-indexed, for display.
+ *
+ * Takes the teams rather than a count, because rounds stop being a fixed size
+ * once a team can finish early.
+ */
+export function roundForPick<T extends DraftableTeam>(
+  teams: T[],
+  pickNumber: number
+): number {
+  return resolvePick(teams, pickNumber)?.round ?? 1
 }
 
 /**

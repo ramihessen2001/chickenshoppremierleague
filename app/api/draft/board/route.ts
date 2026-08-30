@@ -26,6 +26,8 @@ export interface DraftBoardTeam {
   logoUrl: string | null
   primaryColor: string | null
   draftPosition: number | null
+  /** Rounds this team takes part in; null means every round. */
+  draftRounds: number | null
   /** Captains have no pickNumber -- they were placed, not picked. */
   roster: {
     name: string
@@ -37,9 +39,12 @@ export interface DraftBoardTeam {
 
 export async function GET() {
   const [teamsResult, signupsResult, playersResult] = await Promise.all([
+    // `*` rather than a column list, for the same reason as the players read
+    // below: draft_rounds arrives in migration 019 and naming it explicitly
+    // would take the board down on a database that has not been migrated.
     supabaseAdmin
       .from('teams')
-      .select('id, name, slug, logo_url, primary_color, draft_position')
+      .select('*')
       .order('draft_position', { nullsFirst: false }),
     supabaseAdmin.from('signups').select(PUBLIC_SIGNUP_COLUMNS),
     // `*` rather than a column list: is_captain arrives in migration 015, and
@@ -60,12 +65,26 @@ export async function GET() {
   const numberByPlayer = new Map(
     (playersResult.data ?? []).map((p) => [p.id, p.jersey_number as number | null])
   )
-  const captainsByTeam = (playersResult.data ?? []).filter((p) => p.is_captain === true)
-
   const signups = signupsResult.data ?? []
   const drafted = signups
     .filter((s) => s.pick_number !== null)
     .sort((a, b) => (a.pick_number as number) - (b.pick_number as number))
+
+  /*
+   * Everyone who holds a roster place without having been picked: captains,
+   * and players awarded to a club before the draft.
+   *
+   * Derived by elimination -- a player row that no completed pick points at --
+   * rather than by checking is_captain, because that flag only covers one of
+   * the two reasons a squad place can be filled early. Getting this wrong is
+   * not just cosmetic: the board's shirt-number clash check reads the numbers
+   * off this list, so anyone missing here has their number offered to someone
+   * else.
+   */
+  const draftedPlayerIds = new Set(
+    drafted.map((s) => s.player_id as string | null).filter(Boolean)
+  )
+  const prePlaced = (playersResult.data ?? []).filter((p) => !draftedPlayerIds.has(p.id))
 
   const available = signups
     .filter((s) =>
@@ -92,16 +111,18 @@ export async function GET() {
     logoUrl: team.logo_url,
     primaryColor: team.primary_color,
     draftPosition: team.draft_position,
-    // Captain first, then the picks in the order they were made: that is how
-    // the panel reads on the night, and a captain has no pick number to sort by.
+    draftRounds: team.draft_rounds ?? null,
+    // Squad places filled before the draft come first, then the picks in the
+    // order they were made -- neither of the former has a pick number to sort
+    // by, and that is how the panel reads on the night.
     roster: [
-      ...captainsByTeam
-        .filter((c) => c.team_id === team.id)
-        .map((c) => ({
-          name: c.name as string,
-          jerseyNumber: c.jersey_number as number | null,
+      ...prePlaced
+        .filter((p) => p.team_id === team.id)
+        .map((p) => ({
+          name: p.name as string,
+          jerseyNumber: p.jersey_number as number | null,
           pickNumber: null,
-          isCaptain: true,
+          isCaptain: p.is_captain === true,
         })),
       ...drafted
         .filter((s) => s.drafted_team_id === team.id)
@@ -117,7 +138,11 @@ export async function GET() {
   // players are in it -- there is no fixed roster size to run out against.
   const totalPicks = drafted.length + available.length
   const nextPick = drafted.length + 1
-  const orderable = teams.map((t) => ({ id: t.id, draftPosition: t.draftPosition }))
+  const orderable = teams.map((t) => ({
+    id: t.id,
+    draftPosition: t.draftPosition,
+    draftRounds: t.draftRounds,
+  }))
   const next = teamOnPick(orderable, nextPick, totalPicks)
 
   // The next few teams after the one on the clock, so the broadcast hero can
@@ -149,10 +174,7 @@ export async function GET() {
       ? {
           teamId: next.id,
           pickNumber: nextPick,
-          round: roundForPick(
-            teams.filter((t) => t.draftPosition !== null).length,
-            nextPick
-          ),
+          round: roundForPick(orderable, nextPick),
         }
       : null,
     onDeck,

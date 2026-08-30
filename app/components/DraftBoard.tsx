@@ -60,6 +60,8 @@ interface BoardTeam {
   logoUrl: string | null
   /** The club's own colour. The API sends it; the announcement reads it. */
   primaryColor: string | null
+  /** Rounds this team takes part in; null means every round. */
+  draftRounds: number | null
   draftPosition: number | null
   roster: RosterEntry[]
 }
@@ -191,7 +193,11 @@ function applySandbox(real: Board): Board {
 
   const draftedCount = real.totalPicks - available.length
   const nextPick = draftedCount + 1
-  const orderable = teams.map((t) => ({ id: t.id, draftPosition: t.draftPosition }))
+  const orderable = teams.map((t) => ({
+    id: t.id,
+    draftPosition: t.draftPosition,
+    draftRounds: t.draftRounds,
+  }))
   const next = teamOnPick(orderable, nextPick, real.totalPicks)
   const onDeck = [1, 2, 3]
     .map((offset) => teamOnPick(orderable, nextPick + offset, real.totalPicks))
@@ -211,7 +217,7 @@ function applySandbox(real: Board): Board {
       ? {
           teamId: next.id,
           pickNumber: nextPick,
-          round: roundForPick(teams.filter((t) => t.draftPosition !== null).length, nextPick),
+          round: roundForPick(orderable, nextPick),
         }
       : null,
     isComplete: available.length === 0 && draftedCount > 0,
@@ -242,7 +248,11 @@ function computeSandboxPick(
 
   const draftedCount = board.totalPicks - board.available.length
   const nextPick = draftedCount + 1
-  const orderable = board.teams.map((t) => ({ id: t.id, draftPosition: t.draftPosition }))
+  const orderable = board.teams.map((t) => ({
+    id: t.id,
+    draftPosition: t.draftPosition,
+    draftRounds: t.draftRounds,
+  }))
   const onClock = teamOnPick(orderable, nextPick, board.totalPicks)
   if (!onClock) {
     return {
@@ -476,11 +486,14 @@ export function DraftBoard() {
     seenPick.current = latestNumber
     const latest = board.picks[0]
     const team = board.teams.find((t) => t.id === latest.teamId)
-    const teamsInOrder = board.teams.filter((t) => t.draftPosition !== null).length
+    const orderable = board.teams.map((t) => ({
+      draftPosition: t.draftPosition,
+      draftRounds: t.draftRounds,
+    }))
 
     setAnnounced({
       pickNumber: latest.pickNumber,
-      round: roundForPick(teamsInOrder, latest.pickNumber),
+      round: roundForPick(orderable, latest.pickNumber),
       playerName: latest.name,
       jerseyNumber: latest.jerseyNumber,
       teamName: team?.name ?? 'Unassigned',

@@ -42,6 +42,10 @@ CREATE TABLE teams (
   primary_color VARCHAR(7) DEFAULT '#523232',-- hex, used for UI accents
   display_order INTEGER NOT NULL DEFAULT 0,  -- controls ordering in the UI
   draft_position SMALLINT UNIQUE,            -- slot in the snake draft, 1..N
+  -- Rounds this club picks in; NULL means every round. Set where a club starts
+  -- the draft with players already on its books and needs fewer picks to reach
+  -- the same squad size.
+  draft_rounds SMALLINT CHECK (draft_rounds IS NULL OR draft_rounds > 0),
   -- Sponsorship is sold per team and turns over between seasons, so it sits on
   -- the team row: a team has at most one, and nothing else references it. Both
   -- stay NULL until a sponsor is signed, and the team page omits the block.

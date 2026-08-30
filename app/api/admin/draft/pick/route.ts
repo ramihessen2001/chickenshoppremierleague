@@ -74,7 +74,7 @@ export async function POST(request: Request) {
 
   // Whose turn it is, derived rather than trusted from the client.
   const [{ data: teams }, { count: draftedCount }] = await Promise.all([
-    supabaseAdmin.from('teams').select('id, name, draft_position'),
+    supabaseAdmin.from('teams').select('*'),
     supabaseAdmin
       .from('signups')
       .select('*', { count: 'exact', head: true })
@@ -86,6 +86,7 @@ export async function POST(request: Request) {
     id: t.id,
     name: t.name,
     draftPosition: t.draft_position as number | null,
+    draftRounds: (t.draft_rounds as number | null) ?? null,
   }))
   const team = teamOnPick(orderable, pickNumber)
 
