@@ -25,8 +25,9 @@ export function PlayerList({ players, onEditPlayer }: PlayerListProps) {
     )
   }
 
-  // Numbered players first in ascending order, unnumbered (TBD) last.
+  // Captain first, then numbered players ascending, unnumbered (TBD) last.
   const sorted = [...players].sort((a, b) => {
+    if (Boolean(a.isCaptain) !== Boolean(b.isCaptain)) return a.isCaptain ? -1 : 1
     const aNum = a.jerseyNumber ?? Number.MAX_SAFE_INTEGER
     const bNum = b.jerseyNumber ?? Number.MAX_SAFE_INTEGER
     return aNum - bNum || a.name.localeCompare(b.name)
@@ -76,13 +77,26 @@ function PlayerRow({ player, onEdit }: { player: Player; onEdit?: () => void }) 
       </span>
 
       <div className="min-w-0 flex-1">
-        <p
-          className={`truncate font-display text-[15px] font-bold uppercase tracking-[0.01em] ${
-            player.isActive ? 'text-ink' : 'text-ink-tertiary line-through'
-          }`}
-        >
-          {player.name}
-        </p>
+        <div className="flex min-w-0 items-center gap-2">
+          <p
+            className={`truncate font-display text-[15px] font-bold uppercase tracking-[0.01em] ${
+              player.isActive ? 'text-ink' : 'text-ink-tertiary line-through'
+            }`}
+          >
+            {player.name}
+          </p>
+          {/* Solid, because a captain is the one fixed point on a roster the
+              draft fills in around them. The letter carries it too, so it
+              does not depend on the fill alone. */}
+          {player.isCaptain && (
+            <span
+              className="shrink-0 bg-ink px-1.5 py-px font-util text-[10px] font-bold uppercase tracking-[0.1em] text-ink-inverse"
+              title="Team captain"
+            >
+              C
+            </span>
+          )}
+        </div>
       </div>
 
       {player.position && (

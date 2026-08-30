@@ -19,12 +19,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fail, readJson, requireAdmin } from '@/lib/apiAuth'
-import {
-  DRAFTABLE_STATUSES,
-  isNumberFree,
-  suggestNumbers,
-  teamOnPick,
-} from '@/lib/draft'
+import { isDraftable, isNumberFree, suggestNumbers, teamOnPick } from '@/lib/draft'
 
 interface PickBody {
   signupId?: string
@@ -50,7 +45,7 @@ export async function POST(request: Request) {
 
   const { data: signup, error: signupError } = await supabaseAdmin
     .from('signups')
-    .select('id, name, position, jersey_number, status, pick_number')
+    .select('id, name, position, jersey_number, status, pick_number, player_id')
     .eq('id', body.signupId)
     .maybeSingle()
 
@@ -62,7 +57,18 @@ export async function POST(request: Request) {
   if (signup.pick_number !== null) {
     return fail(`${signup.name} has already been drafted`, 409)
   }
-  if (!DRAFTABLE_STATUSES.includes(signup.status)) {
+  // Captains hold a roster place without a pick number, so this is what stops
+  // one being drafted onto a second team.
+  if (signup.player_id !== null) {
+    return fail(`${signup.name} is already on a roster`, 409)
+  }
+  if (
+    !isDraftable({
+      status: signup.status,
+      pick_number: signup.pick_number as number | null,
+      player_id: (signup.player_id as string | null) ?? null,
+    })
+  ) {
     return fail(`${signup.name} is ${signup.status} and cannot be drafted`, 409)
   }
 

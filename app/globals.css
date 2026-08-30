@@ -183,6 +183,7 @@
   --color-red-wash: var(--red-wash);
   --color-rule: var(--rule);
   --color-rule-heavy: var(--rule-heavy);
+  --color-rule-inverse: var(--rule-inverse);
 
   --font-display: var(--display);
   --font-text: var(--text);

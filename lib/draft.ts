@@ -30,6 +30,27 @@ export const MAX_JERSEY = 99
 export const DRAFTABLE_STATUSES = ['confirmed', 'pending']
 
 /**
+ * Whether a registration can still be picked.
+ *
+ * Status alone is not enough. A captain is put on their team before the draft
+ * starts, which links their registration to a player row while leaving it
+ * `confirmed` and unpicked -- so on status alone they would sit in the pool
+ * and could be drafted onto a second team. Anyone already holding a roster
+ * place is out, however they got there.
+ */
+export function isDraftable(signup: {
+  status: string
+  pick_number: number | null
+  player_id: string | null
+}): boolean {
+  return (
+    signup.pick_number === null &&
+    signup.player_id === null &&
+    DRAFTABLE_STATUSES.includes(signup.status)
+  )
+}
+
+/**
  * Teams in draft order, lowest `draftPosition` first.
  *
  * Teams without a position are dropped rather than sorted to the end: a team

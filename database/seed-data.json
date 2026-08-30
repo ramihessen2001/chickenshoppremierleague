@@ -8,11 +8,11 @@
     "chosen is the same prefix the design files use, so one identifier ties the",
     "team row, /teams/<slug>, the crest, and the kit artwork together.",
     "",
-    "Colours are each kit's dominant colour, with one exception: cscp is the",
-    "deeper #4F8A8A rather than the pale #a1cbcc its crest is drawn in. Nothing",
-    "renders primaryColor yet, but the pale teal is 1.76:1 on white -- unusable",
-    "the moment anything does -- so the stored value is a strength of the same",
-    "hue that would actually work as an accent.",
+    "",
+    "Colours are the values each club gave for Fall 2026. Several are dark by",
+    "design; the draft announcement lightens them for its black ground rather",
+    "than storing a second value. S.C Ramallah also gave #A50044 as a second",
+    "colour, which nothing reads yet.",
     "",
     "sponsorName/sponsorLogoUrl are omitted for teams whose sponsorship has not",
     "been sold yet -- the team page just leaves the block out. Add them here and",
@@ -28,13 +28,12 @@
     "A playoff game sets \"playoffRound\" to one of: play-in, quarterfinal,",
     "semifinal, final, and may leave homeTeam/awayTeam out for an unfilled slot."
   ],
-
   "teams": [
     {
       "name": "Central Sporting Club Of PURO",
       "slug": "cscp",
       "shortName": "CSCP",
-      "primaryColor": "#4F8A8A",
+      "primaryColor": "#A1CBCC",
       "sponsorName": "JAX FISH AND CHICKEN",
       "sponsorLogoUrl": "/images/sponsors/jaxfnc.svg",
       "kitImageUrl": "/images/teams/kits/cscp.svg",
@@ -43,21 +42,21 @@
     {
       "name": "S.C Cairo",
       "slug": "sccairo",
-      "primaryColor": "#283878",
+      "primaryColor": "#FED800",
       "kitImageUrl": "/images/teams/kits/sccairo.svg",
       "players": []
     },
     {
       "name": "S.C Paris",
       "slug": "scparis",
-      "primaryColor": "#084868",
+      "primaryColor": "#14426F",
       "kitImageUrl": "/images/teams/kits/scparis.svg",
       "players": []
     },
     {
       "name": "S.C Dakar",
       "slug": "scdakar",
-      "primaryColor": "#088848",
+      "primaryColor": "#048543",
       "sponsorName": "USWAH INSTITUTE",
       "sponsorLogoUrl": "/images/sponsors/uswah.svg",
       "kitImageUrl": "/images/teams/kits/scdakar.svg",
@@ -66,7 +65,7 @@
     {
       "name": "S.C Ramallah",
       "slug": "scramallah",
-      "primaryColor": "#282878",
+      "primaryColor": "#004D98",
       "sponsorName": "HOOKS FISH AND CHICKEN",
       "sponsorLogoUrl": "/images/sponsors/hooks.svg",
       "kitImageUrl": "/images/teams/kits/scramallah.svg",
@@ -75,7 +74,7 @@
     {
       "name": "S.C Kabul",
       "slug": "sckabul",
-      "primaryColor": "#C82828",
+      "primaryColor": "#BF2026",
       "sponsorName": "VIP AUTOMOTIVE",
       "sponsorLogoUrl": "/images/sponsors/vipauto.svg",
       "kitImageUrl": "/images/teams/kits/sckabul.svg",
@@ -84,7 +83,7 @@
     {
       "name": "S.C Istanbul Black",
       "slug": "scistanbul",
-      "primaryColor": "#1A1A1A",
+      "primaryColor": "#231F20",
       "sponsorName": "BLACK SEA AUTO",
       "sponsorLogoUrl": "/images/sponsors/blacksea.svg",
       "kitImageUrl": "/images/teams/kits/scistanbul.svg",
@@ -93,11 +92,10 @@
     {
       "name": "S.C Mansoura",
       "slug": "scmansoura",
-      "primaryColor": "#D97C24",
+      "primaryColor": "#F78F24",
       "kitImageUrl": "/images/teams/kits/scmansoura.svg",
       "players": []
     }
   ],
-
   "games": []
 }

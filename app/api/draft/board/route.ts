@@ -13,7 +13,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fail } from '@/lib/apiAuth'
-import { DRAFTABLE_STATUSES, roundForPick, teamOnPick } from '@/lib/draft'
+import { isDraftable, roundForPick, teamOnPick } from '@/lib/draft'
 
 /** Never send these to the browser, whatever else changes. */
 const PUBLIC_SIGNUP_COLUMNS =
@@ -26,7 +26,13 @@ export interface DraftBoardTeam {
   logoUrl: string | null
   primaryColor: string | null
   draftPosition: number | null
-  roster: { name: string; jerseyNumber: number | null; pickNumber: number }[]
+  /** Captains have no pickNumber -- they were placed, not picked. */
+  roster: {
+    name: string
+    jerseyNumber: number | null
+    pickNumber: number | null
+    isCaptain?: boolean
+  }[]
 }
 
 export async function GET() {
@@ -36,7 +42,11 @@ export async function GET() {
       .select('id, name, slug, logo_url, primary_color, draft_position')
       .order('draft_position', { nullsFirst: false }),
     supabaseAdmin.from('signups').select(PUBLIC_SIGNUP_COLUMNS),
-    supabaseAdmin.from('players').select('id, jersey_number'),
+    // `*` rather than a column list: is_captain arrives in migration 015, and
+    // naming it explicitly fails the whole query on a database that has not
+    // been migrated -- which would take the draft board down rather than just
+    // show no captains. The roster is small; the extra columns cost nothing.
+    supabaseAdmin.from('players').select('*'),
   ])
 
   if (teamsResult.error || signupsResult.error || playersResult.error) {
@@ -50,6 +60,7 @@ export async function GET() {
   const numberByPlayer = new Map(
     (playersResult.data ?? []).map((p) => [p.id, p.jersey_number as number | null])
   )
+  const captainsByTeam = (playersResult.data ?? []).filter((p) => p.is_captain === true)
 
   const signups = signupsResult.data ?? []
   const drafted = signups
@@ -57,7 +68,13 @@ export async function GET() {
     .sort((a, b) => (a.pick_number as number) - (b.pick_number as number))
 
   const available = signups
-    .filter((s) => s.pick_number === null && DRAFTABLE_STATUSES.includes(s.status))
+    .filter((s) =>
+      isDraftable({
+        status: s.status,
+        pick_number: s.pick_number as number | null,
+        player_id: (s.player_id as string | null) ?? null,
+      })
+    )
     .map((s) => ({
       id: s.id,
       name: s.name,
@@ -75,13 +92,25 @@ export async function GET() {
     logoUrl: team.logo_url,
     primaryColor: team.primary_color,
     draftPosition: team.draft_position,
-    roster: drafted
-      .filter((s) => s.drafted_team_id === team.id)
-      .map((s) => ({
-        name: s.name,
-        jerseyNumber: s.player_id ? numberByPlayer.get(s.player_id) ?? null : null,
-        pickNumber: s.pick_number as number,
-      })),
+    // Captain first, then the picks in the order they were made: that is how
+    // the panel reads on the night, and a captain has no pick number to sort by.
+    roster: [
+      ...captainsByTeam
+        .filter((c) => c.team_id === team.id)
+        .map((c) => ({
+          name: c.name as string,
+          jerseyNumber: c.jersey_number as number | null,
+          pickNumber: null,
+          isCaptain: true,
+        })),
+      ...drafted
+        .filter((s) => s.drafted_team_id === team.id)
+        .map((s) => ({
+          name: s.name,
+          jerseyNumber: s.player_id ? numberByPlayer.get(s.player_id) ?? null : null,
+          pickNumber: s.pick_number as number,
+        })),
+    ],
   }))
 
   // The draft runs until the pool is empty, so the last pick is however many

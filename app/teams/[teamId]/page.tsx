@@ -43,6 +43,7 @@ export default function TeamPage() {
         teamId: record.slug,
         position: p.position,
         isActive: p.is_active,
+        isCaptain: p.is_captain ?? false,
         createdAt: p.created_at,
         updatedAt: p.updated_at,
       }))

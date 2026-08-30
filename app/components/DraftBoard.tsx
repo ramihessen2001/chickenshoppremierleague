@@ -20,12 +20,14 @@
 
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { Undo2, FlaskConical } from 'lucide-react'
 import { useAdmin } from '@/lib/adminContext'
 import { isNumberFree, roundForPick, suggestNumbers, teamOnPick } from '@/lib/draft'
 import { setDraftOrder } from '@/lib/supabaseData'
+import { LEAGUE } from '@/config/league'
+import { PickAnnouncement, AnnouncedPick } from './PickAnnouncement'
 import { Modal } from './Modal'
 import {
   addSandboxPick,
@@ -46,7 +48,9 @@ const POSITION_GROUPS = ['Forward', 'Midfielder', 'Defender', 'Goalkeeper'] as c
 interface RosterEntry {
   name: string
   jerseyNumber: number | null
-  pickNumber: number
+  /** Null for a captain: they were placed on the team, not picked. */
+  pickNumber: number | null
+  isCaptain?: boolean
 }
 
 interface BoardTeam {
@@ -54,6 +58,8 @@ interface BoardTeam {
   name: string
   slug: string
   logoUrl: string | null
+  /** The club's own colour. The API sends it; the announcement reads it. */
+  primaryColor: string | null
   draftPosition: number | null
   roster: RosterEntry[]
 }
@@ -128,17 +134,6 @@ function TeamBadge({
   )
 }
 
-/** "8s ago", "4m ago" -- coarse on purpose, since it only refreshes with the poll. */
-function timeAgo(iso: string | null): string | null {
-  if (!iso) return null
-  const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
-  if (seconds < 10) return 'just now'
-  if (seconds < 60) return `${seconds}s ago`
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  return `${Math.floor(minutes / 60)}h ago`
-}
-
 /** Which "Available" group a player's preference falls into. */
 function positionGroup(position: string | null): string {
   return position && (POSITION_GROUPS as readonly string[]).includes(position)
@@ -185,7 +180,13 @@ function applySandbox(real: Board): Board {
       .map((p) => ({ name: p.name, jerseyNumber: p.jerseyNumber, pickNumber: p.pickNumber }))
     return extra.length === 0
       ? team
-      : { ...team, roster: [...team.roster, ...extra].sort((a, b) => a.pickNumber - b.pickNumber) }
+      : {
+          ...team,
+          // Captains have no pick number and stay at the front.
+          roster: [...team.roster, ...extra].sort(
+            (a, b) => (a.pickNumber ?? -1) - (b.pickNumber ?? -1)
+          ),
+        }
   })
 
   const draftedCount = real.totalPicks - available.length
@@ -297,6 +298,7 @@ function computeSandboxPick(
 
 interface DraftOrderTeam {
   id: string
+  slug: string
   name: string
   logoUrl: string | null
 }
@@ -331,6 +333,16 @@ function DraftOrderReveal({
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1))
       ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    }
+
+    // One slot can be spoken for before the draw. The rest of the order is
+    // whatever the shuffle above produced, so pulling that team to the front
+    // leaves every other slot random -- it does not re-rank anyone else.
+    if (LEAGUE.firstPickTeamSlug) {
+      const pinned = shuffled.findIndex((t) => t.slug === LEAGUE.firstPickTeamSlug)
+      if (pinned > 0) {
+        shuffled.unshift(...shuffled.splice(pinned, 1))
+      }
     }
 
     const result: (DraftOrderTeam | null)[] = teams.map(() => null)
@@ -420,6 +432,14 @@ export function DraftBoard() {
   // long as the draft still hasn't had a first pick.
   const [orderModalDismissed, setOrderModalDismissed] = useState(false)
 
+  // The pick announcement is driven by the board, not by the click that made
+  // the pick, so every device following the draft shows it. `seenPick` starts
+  // as null and is set by the first board that arrives: that baseline is what
+  // stops someone opening the page mid-draft from being shown a pick that
+  // happened before they got there.
+  const [announced, setAnnounced] = useState<AnnouncedPick | null>(null)
+  const seenPick = useRef<number | null>(null)
+
   const load = useCallback(async () => {
     try {
       const response = await fetch('/api/draft/board', { cache: 'no-store' })
@@ -441,6 +461,33 @@ export function DraftBoard() {
     const timer = setInterval(load, POLL_MS)
     return () => clearInterval(timer)
   }, [load, prompt])
+
+  // Watch the board for a pick we have not shown yet.
+  useEffect(() => {
+    if (!board) return
+    const latestNumber = board.picks[0]?.pickNumber ?? 0
+
+    if (seenPick.current === null) {
+      seenPick.current = latestNumber
+      return
+    }
+    if (latestNumber <= seenPick.current) return
+
+    seenPick.current = latestNumber
+    const latest = board.picks[0]
+    const team = board.teams.find((t) => t.id === latest.teamId)
+    const teamsInOrder = board.teams.filter((t) => t.draftPosition !== null).length
+
+    setAnnounced({
+      pickNumber: latest.pickNumber,
+      round: roundForPick(teamsInOrder, latest.pickNumber),
+      playerName: latest.name,
+      jerseyNumber: latest.jerseyNumber,
+      teamName: team?.name ?? 'Unassigned',
+      teamLogoUrl: team?.logoUrl ?? null,
+      teamColor: team?.primaryColor ?? null,
+    })
+  }, [board])
 
   const pick = async (signupId: string, jerseyNumber?: number) => {
     setBusyId(signupId)
@@ -558,10 +605,8 @@ export function DraftBoard() {
   // the draft is under way.
   const canSetDraftOrder = isAdmin && drafted === 0 && !board.isComplete && board.teams.length > 1
 
+  // Still needed below: the pick list marks the newest entry.
   const latestPick = board.picks[0] ?? null
-  const latestPickTeam = latestPick
-    ? board.teams.find((team) => team.id === latestPick.teamId)
-    : null
 
   const availableGroups = [...POSITION_GROUPS, 'Flexible']
     .map((group) => ({
@@ -572,6 +617,8 @@ export function DraftBoard() {
 
   return (
     <>
+      <PickAnnouncement pick={announced} onDismiss={() => setAnnounced(null)} />
+
       {/* Visually replaced by the compact bar below, kept for a11y/SEO. */}
       <h1 className="sr-only">Draft</h1>
 
@@ -696,32 +743,9 @@ export function DraftBoard() {
           </div>
         )}
 
-        {/* Pick ticker: the latest pick, held on screen ------------------- */}
-        {latestPick && (
-          <div className="mt-4 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-accent-ink/25 bg-accent-wash px-5 py-2.5">
-            <span className="text-[11px] font-semibold tracking-wider text-accent-ink uppercase">
-              Just picked
-            </span>
-            <span className="flex min-w-0 items-center gap-1.5 text-[15px] text-ink">
-              <b className="font-semibold">{latestPick.name}</b>
-              <span className="text-ink-tertiary">→</span>
-              {latestPickTeam && <TeamBadge team={latestPickTeam} size={16} />}
-              <b className="font-semibold">{latestPickTeam?.name ?? 'Unassigned'}</b>
-              {latestPick.jerseyNumber !== null && (
-                <span className="tabular text-ink-tertiary">#{latestPick.jerseyNumber}</span>
-              )}
-            </span>
-            {timeAgo(latestPick.draftedAt) && (
-              <span className="tabular ml-auto shrink-0 text-[12.5px] text-ink-tertiary">
-                {timeAgo(latestPick.draftedAt)}
-              </span>
-            )}
-          </div>
-        )}
-
         {/* Three zones: on a wide screen these scroll independently, on a
             narrow one they simply stack down the page. -------------------- */}
-        <div className="mt-6 grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.85fr)_minmax(0,1fr)]">
+        <div className="mt-5 grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.85fr)_minmax(0,1fr)]">
           {/* Available players, grouped by position ----------------------- */}
           <section
             aria-labelledby="available-heading"
@@ -892,9 +916,17 @@ export function DraftBoard() {
                     {team.roster.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 pl-[30px]">
                         {team.roster.map((entry) => (
-                          <span key={entry.pickNumber} className="text-[12px] text-ink-secondary">
+                          <span
+                            key={`${entry.pickNumber ?? 'c'}-${entry.name}`}
+                            className="font-util text-[11px] text-ink-secondary"
+                          >
+                            {entry.isCaptain && (
+                              <span className="mr-1 bg-ink px-1 text-[9px] font-bold text-ink-inverse">
+                                C
+                              </span>
+                            )}
                             {entry.name}{' '}
-                            <span className="tabular text-ink-tertiary">
+                            <span className="text-ink-tertiary">
                               {entry.jerseyNumber !== null ? `#${entry.jerseyNumber}` : '—'}
                             </span>
                           </span>

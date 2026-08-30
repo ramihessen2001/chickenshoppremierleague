@@ -104,6 +104,16 @@ export const LEAGUE = {
    */
   jerseyShopUrl: null as string | null,
 
+  /**
+   * The team that takes the first pick, by slug, or null to leave the whole
+   * order to the spinner.
+   *
+   * Fall 2026 gives it to S.C Ramallah. Every other slot is still drawn at
+   * random -- this pins one place, it does not script the draft. Set it back
+   * to null next season and the reveal is fully random again.
+   */
+  firstPickTeamSlug: 'scramallah' as string | null,
+
   /** Branding for the man-of-the-match award. */
   manOfTheMatch: {
     label: 'Puro Man of The Match',

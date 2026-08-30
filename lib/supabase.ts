@@ -52,6 +52,8 @@ export interface Player {
   jersey_number: number | null
   team_id: string
   is_active: boolean
+  /** Placed on the team before the draft rather than picked in it. */
+  is_captain: boolean
   position?: string
   created_at: string
   updated_at: string

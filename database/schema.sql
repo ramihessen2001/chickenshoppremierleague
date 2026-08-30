@@ -65,6 +65,10 @@ CREATE TABLE players (
   jersey_number INTEGER CHECK (jersey_number >= 0 AND jersey_number <= 999),
   team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
   is_active BOOLEAN DEFAULT TRUE,
+  -- Captains are placed on their team before the draft rather than picked in
+  -- it. Their registration keeps status 'confirmed' and a NULL pick_number,
+  -- and is kept out of the pool by its player_id instead.
+  is_captain BOOLEAN NOT NULL DEFAULT FALSE,
   position VARCHAR(50),                      -- Forward | Midfielder | Defender | Goalkeeper
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),

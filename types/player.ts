@@ -10,6 +10,12 @@ export interface Player {
   /** Team slug in UI code, team UUID in write payloads. */
   teamId: string
   isActive: boolean
+  /**
+   * Captains are placed on their team before the draft rather than picked in
+   * it, so they are on a roster while their registration is still sitting in
+   * the signups table undrafted.
+   */
+  isCaptain?: boolean
   /** Forward | Midfielder | Defender | Goalkeeper */
   position?: string
   createdAt: string
