@@ -395,6 +395,17 @@ input[type="checkbox"]:checked {
   );
 }
 
+/* Icons.
+
+   Lucide draws with round caps and joins, which is the one soft edge left in a
+   system whose whole argument is squared corners and straight rules. CSS wins
+   over the presentation attributes lucide sets on the element, so this needs
+   no change at any call site. */
+.lucide {
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}
+
 /* The sort indicator is drawn from aria-sort, which the stats table already
    sets for assistive tech -- so the arrow and the announcement can never
    disagree. A solid triangle rather than a glyph, for the same reason as the

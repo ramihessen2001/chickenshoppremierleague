@@ -62,7 +62,7 @@ export function Header() {
             className="h-[30px] w-auto object-contain"
             priority
           />
-          <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">
+          <span className="font-display text-[16px] font-bold uppercase tracking-[0.01em] text-ink">
             <span className="hidden sm:inline">{LEAGUE.name}</span>
             <span className="sm:hidden">{LEAGUE.shortName}</span>
           </span>

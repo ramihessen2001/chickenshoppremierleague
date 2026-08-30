@@ -139,7 +139,7 @@ export function PlayoffBracketGenerator() {
   if (!seeds) {
     return (
       <div className="mx-auto max-w-6xl px-5 pt-10 sm:px-8">
-        <p className="rounded-lg border border-dashed border-hairline-strong px-5 py-4 text-[13px] text-ink-tertiary">
+        <p className="border border-hairline px-5 py-4 text-[13px] text-ink-tertiary">
           The bracket generator needs exactly 8 teams in the standings — it has{' '}
           {playoffGames.length > 0 ? 'a different number' : 'fewer than that'} right now.
         </p>

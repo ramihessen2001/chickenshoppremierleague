@@ -78,7 +78,7 @@ export function ArchivePageClient() {
       <>
         <PageHeader title="Archive" />
         <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
-          <div className="rounded-lg border border-dashed border-hairline-strong px-6 py-20 text-center">
+          <div className="border border-hairline px-5 py-8 text-left">
             <p className="text-[17px] font-medium text-ink">Nothing archived yet</p>
             <p className="mx-auto mt-2 max-w-sm text-[15px] text-ink-secondary">
               Past seasons show up here once one has been archived from the admin bar.

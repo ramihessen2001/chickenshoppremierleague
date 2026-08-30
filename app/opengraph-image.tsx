@@ -42,8 +42,12 @@ export default async function OpengraphImage() {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
-          background: '#1d1d1f',
-          color: '#ffffff',
+          // The share card is the one place the league appears on someone
+          // else's ground -- a chat thread -- so it commits to --black rather
+          // than bone, and every value below is the dark-surface variant the
+          // system specifies for it.
+          background: '#0d0d0d',
+          color: '#efede8',
           padding: '72px 80px',
           fontFamily: 'sans-serif',
         }}
@@ -58,12 +62,15 @@ export default async function OpengraphImage() {
                 fontSize: 26,
                 letterSpacing: 6,
                 textTransform: 'uppercase',
-                color: '#d47f7d',
+                // --wash, not --court: court fails against black. This is
+                // also why the rule below is wash rather than red -- red is
+                // reserved for the registration deadline.
+                color: '#a5c6cf',
               }}
             >
               {LEAGUE.shortName}
             </div>
-            <div style={{ fontSize: 34, color: '#86868b' }}>
+            <div style={{ fontSize: 34, color: '#9a958c' }}>
               {LEAGUE.fallbackSeason}
             </div>
           </div>
@@ -80,11 +87,11 @@ export default async function OpengraphImage() {
             {LEAGUE.name}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-            <div style={{ width: 64, height: 4, background: '#d47f7d' }} />
+            <div style={{ width: 64, height: 4, background: '#a5c6cf' }} />
             {/* One string, not two nodes: the renderer behind ImageResponse
                 requires an explicit display on any element with more than one
                 child. */}
-            <div style={{ fontSize: 32, color: '#d2d2d7' }}>{STRAPLINE}</div>
+            <div style={{ fontSize: 32, color: '#cfcac1' }}>{STRAPLINE}</div>
           </div>
         </div>
       </div>

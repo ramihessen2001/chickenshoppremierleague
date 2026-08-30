@@ -42,12 +42,24 @@ const STATUSES: [SignupStatus, string][] = [
   ['withdrawn', 'Withdrawn'],
 ]
 
+/*
+ * Status by fill weight, not hue.
+ *
+ * The four on-path states read as a progression -- faint outline, full
+ * outline, heavy outline, solid -- so a column of them can be scanned without
+ * reading a single word, and without depending on colour to tell them apart.
+ * That mattered more once the palette collapsed: `--positive` resolves to
+ * black and `--positive-wash` to bone, so the old green/grey pair had become
+ * two identical chips.
+ *
+ * Withdrawn is the one off-path state, and the only one that earns --red.
+ */
 const STATUS_STYLES: Record<SignupStatus, string> = {
-  pending: 'bg-surface-sunken text-ink-secondary',
-  confirmed: 'bg-positive-wash text-positive',
-  waitlisted: 'bg-accent-wash text-accent-ink',
-  drafted: 'bg-surface-inverse text-ink-inverse',
-  withdrawn: 'bg-negative-wash text-negative',
+  pending: 'border border-hairline text-ink-tertiary',
+  waitlisted: 'border border-hairline text-ink',
+  confirmed: 'border-[1.5px] border-hairline-strong font-bold text-ink',
+  drafted: 'bg-ink text-ink-inverse',
+  withdrawn: 'border border-negative bg-negative-wash text-negative',
 }
 
 export function SignupsAdmin() {
@@ -246,7 +258,7 @@ export function SignupsAdmin() {
         </div>
 
         {visible.length === 0 ? (
-          <div className="mt-8 rounded-lg border border-dashed border-hairline-strong px-6 py-16 text-center">
+          <div className="mt-8 border border-hairline px-5 py-8 text-left">
             <p className="text-[15px] text-ink-secondary">
               {signups.length === 0
                 ? 'Nobody has registered yet.'
@@ -269,7 +281,7 @@ export function SignupsAdmin() {
                       {signup.status}
                     </span>
                     {signup.paid_at ? (
-                      <span className="rounded-pill bg-positive-wash px-2 py-0.5 text-[11px] font-semibold tracking-wider text-positive uppercase">
+                      <span className="border-[1.5px] border-hairline-strong px-2 py-0.5 font-util text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink">
                         paid{signup.payment_method ? ` · ${signup.payment_method}` : ''}
                       </span>
                     ) : (

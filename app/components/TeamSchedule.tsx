@@ -58,8 +58,8 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
 
   if (teamGames.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-hairline-strong px-6 py-14 text-center">
-        <p className="text-[15px] text-ink-secondary">No fixtures scheduled yet.</p>
+      <div className="border border-hairline px-5 py-6 text-left">
+        <p className="loading">No fixtures scheduled yet</p>
       </div>
     )
   }
@@ -71,10 +71,10 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
 
     const badge =
       result === 'W'
-        ? 'bg-positive-wash text-positive'
+        ? 'bg-ink text-ink-inverse'
         : result === 'L'
-          ? 'bg-negative-wash text-negative'
-          : 'bg-surface-sunken text-ink-secondary'
+          ? 'bg-red text-ink-inverse'
+          : 'border border-hairline-strong text-ink'
 
     const content = (
       <>
@@ -88,27 +88,29 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
               className="h-[22px] w-[22px] shrink-0 object-contain"
             />
           ) : (
-            <div className="h-[22px] w-[22px] shrink-0 rounded-full bg-surface-sunken" />
+            <div className="h-[22px] w-[22px] shrink-0 border border-hairline" />
           )}
-          <span className="min-w-0 truncate text-[14px] text-ink">
-            <span className="text-ink-tertiary">{isHome ? 'vs' : 'at'} </span>
+          <span className="min-w-0 truncate font-display text-[14px] font-bold uppercase tracking-[0.01em] text-ink">
+            <span className="font-util text-[10.5px] font-normal tracking-[0.1em] text-ink-tertiary">
+              {isHome ? 'VS ' : 'AT '}
+            </span>
             {opponentName}
           </span>
         </div>
 
         {result ? (
           <div className="flex shrink-0 items-center gap-2.5">
-            <span className="tabular text-[14px] text-ink-secondary">
+            <span className="border border-hairline px-2 py-0.5 font-util text-[12px] font-bold text-ink">
               {own}–{against}
             </span>
             <span
-              className={`flex h-5 w-5 items-center justify-center rounded text-[11px] font-bold ${badge}`}
+              className={`flex h-5 w-5 items-center justify-center font-util text-[11px] font-bold ${badge}`}
             >
               {result}
             </span>
           </div>
         ) : (
-          <span className="tabular shrink-0 text-[12px] text-ink-tertiary">
+          <span className="shrink-0 font-util text-[12px] text-ink-secondary">
             {formatTime(game.time)}
           </span>
         )}
@@ -117,7 +119,7 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
 
     return (
       <div className="border-b border-hairline last:border-0">
-        <p className="tabular pt-3 text-[12px] text-ink-tertiary">
+        <p className="pt-3 font-util text-[10.5px] uppercase tracking-[0.1em] text-ink-tertiary">
           {formatDate(game.date)}
         </p>
         {result ? (
@@ -126,7 +128,7 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
               setSelectedGame(game)
               setIsModalOpen(true)
             }}
-            className="-mx-2 mb-3 mt-1.5 flex w-[calc(100%+1rem)] items-center justify-between gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-surface-hover"
+            className="-mx-2 mb-3 mt-1.5 flex w-[calc(100%+1rem)] items-center justify-between gap-3 px-2 py-1.5 transition-colors hover:bg-ink/[0.04]"
             aria-label={`Box score, ${opponentName}`}
           >
             {content}
@@ -144,7 +146,9 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
     <>
       {played.length > 0 && (
         <section>
-          <h3 className="text-[13px] font-semibold text-ink">Results</h3>
+          <h3 className="font-util text-[10px] uppercase tracking-[0.1em] text-ink-tertiary">
+            Results
+          </h3>
           <div className="mt-2 border-t border-hairline">
             {played.map((game) => (
               <Row key={game.id} game={game} />
@@ -155,7 +159,9 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
 
       {upcoming.length > 0 && (
         <section className={played.length > 0 ? 'mt-8' : ''}>
-          <h3 className="text-[13px] font-semibold text-ink">Upcoming</h3>
+          <h3 className="font-util text-[10px] uppercase tracking-[0.1em] text-ink-tertiary">
+            Upcoming
+          </h3>
           <div className="mt-2 border-t border-hairline">
             {upcoming.map((game) => (
               <Row key={game.id} game={game} />

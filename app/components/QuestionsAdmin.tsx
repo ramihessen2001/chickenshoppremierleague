@@ -151,7 +151,7 @@ export function QuestionsAdmin() {
         </div>
 
         {visible.length === 0 ? (
-          <div className="mt-8 rounded-lg border border-dashed border-hairline-strong px-6 py-16 text-center">
+          <div className="mt-8 border border-hairline px-5 py-8 text-left">
             <p className="text-[15px] text-ink-secondary">
               {questions.length === 0
                 ? 'Nobody has asked anything yet.'

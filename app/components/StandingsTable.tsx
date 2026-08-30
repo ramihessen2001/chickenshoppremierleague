@@ -38,7 +38,7 @@ export function StandingsTable({
 }: StandingsTableProps) {
   if (standings.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-hairline-strong px-6 py-20 text-center">
+      <div className="border border-hairline px-5 py-8 text-left">
         <p className="text-[17px] font-medium text-ink">{emptyTitle}</p>
         <p className="mx-auto mt-2 max-w-sm text-[15px] text-ink-secondary">{emptyMessage}</p>
       </div>
@@ -125,20 +125,20 @@ export function StandingsTable({
       </div>
 
       {/* Key ---------------------------------------------------------- */}
-      <div className="mt-8 rounded-lg border border-hairline bg-surface-sunken px-5 py-4">
+      <div className="mt-8 border border-hairline px-5 py-4">
         <p className="eyebrow">Key</p>
         <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
           {KEY.map(([abbr, meaning]) => (
             <div key={abbr} className="flex items-baseline gap-1.5">
-              <dt className="text-[13px] font-semibold text-ink">{abbr}</dt>
-              <dd className="text-[13px] text-ink-tertiary">{meaning}</dd>
+              <dt className="font-util text-[12px] font-bold text-ink">{abbr}</dt>
+              <dd className="text-[13px] text-ink-secondary">{meaning}</dd>
             </div>
           ))}
         </dl>
 
         {showPlayoffFormat && (
           <p className="mt-4 border-t border-hairline pt-4 text-[13px] leading-relaxed text-ink-secondary">
-            <span className="font-semibold text-ink">Playoffs.</span>{' '}
+            <span className="font-display font-bold uppercase tracking-[0.02em] text-ink">Playoffs.</span>{' '}
             The top 4 go straight through. 5th–8th play a knockout round
             first (5th v 8th, 6th v 7th) for the final two spots.
           </p>

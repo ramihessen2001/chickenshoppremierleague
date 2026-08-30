@@ -222,7 +222,7 @@ export function EditBoxScoreModal({
         </div>
 
         {rows.length === 0 ? (
-          <p className="mt-4 rounded-lg border border-dashed border-hairline-strong px-4 py-8 text-center text-[14px] text-ink-tertiary">
+          <p className="mt-4 border border-hairline px-4 py-5 text-left text-[14px] text-ink-tertiary">
             Nothing recorded yet.
           </p>
         ) : (

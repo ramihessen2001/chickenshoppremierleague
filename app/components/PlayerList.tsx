@@ -19,8 +19,8 @@ interface PlayerListProps {
 export function PlayerList({ players, onEditPlayer }: PlayerListProps) {
   if (players.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-hairline-strong px-6 py-14 text-center">
-        <p className="text-[15px] text-ink-secondary">No players on this roster yet.</p>
+      <div className="border border-hairline px-5 py-6 text-left">
+        <p className="loading">No players on this roster yet</p>
       </div>
     )
   }
@@ -66,10 +66,10 @@ function PlayerRow({ player, onEdit }: { player: Player; onEdit?: () => void }) 
   return (
     <div className="group flex items-center gap-4 border-b border-hairline py-3">
       <span
-        className={`tabular w-8 shrink-0 text-[15px] ${
+        className={`w-8 shrink-0 text-right font-util text-ink-tertiary ${
           player.jerseyNumber === null
-            ? 'text-[11px] font-medium uppercase tracking-wider text-ink-tertiary'
-            : 'font-semibold text-ink-tertiary'
+            ? 'text-[10.5px] uppercase tracking-[0.1em]'
+            : 'text-[13px]'
         }`}
       >
         {displayJersey(player.jerseyNumber)}
@@ -77,7 +77,7 @@ function PlayerRow({ player, onEdit }: { player: Player; onEdit?: () => void }) 
 
       <div className="min-w-0 flex-1">
         <p
-          className={`truncate text-[15px] ${
+          className={`truncate font-display text-[15px] font-bold uppercase tracking-[0.01em] ${
             player.isActive ? 'text-ink' : 'text-ink-tertiary line-through'
           }`}
         >
@@ -86,7 +86,9 @@ function PlayerRow({ player, onEdit }: { player: Player; onEdit?: () => void }) 
       </div>
 
       {player.position && (
-        <span className="shrink-0 text-[13px] text-ink-tertiary">{player.position}</span>
+        <span className="shrink-0 font-util text-[10.5px] uppercase tracking-[0.1em] text-ink-secondary">
+          {player.position}
+        </span>
       )}
 
       {onEdit && (
@@ -94,7 +96,7 @@ function PlayerRow({ player, onEdit }: { player: Player; onEdit?: () => void }) 
           <button
             onClick={onEdit}
             aria-label={`Edit ${player.name}`}
-            className="rounded-md p-1.5 text-ink-tertiary transition-colors hover:bg-surface-sunken hover:text-ink"
+            className="p-1.5 text-ink-tertiary transition-colors hover:bg-ink/[0.06] hover:text-ink"
           >
             <Pencil size={14} />
           </button>
@@ -102,7 +104,7 @@ function PlayerRow({ player, onEdit }: { player: Player; onEdit?: () => void }) 
             onClick={handleDelete}
             disabled={isDeleting}
             aria-label={`Delete ${player.name}`}
-            className="rounded-md p-1.5 text-ink-tertiary transition-colors hover:bg-negative-wash hover:text-negative disabled:opacity-40"
+            className="p-1.5 text-ink-tertiary transition-colors hover:bg-negative-wash hover:text-negative disabled:opacity-40"
           >
             <Trash2 size={14} />
           </button>

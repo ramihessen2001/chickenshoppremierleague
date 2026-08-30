@@ -63,14 +63,14 @@ export function WeeklyGames({ games, weekNumber }: WeeklyGamesProps) {
           </div>
           <Link
             href="/schedule"
-            className="shrink-0 text-[14px] font-medium text-accent-ink transition-opacity hover:opacity-70"
+            className="shrink-0 font-util text-[12px] uppercase tracking-[0.06em] text-court transition-opacity hover:opacity-70"
           >
             Full season →
           </Link>
         </div>
 
         {games.length === 0 ? (
-          <p className="mt-10 text-[15px] text-ink-tertiary">
+          <p className="loading mt-10">
             No fixtures scheduled for this week.
           </p>
         ) : (
@@ -121,20 +121,20 @@ function FixtureCard({ game, onOpen, onEdit }: FixtureCardProps) {
     <div className="group relative">
       <button
         onClick={onOpen}
-        className="w-full rounded-lg border border-hairline bg-surface p-5 text-left transition-colors hover:bg-surface-hover"
+        className="w-full border border-hairline p-5 text-left transition-colors hover:bg-ink/[0.04]"
         aria-label={`${homeName} versus ${awayName}, box score`}
       >
         <div className="flex items-center justify-between gap-3">
-          <p className="tabular text-[12px] text-ink-tertiary">
+          <p className="font-util text-[11px] uppercase tracking-[0.1em] text-ink-tertiary">
             {formatDate(game.date)} · {formatTime(game.time)}
           </p>
           {played ? (
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-tertiary">
+            <span className="font-util text-[10.5px] uppercase tracking-[0.1em] text-ink-tertiary">
               Final
             </span>
           ) : (
             game.status !== 'scheduled' && (
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-accent-ink">
+              <span className="font-util text-[10.5px] uppercase tracking-[0.1em] text-court">
                 {game.status}
               </span>
             )
@@ -159,7 +159,7 @@ function FixtureCard({ game, onOpen, onEdit }: FixtureCardProps) {
         </div>
 
         {game.location && (
-          <p className="mt-4 truncate text-[12px] text-ink-tertiary">{game.location}</p>
+          <p className="mt-4 truncate font-util text-[11px] text-ink-tertiary">{game.location}</p>
         )}
 
         {game.playerOfGame && (
@@ -169,12 +169,12 @@ function FixtureCard({ game, onOpen, onEdit }: FixtureCardProps) {
               alt=""
               width={18}
               height={18}
-              className="h-[18px] w-[18px] shrink-0 rounded-full object-contain"
+              className="h-[18px] w-[18px] shrink-0 object-contain"
             />
-            <p className="truncate text-[12px] text-ink-secondary">
+            <p className="truncate font-util text-[11px] text-ink-secondary">
               <span className="text-ink-tertiary">Man of the match · </span>
-              <span className="font-medium text-ink">{game.playerOfGame.name}</span>
-              <span className="tabular text-ink-tertiary">
+              <span className="font-display font-bold uppercase text-ink">{game.playerOfGame.name}</span>
+              <span className="text-ink-tertiary">
                 {' '}
                 #{displayJersey(game.playerOfGame.jerseyNumber)}
               </span>
@@ -189,7 +189,7 @@ function FixtureCard({ game, onOpen, onEdit }: FixtureCardProps) {
             e.stopPropagation()
             onEdit()
           }}
-          className="absolute right-3 top-3 rounded-md p-1.5 text-ink-tertiary opacity-0 transition-opacity hover:bg-surface-sunken hover:text-ink focus-visible:opacity-100 group-hover:opacity-100"
+          className="absolute right-3 top-3 p-1.5 text-ink-tertiary opacity-0 transition-opacity hover:bg-ink/[0.06] hover:text-ink focus-visible:opacity-100 group-hover:opacity-100"
           aria-label="Edit box score"
         >
           <Pencil size={14} />
@@ -227,19 +227,21 @@ function TeamLine({
           className="h-7 w-7 shrink-0 object-contain"
         />
       ) : (
-        <div className="h-7 w-7 shrink-0 rounded-full bg-surface-sunken" />
+        <div className="h-7 w-7 shrink-0 border border-hairline" />
       )}
       <span
-        className={`flex-1 truncate text-[15px] ${
-          dim ? 'text-ink-secondary' : 'font-medium text-ink'
+        className={`flex-1 truncate font-display text-[15px] font-bold uppercase tracking-[0.01em] ${
+          dim ? 'text-ink-secondary' : 'text-ink'
         }`}
       >
         {name}
       </span>
       {played && (
         <span
-          className={`tabular text-[17px] ${
-            won ? 'font-semibold text-ink' : 'text-ink-secondary'
+          className={`border px-2 py-0.5 font-util text-[13px] ${
+            won
+              ? 'border-hairline-strong font-bold text-ink'
+              : 'border-hairline text-ink-secondary'
           }`}
         >
           {score}

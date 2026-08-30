@@ -183,7 +183,7 @@ export function AwardManagement() {
       </div>
 
       {awards.length === 0 ? (
-        <div className="mt-6 rounded-lg border border-dashed border-hairline-strong px-6 py-14 text-center">
+        <div className="mt-6 border border-hairline px-5 py-8 text-left">
           <p className="text-[15px] text-ink-secondary">No awards yet.</p>
         </div>
       ) : (

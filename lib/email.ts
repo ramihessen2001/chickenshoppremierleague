@@ -81,8 +81,11 @@ function toHtml(body: string): string {
     .replace(/>/g, '&gt;')
 
   return (
-    `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;` +
-    `font-size:15px;line-height:1.6;color:#1d1d1f;max-width:560px">` +
+    // Mail clients will not load a webfont, so the stack names IBM Plex Sans
+    // for the few that have it and falls back to the system face. The ink is
+    // --puro-ink, so a receipt at least matches the site it came from.
+    `<div style="font-family:'IBM Plex Sans',-apple-system,Segoe UI,Roboto,sans-serif;` +
+    `font-size:15px;line-height:1.6;color:#0d0d0d;max-width:560px">` +
     escaped.replace(/\n/g, '<br>') +
     `</div>`
   )
