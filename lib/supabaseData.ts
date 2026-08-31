@@ -809,6 +809,8 @@ export async function tradePlayers(trade: {
   toTeamId: string
   fromPlayerIds: string[]
   toPlayerIds: string[]
+  /** Post it to the commissioner's board. Defaults to true on the server. */
+  announce?: boolean
 }): Promise<{
   moved: {
     id: string
@@ -817,6 +819,8 @@ export async function tradePlayers(trade: {
     jerseyNumber: number | null
     previousNumber?: number | null
   }[]
+  /** False when the trade went through but the board post did not. */
+  announced: boolean
 }> {
   return apiRequest('/api/admin/trades', { method: 'POST', body: trade })
 }

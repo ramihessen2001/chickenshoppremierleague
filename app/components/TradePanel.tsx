@@ -158,6 +158,7 @@ export function TradePanel({ isOpen, onClose, defaultTeamId }: TradePanelProps) 
   const [leftId, setLeftId] = useState(defaultTeamId ?? '')
   const [rightId, setRightId] = useState('')
   const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [announce, setAnnounce] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<string[] | null>(null)
@@ -194,19 +195,23 @@ export function TradePanel({ isOpen, onClose, defaultTeamId }: TradePanelProps) 
     setIsSaving(true)
     setError(null)
     try {
-      const { moved } = await tradePlayers({
+      const { moved, announced } = await tradePlayers({
         fromTeamId: leftId,
         toTeamId: rightId,
         fromPlayerIds,
         toPlayerIds,
+        announce,
       })
-      setResult(
-        moved.map((m) =>
+      setResult([
+        ...(announce && !announced
+          ? ['The trade went through, but the board post did not — post it by hand.']
+          : []),
+        ...moved.map((m) =>
           m.previousNumber !== undefined
             ? `${m.name} → ${m.toTeamName}, now #${displayJersey(m.jerseyNumber)} (was #${displayJersey(m.previousNumber)})`
             : `${m.name} → ${m.toTeamName}, #${displayJersey(m.jerseyNumber)}`
-        )
-      )
+        ),
+      ])
       setPicked(new Set())
       await loadSquads()
       notifyDataUpdated()
@@ -272,6 +277,17 @@ export function TradePanel({ isOpen, onClose, defaultTeamId }: TradePanelProps) 
           </ul>
         </div>
       )}
+
+      <label className="mt-5 flex cursor-pointer items-center gap-2.5">
+        <input
+          type="checkbox"
+          checked={announce}
+          onChange={(event) => setAnnounce(event.target.checked)}
+        />
+        <span className="text-[14px] text-ink">
+          Post it to the commissioner&rsquo;s board
+        </span>
+      </label>
 
       <div className="mt-6 flex flex-wrap justify-end gap-2">
         <button onClick={reset} className={buttonSecondary} disabled={isSaving}>

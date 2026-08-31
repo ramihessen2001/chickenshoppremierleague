@@ -22,12 +22,15 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fail, readJson, requireAdmin } from '@/lib/apiAuth'
 import { suggestNumbers } from '@/lib/draft'
+import { composeTradeAnnouncement } from '@/lib/tradeAnnouncement'
 
 interface TradeBody {
   fromTeamId?: string
   toTeamId?: string
   fromPlayerIds?: string[]
   toPlayerIds?: string[]
+  /** Post the trade to the commissioner's board. Defaults to true. */
+  announce?: boolean
 }
 
 interface MovedPlayer {
@@ -63,7 +66,9 @@ export async function POST(request: Request) {
   }
 
   const [teamsResult, playersResult] = await Promise.all([
-    supabaseAdmin.from('teams').select('id, name').in('id', [fromTeamId, toTeamId]),
+    // `*` so short_name comes along for the announcement without naming a
+    // column that an unmigrated database would reject.
+    supabaseAdmin.from('teams').select('*').in('id', [fromTeamId, toTeamId]),
     supabaseAdmin.from('players').select('id, name, team_id, jersey_number'),
   ])
 
@@ -72,7 +77,11 @@ export async function POST(request: Request) {
     return fail('Failed to read the clubs', 500)
   }
 
-  const teams = (teamsResult.data ?? []) as { id: string; name: string }[]
+  const teams = (teamsResult.data ?? []) as {
+    id: string
+    name: string
+    short_name?: string | null
+  }[]
   const players = (playersResult.data ?? []) as PlayerRow[]
 
   const fromTeam = teams.find((t) => t.id === fromTeamId)
@@ -153,5 +162,31 @@ export async function POST(request: Request) {
     })
   }
 
-  return NextResponse.json({ moved })
+  /*
+   * The board post is written last and its failure is swallowed on purpose:
+   * the players have already moved, and refusing the whole request at this
+   * point would report a failure for a trade that did in fact happen. The
+   * response says whether it was posted, so the admin can write one by hand
+   * if it was not.
+   */
+  let announced = false
+  if (body?.announce !== false) {
+    const announcement = composeTradeAnnouncement(
+      { name: fromTeam.name, shortName: fromTeam.short_name },
+      { name: toTeam.name, shortName: toTeam.short_name },
+      moved.filter((m) => m.toTeamName === toTeam.name),
+      moved.filter((m) => m.toTeamName === fromTeam.name)
+    )
+
+    if (announcement) {
+      const { error } = await supabaseAdmin
+        .from('commissioner_posts')
+        .insert({ body: announcement, media_type: 'none' })
+
+      if (error) console.error('Trade went through but the board post failed:', error)
+      else announced = true
+    }
+  }
+
+  return NextResponse.json({ moved, announced })
 }
