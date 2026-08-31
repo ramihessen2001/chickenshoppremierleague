@@ -172,6 +172,25 @@ export function TradePanel({ isOpen, onClose, defaultTeamId }: TradePanelProps) 
     [rightId, squads]
   )
 
+  /*
+   * Keep only players who are still on screen.
+   *
+   * Changing a club used to clear the whole selection, which quietly undid the
+   * other column: tick two from Dakar, then choose Cairo on the right, and the
+   * Dakar ticks were gone -- so the trade went one way. Pruning against what is
+   * actually visible drops the players who left with the club that changed and
+   * leaves the other side alone. Done in an effect rather than in each
+   * onTeamChange so there is no call site left to forget it.
+   */
+  useEffect(() => {
+    const visible = new Set([...left, ...right].map((p) => p.id))
+    setPicked((current) => {
+      const kept = [...current].filter((id) => visible.has(id))
+      // Same reference when nothing was dropped, so this cannot loop.
+      return kept.length === current.size ? current : new Set(kept)
+    })
+  }, [left, right])
+
   const toggle = (id: string) =>
     setPicked((current) => {
       const next = new Set(current)
@@ -236,7 +255,6 @@ export function TradePanel({ isOpen, onClose, defaultTeamId }: TradePanelProps) 
           picked={picked}
           onTeamChange={(id) => {
             setLeftId(id)
-            setPicked(new Set())
             setResult(null)
           }}
           onToggle={toggle}
@@ -250,7 +268,6 @@ export function TradePanel({ isOpen, onClose, defaultTeamId }: TradePanelProps) 
           picked={picked}
           onTeamChange={(id) => {
             setRightId(id)
-            setPicked(new Set())
             setResult(null)
           }}
           onToggle={toggle}
