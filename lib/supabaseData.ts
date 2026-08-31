@@ -799,6 +799,28 @@ async function apiRequest<T = unknown>(
   return payload as T
 }
 
+/**
+ * Move players between two clubs. Either side may send nobody, so this covers
+ * a swap, an uneven trade, or a plain move. Returns what actually moved,
+ * including any shirt number the receiving club forced a change to.
+ */
+export async function tradePlayers(trade: {
+  fromTeamId: string
+  toTeamId: string
+  fromPlayerIds: string[]
+  toPlayerIds: string[]
+}): Promise<{
+  moved: {
+    id: string
+    name: string
+    toTeamName: string
+    jerseyNumber: number | null
+    previousNumber?: number | null
+  }[]
+}> {
+  return apiRequest('/api/admin/trades', { method: 'POST', body: trade })
+}
+
 /** Tells every mounted component to re-read its data. */
 export function notifyDataUpdated() {
   window.dispatchEvent(new Event('dataUpdated'))

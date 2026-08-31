@@ -6,15 +6,18 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { Plus } from 'lucide-react'
+import { Plus, ArrowLeftRight } from 'lucide-react'
 import { Team } from '@/types/team'
 import { Game } from '@/types/game'
 import { Player } from '@/types/player'
 import { PlayerList } from './PlayerList'
+import { buttonPrimary, buttonSecondary } from './Modal'
 import { TeamSchedule } from './TeamSchedule'
 import { TeamIdentity } from './TeamIdentity'
 import { EditPlayerModal } from './EditPlayerModal'
+import { TradePanel } from './TradePanel'
 import { useAdmin } from '@/lib/adminContext'
+import { usePhase } from '@/lib/usePhase'
 
 interface TeamRosterProps {
   team: Team
@@ -23,8 +26,14 @@ interface TeamRosterProps {
 
 export function TeamRoster({ team, games = [] }: TeamRosterProps) {
   const { isAdmin } = useAdmin()
+  const phase = usePhase()
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isTradeOpen, setIsTradeOpen] = useState(false)
+
+  // Trades belong to the season: before it there is nothing settled to trade,
+  // and the draft has its own way of moving players onto a club.
+  const canTrade = isAdmin && (phase === 'season' || phase === 'playoffs')
 
   const openFor = (player: Player | null) => {
     setSelectedPlayer(player)
@@ -62,13 +71,21 @@ export function TeamRoster({ team, games = [] }: TeamRosterProps) {
             </div>
 
             {isAdmin && (
-              <button
-                onClick={() => openFor(null)}
-                className="inline-flex items-center gap-1.5 rounded-pill bg-surface-inverse px-4 py-2 text-[13px] font-medium text-ink-inverse transition-opacity hover:opacity-85"
-              >
-                <Plus size={15} />
-                Add player
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {canTrade && (
+                  <button
+                    onClick={() => setIsTradeOpen(true)}
+                    className={`${buttonSecondary} gap-1.5`}
+                  >
+                    <ArrowLeftRight size={15} />
+                    Trade
+                  </button>
+                )}
+                <button onClick={() => openFor(null)} className={`${buttonPrimary} gap-1.5`}>
+                  <Plus size={15} />
+                  Add player
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -98,6 +115,12 @@ export function TeamRoster({ team, games = [] }: TeamRosterProps) {
           </section>
         </div>
       </div>
+
+      <TradePanel
+        isOpen={isTradeOpen}
+        onClose={() => setIsTradeOpen(false)}
+        defaultTeamId={team.uuid}
+      />
 
       <EditPlayerModal
         player={selectedPlayer}

@@ -61,9 +61,16 @@ export function CommissionersBoard() {
   }
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-hairline bg-surface">
+    /*
+     * The height is capped on the board rather than on the feed inside it.
+     * Capping the feed left the surrounding card free to grow, so a couple of
+     * posts with video in them pushed everything else on the homepage below
+     * the fold. Bounded here, the feed simply scrolls within whatever room
+     * the board has.
+     */
+    <div className="flex h-full max-h-[26rem] flex-col border border-hairline sm:max-h-[32rem]">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-hairline px-5 py-4">
-        <p className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wider text-ink-tertiary">
+        <p className="flex items-center gap-2 font-util text-[10.5px] uppercase tracking-[0.1em] text-ink-secondary">
           {/* The black wordmark: this header sits on a light surface. */}
           <Image
             src={LEAGUE.wordmarkUrl}
@@ -77,7 +84,7 @@ export function CommissionersBoard() {
         {isAdmin && (
           <button
             onClick={() => setComposing(true)}
-            className="inline-flex shrink-0 items-center gap-1 rounded-pill bg-surface-inverse px-3 py-1.5 text-[12.5px] font-medium text-ink-inverse transition-opacity hover:opacity-85"
+            className="inline-flex shrink-0 items-center gap-1 bg-ink px-3 py-1.5 font-display text-[12px] font-bold uppercase tracking-[0.06em] text-ink-inverse transition-colors hover:bg-red"
           >
             <Plus size={13} />
             Post
@@ -91,14 +98,12 @@ export function CommissionersBoard() {
         </p>
       )}
 
-      <div className="max-h-[34rem] divide-y divide-hairline overflow-y-auto">
+      <div className="min-h-0 flex-1 divide-y divide-hairline overflow-y-auto">
         {isLoading ? (
-          <p className="px-5 py-10 text-center text-[14px] text-ink-tertiary">Loading…</p>
+          <p className="loading px-5 py-6">Loading</p>
         ) : posts.length === 0 ? (
-          <p className="px-5 py-10 text-center text-[14px] text-ink-tertiary">
-            {isAdmin
-              ? 'Nothing posted yet — use "Post" to add the first update.'
-              : 'Nothing posted yet.'}
+          <p className="loading px-5 py-6">
+            {isAdmin ? 'Nothing posted yet — use Post to add the first update' : 'Nothing posted yet'}
           </p>
         ) : (
           posts.map((post) => {
@@ -113,14 +118,14 @@ export function CommissionersBoard() {
                     <div className="flex shrink-0 items-center gap-0.5">
                       <button
                         onClick={() => setEditing(post)}
-                        className="rounded-md p-1.5 text-ink-tertiary transition-colors hover:bg-surface-sunken hover:text-ink"
+                        className="p-1.5 text-ink-tertiary transition-colors hover:bg-ink/[0.06] hover:text-ink"
                         aria-label="Edit post"
                       >
                         <Pencil size={13} />
                       </button>
                       <button
                         onClick={() => handleDelete(post)}
-                        className="rounded-md p-1.5 text-ink-tertiary transition-colors hover:bg-negative-wash hover:text-negative"
+                        className="p-1.5 text-ink-tertiary transition-colors hover:bg-negative-wash hover:text-negative"
                         aria-label="Delete post"
                       >
                         <Trash2 size={13} />
@@ -130,7 +135,7 @@ export function CommissionersBoard() {
                 </div>
 
                 {post.mediaType === 'image' && post.mediaUrl && (
-                  <div className="mt-3 overflow-hidden rounded-lg border border-hairline">
+                  <div className="mt-3 overflow-hidden border border-hairline">
                     <Image
                       src={post.mediaUrl}
                       alt=""
@@ -142,7 +147,7 @@ export function CommissionersBoard() {
                 )}
 
                 {videoId && (
-                  <div className="mt-3 overflow-hidden rounded-lg border border-hairline bg-black">
+                  <div className="mt-3 overflow-hidden border border-hairline bg-black">
                     <iframe
                       src={youTubeEmbedUrl(videoId)}
                       title="Commissioner's board video"
@@ -153,7 +158,9 @@ export function CommissionersBoard() {
                   </div>
                 )}
 
-                <p className="mt-2.5 text-[12px] text-ink-tertiary">{timeAgo(post.createdAt)}</p>
+                <p className="mt-2.5 font-util text-[11px] uppercase tracking-[0.06em] text-ink-tertiary">
+                  {timeAgo(post.createdAt)}
+                </p>
               </article>
             )
           })
