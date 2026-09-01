@@ -58,7 +58,7 @@ Slugs are the same prefixes the design files use:
     sccairo     S.C Cairo                       -
     scparis     S.C Paris                       -
     scdakar     S.C Dakar                       USWAH INSTITUTE
-    scramallah  S.C Ramallah                    HOOKS FISH AND CHICKEN
+    scramallah  S.C Ramallah                    HOOK FISH AND CHICKEN
     sckabul     S.C Kabul                       VIP AUTOMOTIVE
     scistanbul  S.C Istanbul Black              BLACK SEA AUTO
     scmansoura  S.C Mansoura                    -
@@ -66,6 +66,11 @@ Slugs are the same prefixes the design files use:
 Sponsor logos are named after the sponsor, not the team, because a sponsor can
 move between teams from one season to the next: `jaxfnc`, `uswah`, `hooks`,
 `vipauto`, `blacksea`.
+
+`hooks` keeps its plural: the sponsor is HOOK FISH AND CHICKEN, but the file
+name is an identifier the database points at, and renaming it would mean
+rewriting `sponsor_logo_url` for no gain. The displayed name is the one that
+matters and that comes from `sponsor_name`.
 
 The `<slug>.png` crests alongside the SVGs are the superseded raster versions.
 They are still here only because the database rows point at them until the next
