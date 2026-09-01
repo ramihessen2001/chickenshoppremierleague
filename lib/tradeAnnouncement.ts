@@ -5,17 +5,11 @@
  * changed without going near the database, the way lib/draft.ts holds the
  * snake order. Pure and dependency-free.
  *
- * The shape follows the announcements the commissioner was already writing by
- * hand on the board -- clubs in caps, players as they are spelled on the
- * roster, and the two sides separated by FOR:
- *
- *   CENTRAL SPORTING CLUB OF PURO (CSCP) and S.C RAMALLAH have executed a trade:
- *
- *   Momen (Now S.C RAMALLAH)
- *
- *   FOR
- *
- *   Mohammad Elyas Mohammadi (Now CSCP)
+ * Written in the style of Fabrizio Romano's transfer posts, which is a
+ * particular shape rather than just emoji: the deal in the first line with the
+ * catchphrase, then one fact per paragraph, then the tick to confirm it is
+ * done. Kept spare on purpose -- the joke stops being funny if every line is
+ * shouting.
  */
 
 export interface AnnouncementClub {
@@ -38,13 +32,16 @@ function headingLabel(club: AnnouncementClub): string {
   return short && short !== full ? `${full} (${short})` : full
 }
 
-/** What a "(Now ...)" tag says: the short name where there is one. */
+/** The short form, for use inside a sentence where the full name would run long. */
 function tagLabel(club: AnnouncementClub): string {
   return (club.shortName || club.name).toUpperCase()
 }
 
-function moveLines(moves: AnnouncementMove[], destination: AnnouncementClub): string {
-  return moves.map((m) => `${m.name} (Now ${tagLabel(destination)})`).join('\n')
+/** "A", "A and B", "A, B and C" -- these are read aloud, not scanned. */
+function names(moves: AnnouncementMove[]): string {
+  const list = moves.map((m) => m.name)
+  if (list.length <= 1) return list[0] ?? ''
+  return `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`
 }
 
 /**
@@ -65,26 +62,38 @@ export function composeTradeAnnouncement(
 ): string | null {
   if (fromMoves.length === 0 && toMoves.length === 0) return null
 
-  const parts: string[] = []
+  /*
+   * The headline leads with the bigger side of the deal, so a two-for-one
+   * reads as the two arriving rather than the one leaving.
+   *
+   * Only two clubs matter after that: the one the headline players are
+   * leaving, and the one they are joining. Anyone going the other way is by
+   * definition leaving `leadTo` and joining `leadFrom`, so there is no third
+   * direction to track.
+   */
+  const leadFromLeft = fromMoves.length >= toMoves.length
+  const lead = leadFromLeft ? fromMoves : toMoves
+  const other = leadFromLeft ? toMoves : fromMoves
+  const leadFrom = leadFromLeft ? fromClub : toClub
+  const leadTo = leadFromLeft ? toClub : fromClub
 
-  if (fromMoves.length > 0 && toMoves.length > 0) {
-    parts.push(`${headingLabel(fromClub)} and ${headingLabel(toClub)} have executed a trade:`)
-    parts.push(moveLines(fromMoves, toClub))
-    parts.push('FOR')
-    parts.push(moveLines(toMoves, fromClub))
-  } else {
-    // One-way. Calling this a trade would be wrong, and an empty half after
-    // FOR reads like something failed to save.
-    const sending = fromMoves.length > 0 ? fromClub : toClub
-    const receiving = fromMoves.length > 0 ? toClub : fromClub
-    const moves = fromMoves.length > 0 ? fromMoves : toMoves
+  const parts: string[] = [`🚨 ${names(lead)} to ${tagLabel(leadTo)} — here we go!`]
 
+  if (other.length > 0) {
     parts.push(
-      moves.length === 1
-        ? `${headingLabel(sending)} have sent ${moves[0].name} to ${headingLabel(receiving)}.`
-        : `${headingLabel(sending)} have sent the following to ${headingLabel(receiving)}:`
+      `Agreement reached between ${headingLabel(leadFrom)} and ${headingLabel(leadTo)}.`
     )
-    if (moves.length > 1) parts.push(moveLines(moves, receiving))
+    parts.push(
+      other.length === 1
+        ? `${names(other)} makes the move in the opposite direction, joining ${tagLabel(leadFrom)}.`
+        : `${names(other)} go the other way to ${tagLabel(leadFrom)} as part of the deal.`
+    )
+  } else {
+    // Nobody coming back. Romano would call this a straight move rather than
+    // leave the reader waiting for the other half.
+    parts.push(
+      `A straight move from ${headingLabel(leadFrom)}, with no player going the other way.`
+    )
   }
 
   // Only worth a line when a number actually had to change -- otherwise this
@@ -95,14 +104,17 @@ export function composeTradeAnnouncement(
   if (renumbered.length > 0) {
     parts.push(
       renumbered
-        .map(
-          (m) =>
-            `${m.name} now wears #${m.jerseyNumber ?? 'TBD'}` +
-            (m.previousNumber === null ? '.' : ` (was #${m.previousNumber}).`)
+        .map((m) =>
+          m.jerseyNumber === null
+            ? `Squad number to be confirmed for ${m.name}.`
+            : `Squad number confirmed: ${m.name} will wear #${m.jerseyNumber}` +
+              (m.previousNumber === null ? '.' : `, previously #${m.previousNumber}.`)
         )
         .join('\n')
     )
   }
+
+  parts.push('Deal completed. ✅')
 
   return parts.join('\n\n')
 }
