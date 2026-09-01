@@ -175,8 +175,8 @@ export function PlayerStatsClient() {
           {isAdmin ? <AwardManagement /> : <AwardVoting />}
         </section>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-0 flex-1 sm:max-w-xs">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="relative w-full sm:w-auto sm:min-w-0 sm:flex-1 sm:max-w-xs">
             <Search
               size={15}
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary"
@@ -195,7 +195,7 @@ export function PlayerStatsClient() {
             value={selectedTeam}
             onChange={(e) => setSelectedTeam(e.target.value)}
             aria-label="Filter by team"
-            className="min-h-11 border border-hairline bg-transparent px-[11px] py-2 text-[15px] text-ink focus:border-[1.5px] focus:border-court focus:outline-none"
+            className="min-h-11 w-full border border-hairline bg-transparent px-[11px] py-2 text-[15px] text-ink focus:border-[1.5px] focus:border-court focus:outline-none sm:w-auto"
           >
             <option value="all">All teams</option>
             {teamOptions.map((team) => (
@@ -205,7 +205,7 @@ export function PlayerStatsClient() {
             ))}
           </select>
 
-          <p className="ml-auto font-util text-[12px] text-ink-tertiary">
+          <p className="font-util text-[12px] text-ink-tertiary sm:ml-auto">
             {filteredPlayers.length}{' '}
             {filteredPlayers.length === 1 ? 'player' : 'players'}
           </p>
