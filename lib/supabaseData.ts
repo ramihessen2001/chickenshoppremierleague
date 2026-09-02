@@ -818,6 +818,8 @@ export async function tradePlayers(trade: {
     toTeamName: string
     jerseyNumber: number | null
     previousNumber?: number | null
+    /** True when this player captained the club they just left. */
+    wasCaptain?: boolean
   }[]
   /** False when the trade went through but the board post did not. */
   announced: boolean

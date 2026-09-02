@@ -40,6 +40,8 @@ interface MovedPlayer {
   jerseyNumber: number | null
   /** Set only when the player could not keep the number they arrived with. */
   previousNumber?: number | null
+  /** True when this player was their old club's captain. */
+  wasCaptain?: boolean
 }
 
 interface PlayerRow {
@@ -47,6 +49,15 @@ interface PlayerRow {
   name: string
   team_id: string
   jersey_number: number | null
+  is_captain: boolean | null
+}
+
+/** What a player looked like before the trade, so a failure can be undone. */
+interface PriorState {
+  id: string
+  team_id: string
+  jersey_number: number | null
+  is_captain: boolean | null
 }
 
 export async function POST(request: Request) {
@@ -69,7 +80,7 @@ export async function POST(request: Request) {
     // `*` so short_name comes along for the announcement without naming a
     // column that an unmigrated database would reject.
     supabaseAdmin.from('teams').select('*').in('id', [fromTeamId, toTeamId]),
-    supabaseAdmin.from('players').select('id, name, team_id, jersey_number'),
+    supabaseAdmin.from('players').select('*'),
   ])
 
   if (teamsResult.error || playersResult.error) {
@@ -126,6 +137,30 @@ export async function POST(request: Request) {
     )
   }
 
+  /*
+   * Every write is recorded so a failure part-way through can be undone.
+   *
+   * Without this a four-player swap that fails on the third move leaves two
+   * players already on their new clubs and no way to tell which half applied.
+   * The draft's pick route rolls back for the same reason. Postgres would give
+   * us a real transaction, but the REST client cannot open one, so the undo is
+   * done by hand.
+   */
+  const applied: PriorState[] = []
+  const rollback = async () => {
+    for (const prior of [...applied].reverse()) {
+      const { error } = await supabaseAdmin
+        .from('players')
+        .update({
+          team_id: prior.team_id,
+          jersey_number: prior.jersey_number,
+          is_captain: prior.is_captain,
+        })
+        .eq('id', prior.id)
+      if (error) console.error('Rollback failed for player', prior.id, error)
+    }
+  }
+
   const moved: MovedPlayer[] = []
   for (const { player, destination } of moves) {
     const taken = squads.get(destination.id) ?? []
@@ -140,17 +175,45 @@ export async function POST(request: Request) {
       jerseyNumber = suggestNumbers(wanted, taken, 1)[0] ?? null
     }
 
-    const { error } = await supabaseAdmin
+    const { data: updated, error } = await supabaseAdmin
       .from('players')
-      .update({ team_id: destination.id, jersey_number: jerseyNumber })
+      .update({
+        team_id: destination.id,
+        jersey_number: jerseyNumber,
+        // A captaincy does not travel with the player. They were captain of the
+        // club they are leaving, and who leads the club they are joining is
+        // that club's decision -- letting the flag ride along would hand the
+        // receiving club a second captain and leave the other with none.
+        is_captain: false,
+      })
       .eq('id', player.id)
       // Only if they are still where we thought they were.
       .eq('team_id', player.team_id)
+      // Without select() a zero-row update returns no error, so a player moved
+      // by someone else in the meantime would silently not move at all -- and
+      // the announcement would say they had.
+      .select('id')
 
     if (error) {
       console.error('Error moving player in trade:', error)
-      return fail(`Failed to move ${player.name}`, 500)
+      await rollback()
+      return fail(`Failed to move ${player.name} — nothing was changed`, 500)
     }
+
+    if (!updated || updated.length === 0) {
+      await rollback()
+      return fail(
+        `${player.name} was moved by someone else while this trade was open — nothing was changed. Reload and try again.`,
+        409
+      )
+    }
+
+    applied.push({
+      id: player.id,
+      team_id: player.team_id,
+      jersey_number: player.jersey_number,
+      is_captain: player.is_captain,
+    })
 
     taken.push(jerseyNumber)
     moved.push({
@@ -159,6 +222,7 @@ export async function POST(request: Request) {
       toTeamName: destination.name,
       jerseyNumber,
       ...(jerseyNumber !== wanted ? { previousNumber: wanted } : {}),
+      ...(player.is_captain ? { wasCaptain: true } : {}),
     })
   }
 

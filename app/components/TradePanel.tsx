@@ -221,7 +221,13 @@ export function TradePanel({ isOpen, onClose, defaultTeamId }: TradePanelProps) 
         toPlayerIds,
         announce,
       })
+      // A club quietly losing its captain is the kind of thing nobody notices
+      // for weeks, so it is said first rather than left to be discovered.
+      const vacated = moved.filter((m) => m.wasCaptain)
       setResult([
+        ...vacated.map(
+          (m) => `${m.name} captained their old club — it now needs a new captain.`
+        ),
         ...(announce && !announced
           ? ['The trade went through, but the board post did not — post it by hand.']
           : []),
