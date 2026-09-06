@@ -7,6 +7,7 @@ import { Footer } from './components/Footer'
 import { AdminProvider } from '@/lib/adminContext'
 import { TeamsProvider } from '@/lib/teamsContext'
 import { AdminBanner } from './components/AdminBanner'
+import { LeagueUpdatesPopup } from './components/LeagueUpdatesPopup'
 import { LEAGUE } from '@/config/league'
 
 /**
@@ -93,6 +94,7 @@ export default function RootLayout({
             <Header />
             <main className="flex-1">{children}</main>
             <Footer />
+            <LeagueUpdatesPopup />
           </TeamsProvider>
         </AdminProvider>
 

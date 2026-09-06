@@ -10,8 +10,14 @@
  */
 
 export const LEAGUE = {
-  /** Full name, used in the header and page titles. */
-  name: 'Chicken Shop Premier League',
+  /**
+   * Full name, used in the header and page titles.
+   *
+   * Stored in title case even though the header shouts it: that uppercase is
+   * done in CSS, and the same string also becomes an email subject, a browser
+   * tab and the share card, none of which should be shouting.
+   */
+  name: 'YM Chicken Shop Premier League',
 
   /** Short form, used where space is tight. */
   shortName: 'CSPL',
@@ -21,9 +27,12 @@ export const LEAGUE = {
 
   /** Shown in <meta name="description">. */
   description:
-    'Schedules, rosters, standings, statistics and results for the Chicken Shop Premier League.',
+    'Schedules, rosters, standings, statistics and results for the YM Chicken Shop Premier League.',
 
-  keywords: 'CSPL, Chicken Shop Premier League, soccer league, schedule, standings, stats',
+  // The old name is kept in the list on purpose: people who followed the
+  // league before the rename will search for it.
+  keywords:
+    'CSPL, YM Chicken Shop Premier League, Chicken Shop Premier League, soccer league, schedule, standings, stats',
 
   /**
    * The Puro wordmark. Wide -- roughly 3.2:1 -- so it needs a wide slot, not a

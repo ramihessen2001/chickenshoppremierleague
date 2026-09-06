@@ -30,8 +30,25 @@ const API_REVISION = '2025-07-15'
 /** Give up rather than hold a registration open on a slow provider. */
 const TIMEOUT_MS = 5000
 
-export function isKlaviyoConfigured(): boolean {
-  return Boolean(process.env.KLAVIYO_PRIVATE_API_KEY && process.env.KLAVIYO_LIST_ID)
+/**
+ * The two audiences, kept apart on purpose.
+ *
+ * League updates go to people following the football -- fixtures, results,
+ * team news. Marketing is PURO's own, and a good part of the league is under
+ * 18, so a kit drop has no business landing in the same inbox by default.
+ * Same Klaviyo account, different lists, and nothing moves between them
+ * without somebody asking.
+ */
+export type KlaviyoAudience = 'league' | 'marketing'
+
+function listIdFor(audience: KlaviyoAudience): string | undefined {
+  return audience === 'league'
+    ? process.env.KLAVIYO_LEAGUE_LIST_ID
+    : process.env.KLAVIYO_LIST_ID
+}
+
+export function isKlaviyoConfigured(audience: KlaviyoAudience = 'marketing'): boolean {
+  return Boolean(process.env.KLAVIYO_PRIVATE_API_KEY && listIdFor(audience))
 }
 
 /**
@@ -45,10 +62,12 @@ export function isKlaviyoConfigured(): boolean {
 export async function subscribeToMarketing(
   email: string,
   name?: string | null,
-  consentedAt: Date = new Date()
+  consentedAt: Date = new Date(),
+  audience: KlaviyoAudience = 'marketing'
 ): Promise<void> {
-  if (!isKlaviyoConfigured()) {
-    console.info(`Klaviyo not configured; skipping subscribe for ${email}`)
+  const listId = listIdFor(audience)
+  if (!process.env.KLAVIYO_PRIVATE_API_KEY || !listId) {
+    console.info(`Klaviyo not configured for ${audience}; skipping subscribe for ${email}`)
     return
   }
 
@@ -95,7 +114,7 @@ export async function subscribeToMarketing(
             historical_import: false,
           },
           relationships: {
-            list: { data: { type: 'list', id: process.env.KLAVIYO_LIST_ID } },
+            list: { data: { type: 'list', id: listId } },
           },
         },
       }),
@@ -107,12 +126,12 @@ export async function subscribeToMarketing(
       // JSON:API pointer to the exact field, which is the only way to tell a
       // wrong list id from a wrong payload shape.
       console.error(
-        `Klaviyo subscribe for ${email} rejected:`,
+        `Klaviyo ${audience} subscribe for ${email} rejected:`,
         response.status,
         await response.text().catch(() => '')
       )
     }
   } catch (error) {
-    console.error(`Klaviyo subscribe for ${email} failed:`, error)
+    console.error(`Klaviyo ${audience} subscribe for ${email} failed:`, error)
   }
 }

@@ -1,5 +1,5 @@
 -- ============================================================================
--- Chicken Shop Premier League - Database Schema
+-- YM Chicken Shop Premier League - Database Schema
 -- ============================================================================
 -- Run this once against a fresh Supabase project (SQL Editor -> New Query).
 -- It creates every table, index, trigger and policy the app needs.
@@ -510,7 +510,7 @@ CREATE POLICY "league images public read"
 INSERT INTO league_config (
   league_name, season, start_date, end_date, current_week, total_weeks, phase
 ) VALUES (
-  'Chicken Shop Premier League', 'Fall 2026', '2026-09-10', '2026-11-26', 1, 10,
+  'YM Chicken Shop Premier League', 'Fall 2026', '2026-09-10', '2026-11-26', 1, 10,
   'signups'
 );
 
