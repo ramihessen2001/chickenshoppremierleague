@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import Script from 'next/script'
 import { IBM_Plex_Sans, IBM_Plex_Sans_Condensed, Courier_Prime } from 'next/font/google'
 import './globals.css'
 import { Header } from './components/Header'
@@ -99,24 +98,19 @@ export default function RootLayout({
         </AdminProvider>
 
         {/*
-          Klaviyo's on-site script: forms, popups and browse tracking.
+          No Klaviyo on-site script here, deliberately.
 
-          Only rendered when the company id is set, so a local checkout or a
-          preview deploy without the variable simply has no tag rather than a
-          broken request. The id is public by design -- it is the private key
-          that must never reach the browser, and that one lives only in
-          lib/klaviyo.ts on the server.
+          One company id covers every PURO property, so loading it would let a
+          pop-up designed for purofc.com fire on the league site -- a kit drop
+          in front of a fixture list, and no targeting rule in the dashboard is
+          a guarantee, because anyone can change one later. Not loading it is.
 
-          afterInteractive: this is marketing, and it should never be in front
-          of the page rendering.
+          Nothing is lost: the league's own sign-up is
+          app/components/LeagueUpdatesPopup.tsx, which posts server-side
+          through /api/subscribe and never needs the browser tag. It also keeps
+          third-party browse tracking off a site half of whose visitors are
+          under 18.
         */}
-        {process.env.NEXT_PUBLIC_KLAVIYO_COMPANY_ID && (
-          <Script
-            id="klaviyo"
-            strategy="afterInteractive"
-            src={`https://static.klaviyo.com/onsite/js/${process.env.NEXT_PUBLIC_KLAVIYO_COMPANY_ID}/klaviyo.js`}
-          />
-        )}
       </body>
     </html>
   )
