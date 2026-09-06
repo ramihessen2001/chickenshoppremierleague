@@ -761,7 +761,13 @@ export async function getArchivePlayersWithStats(archiveSeasonId: string) {
 export class ApiError extends Error {
   constructor(
     message: string,
-    readonly status: number
+    readonly status: number,
+    /**
+     * The parsed response body. Some routes answer a 409 with something the
+     * caller has to act on -- a list of shirt numbers to settle, say -- and
+     * without this the only thing that survives the throw is a sentence.
+     */
+    readonly payload?: unknown
   ) {
     super(message)
     this.name = 'ApiError'
@@ -793,7 +799,7 @@ async function apiRequest<T = unknown>(
       response.status === 401
         ? 'Your admin session has expired. Please log in again.'
         : payload.error || `Request failed (${response.status})`
-    throw new ApiError(message, response.status)
+    throw new ApiError(message, response.status, payload)
   }
 
   return payload as T
@@ -804,6 +810,25 @@ async function apiRequest<T = unknown>(
  * a swap, an uneven trade, or a plain move. Returns what actually moved,
  * including any shirt number the receiving club forced a change to.
  */
+/** A shirt number the receiving club already has, for the admin to settle. */
+export interface TradeNumberClash {
+  playerId: string
+  playerName: string
+  teamName: string
+  requested: number | null
+  /** Who is already wearing it. */
+  heldBy: string
+  suggestions: number[]
+}
+
+/** Thrown when a trade cannot proceed until numbers are chosen. */
+export class TradeNeedsNumbers extends Error {
+  constructor(public clashes: TradeNumberClash[]) {
+    super('Some players need a different shirt number')
+    this.name = 'TradeNeedsNumbers'
+  }
+}
+
 export async function tradePlayers(trade: {
   fromTeamId: string
   toTeamId: string
@@ -811,6 +836,8 @@ export async function tradePlayers(trade: {
   toPlayerIds: string[]
   /** Post it to the commissioner's board. Defaults to true on the server. */
   announce?: boolean
+  /** Answers to a previous TradeNeedsNumbers, by player id. */
+  numbers?: Record<string, number | null>
 }): Promise<{
   moved: {
     id: string
@@ -824,7 +851,19 @@ export async function tradePlayers(trade: {
   /** False when the trade went through but the board post did not. */
   announced: boolean
 }> {
-  return apiRequest('/api/admin/trades', { method: 'POST', body: trade })
+  try {
+    return await apiRequest('/api/admin/trades', { method: 'POST', body: trade })
+  } catch (error) {
+    // A 409 carrying clashes is a question, not a failure: nothing was written,
+    // and the caller is expected to ask and come back.
+    const payload =
+      error instanceof ApiError
+        ? (error.payload as { needsNumbers?: TradeNumberClash[] } | undefined)
+        : undefined
+    const clashes = payload?.needsNumbers
+    if (clashes?.length) throw new TradeNeedsNumbers(clashes)
+    throw error
+  }
 }
 
 /** Tells every mounted component to re-read its data. */

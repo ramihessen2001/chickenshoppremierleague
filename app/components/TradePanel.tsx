@@ -17,7 +17,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { displayJersey } from '@/types/player'
 import { useTeams } from '@/lib/teamsContext'
-import { getTeamsWithPlayers, tradePlayers, notifyDataUpdated } from '@/lib/supabaseData'
+import {
+  getTeamsWithPlayers,
+  tradePlayers,
+  notifyDataUpdated,
+  TradeNeedsNumbers,
+  type TradeNumberClash,
+} from '@/lib/supabaseData'
 import { Modal, fieldClass, labelClass, buttonPrimary, buttonSecondary, FormError } from './Modal'
 
 export interface TradeSquadPlayer {
@@ -160,6 +166,13 @@ export function TradePanel({ isOpen, onClose, defaultTeamId }: TradePanelProps) 
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [announce, setAnnounce] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  /*
+   * Shirt numbers the receiving club already has. The server writes nothing
+   * and asks instead of guessing, so this is a question to answer rather than
+   * a failure to recover from.
+   */
+  const [clashes, setClashes] = useState<TradeNumberClash[]>([])
+  const [numbers, setNumbers] = useState<Record<string, number | null>>({})
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<string[] | null>(null)
 
@@ -208,9 +221,11 @@ export function TradePanel({ isOpen, onClose, defaultTeamId }: TradePanelProps) 
     setPicked(new Set())
     setError(null)
     setResult(null)
+    setClashes([])
+    setNumbers({})
   }
 
-  const submit = async () => {
+  const submit = async (chosen: Record<string, number | null> = {}) => {
     setIsSaving(true)
     setError(null)
     try {
@@ -220,7 +235,10 @@ export function TradePanel({ isOpen, onClose, defaultTeamId }: TradePanelProps) 
         fromPlayerIds,
         toPlayerIds,
         announce,
+        ...(Object.keys(chosen).length > 0 ? { numbers: chosen } : {}),
       })
+      setClashes([])
+      setNumbers({})
       // A club quietly losing its captain is the kind of thing nobody notices
       // for weeks, so it is said first rather than left to be discovered.
       const vacated = moved.filter((m) => m.wasCaptain)
@@ -241,7 +259,14 @@ export function TradePanel({ isOpen, onClose, defaultTeamId }: TradePanelProps) 
       await loadSquads()
       notifyDataUpdated()
     } catch (tradeError) {
-      setError(tradeError instanceof Error ? tradeError.message : 'That trade did not go through')
+      if (tradeError instanceof TradeNeedsNumbers) {
+        setClashes(tradeError.clashes)
+        setNumbers({})
+      } else {
+        setError(
+          tradeError instanceof Error ? tradeError.message : 'That trade did not go through'
+        )
+      }
     } finally {
       setIsSaving(false)
     }
@@ -301,6 +326,64 @@ export function TradePanel({ isOpen, onClose, defaultTeamId }: TradePanelProps) 
         </div>
       )}
 
+      {clashes.length > 0 && (
+        <div className="mt-5 border border-negative bg-negative-wash p-4">
+          <p className="eyebrow">Shirt numbers to settle</p>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-ink">
+            Nothing has been moved yet. Pick a number for each, or leave one
+            without and set it on the roster later.
+          </p>
+
+          {clashes.map((clash) => (
+            <div key={clash.playerId} className="mt-4 border-t border-hairline pt-3">
+              <p className="text-[14px] text-ink">
+                <b className="font-display font-bold uppercase">{clash.playerName}</b> wants #
+                {clash.requested} on {clash.teamName} — {clash.heldBy} already has it.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {clash.suggestions.map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setNumbers((c) => ({ ...c, [clash.playerId]: n }))}
+                    className={`border px-2.5 py-1 font-util text-[12px] transition-colors ${
+                      numbers[clash.playerId] === n
+                        ? 'border-ink bg-ink text-ink-inverse'
+                        : 'border-hairline-strong text-ink hover:bg-ink/[0.06]'
+                    }`}
+                  >
+                    #{n}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setNumbers((c) => ({ ...c, [clash.playerId]: null }))}
+                  className={`border px-2.5 py-1 font-util text-[12px] uppercase tracking-[0.06em] transition-colors ${
+                    numbers[clash.playerId] === null &&
+                    Object.prototype.hasOwnProperty.call(numbers, clash.playerId)
+                      ? 'border-ink bg-ink text-ink-inverse'
+                      : 'border-hairline-strong text-ink hover:bg-ink/[0.06]'
+                  }`}
+                >
+                  No number
+                </button>
+              </div>
+            </div>
+          ))}
+
+          <button
+            onClick={() => submit(numbers)}
+            disabled={
+              isSaving ||
+              clashes.some(
+                (c) => !Object.prototype.hasOwnProperty.call(numbers, c.playerId)
+              )
+            }
+            className={`${buttonPrimary} mt-4 w-full`}
+          >
+            {isSaving ? 'Trading…' : 'Confirm and trade'}
+          </button>
+        </div>
+      )}
+
       <label className="mt-5 flex cursor-pointer items-center gap-2.5">
         <input
           type="checkbox"
@@ -316,7 +399,11 @@ export function TradePanel({ isOpen, onClose, defaultTeamId }: TradePanelProps) 
         <button onClick={reset} className={buttonSecondary} disabled={isSaving}>
           Clear
         </button>
-        <button onClick={submit} className={buttonPrimary} disabled={!canTrade || isSaving}>
+        <button
+          onClick={() => submit()}
+          className={buttonPrimary}
+          disabled={!canTrade || isSaving}
+        >
           {isSaving ? 'Trading…' : 'Trade'}
         </button>
       </div>

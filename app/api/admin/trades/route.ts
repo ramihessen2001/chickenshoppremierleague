@@ -21,7 +21,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fail, readJson, requireAdmin } from '@/lib/apiAuth'
-import { suggestNumbers } from '@/lib/draft'
+import { isNumberFree, suggestNumbers } from '@/lib/draft'
 import { composeTradeAnnouncement } from '@/lib/tradeAnnouncement'
 
 interface TradeBody {
@@ -31,6 +31,11 @@ interface TradeBody {
   toPlayerIds?: string[]
   /** Post the trade to the commissioner's board. Defaults to true. */
   announce?: boolean
+  /**
+   * Shirt numbers chosen by the admin, by player id, answering a previous
+   * `needsNumbers` response. Null means leave them without one for now.
+   */
+  numbers?: Record<string, number | null>
 }
 
 interface MovedPlayer {
@@ -161,29 +166,99 @@ export async function POST(request: Request) {
     }
   }
 
-  const moved: MovedPlayer[] = []
+  /*
+   * Settle every shirt number before writing anything.
+   *
+   * The old behaviour was to quietly hand an arriving player the nearest free
+   * number when theirs was taken. Nothing broke, which was the problem: a
+   * number changed without anyone being told, and the first sign of it could
+   * be a shirt printed wrong. The draft asks rather than guesses, and a trade
+   * should too.
+   */
+  const chosen = body?.numbers ?? {}
+  const needsNumbers: {
+    playerId: string
+    playerName: string
+    teamName: string
+    requested: number | null
+    heldBy: string
+    suggestions: number[]
+  }[] = []
+  const resolved = new Map<string, number | null>()
+
   for (const { player, destination } of moves) {
     const taken = squads.get(destination.id) ?? []
     const wanted = player.jersey_number
 
-    let jerseyNumber: number | null
-    if (wanted === null) {
-      jerseyNumber = null
-    } else if (!taken.includes(wanted)) {
-      jerseyNumber = wanted
-    } else {
-      jerseyNumber = suggestNumbers(wanted, taken, 1)[0] ?? null
+    // An answer from a previous attempt wins, as long as it is still free.
+    if (Object.prototype.hasOwnProperty.call(chosen, player.id)) {
+      const pick = chosen[player.id]
+      if (pick === null) {
+        resolved.set(player.id, null)
+        continue
+      }
+      if (!isNumberFree(pick, taken)) {
+        return fail(`#${pick} is not free on ${destination.name}`, 409)
+      }
+      resolved.set(player.id, pick)
+      taken.push(pick)
+      continue
     }
 
+    if (wanted === null || !taken.includes(wanted)) {
+      resolved.set(player.id, wanted)
+      if (wanted !== null) taken.push(wanted)
+      continue
+    }
+
+    // Taken by somebody who is staying put -- the admin has to decide.
+    const holder = players.find(
+      (p) => p.team_id === destination.id && p.jersey_number === wanted
+    )
+    needsNumbers.push({
+      playerId: player.id,
+      playerName: player.name,
+      teamName: destination.name,
+      requested: wanted,
+      heldBy: holder?.name ?? 'someone already there',
+      suggestions: suggestNumbers(wanted, taken),
+    })
+  }
+
+  if (needsNumbers.length > 0) {
+    // Nothing has been written at this point, so this is a question, not a
+    // half-finished trade.
+    return NextResponse.json({ needsNumbers }, { status: 409 })
+  }
+
+  /*
+   * Written in two passes, and the reason is the UNIQUE(team_id, jersey_number)
+   * constraint.
+   *
+   * The numbers settled above are correct for the finished trade, but the
+   * database checks that constraint on every single UPDATE, not at the end. In
+   * a straight swap of two players who both wear #7, moving the first one over
+   * lands them on a club where the second is still wearing #7 -- and the write
+   * is rejected even though the final state would have been perfectly valid.
+   * Fourteen of the twenty-four numbers in this league are worn on more than
+   * one club, so that is most swaps, not an edge case.
+   *
+   * So: park everyone on their new club with no number at all, then hand the
+   * numbers out. Postgres treats NULLs as distinct in a UNIQUE constraint, so
+   * the parking pass cannot collide with anything, and by the time numbers are
+   * assigned nobody is still holding one they are about to give up.
+   */
+
+  // Pass one: move them, with no number.
+  for (const { player, destination } of moves) {
     const { data: updated, error } = await supabaseAdmin
       .from('players')
       .update({
         team_id: destination.id,
-        jersey_number: jerseyNumber,
+        jersey_number: null,
         // A captaincy does not travel with the player. They were captain of the
         // club they are leaving, and who leads the club they are joining is
-        // that club's decision -- letting the flag ride along would hand the
-        // receiving club a second captain and leave the other with none.
+        // that club's decision.
         is_captain: false,
       })
       .eq('id', player.id)
@@ -214,8 +289,36 @@ export async function POST(request: Request) {
       jersey_number: player.jersey_number,
       is_captain: player.is_captain,
     })
+  }
 
-    taken.push(jerseyNumber)
+  // Pass two: hand out the numbers, now that none of them are held hostage.
+  const moved: MovedPlayer[] = []
+  for (const { player, destination } of moves) {
+    const wanted = player.jersey_number
+    // Settled in the pre-flight above, so nothing is decided here.
+    const jerseyNumber = resolved.get(player.id) ?? null
+
+    if (jerseyNumber !== null) {
+      const { error } = await supabaseAdmin
+        .from('players')
+        .update({ jersey_number: jerseyNumber })
+        .eq('id', player.id)
+
+      if (error) {
+        // 23505 here would mean the number was free when we worked it out and
+        // taken by the time we wrote it -- worth naming, because everything
+        // else in this handler reads as a generic failure.
+        console.error('Error assigning a shirt number in trade:', error)
+        await rollback()
+        return fail(
+          error.code === '23505'
+            ? `#${jerseyNumber} was taken on ${destination.name} before the trade finished — nothing was changed.`
+            : `Failed to give ${player.name} a number — nothing was changed`,
+          error.code === '23505' ? 409 : 500
+        )
+      }
+    }
+
     moved.push({
       id: player.id,
       name: player.name,

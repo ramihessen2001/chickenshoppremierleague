@@ -1,5 +1,5 @@
 /**
- * The league updates sign-up, shown once to a visitor who has not answered it.
+ * The league updates sign-up, shown to every visitor who has not joined yet.
  *
  * Built here rather than in Klaviyo's form editor because a form rendered by
  * them arrives with its own fonts, rounded corners and drop shadow -- all three
@@ -22,11 +22,22 @@ import { LEAGUE } from '@/config/league'
 import { usePhase } from '@/lib/usePhase'
 import { fieldClass, buttonPrimary } from './Modal'
 
-/** Remembers that this visitor has answered, so it is asked once. */
-const SEEN_KEY = 'cspl_updates_prompt'
+/**
+ * Set only when somebody actually joins, so it is the sign-up that retires the
+ * prompt, not the closing of it. Deliberately a new key: the old one recorded
+ * dismissals too, and anyone carrying that flag has never been asked properly.
+ */
+const JOINED_KEY = 'cspl_updates_joined'
 
-/** Long enough to read the page first. A prompt on arrival is just a toll. */
-const DELAY_MS = 9000
+/**
+ * Closing it quiets the prompt for the rest of the tab session only, so
+ * somebody reading three pages is not asked three times, and a later visit
+ * still gets the offer.
+ */
+const DISMISSED_KEY = 'cspl_updates_dismissed'
+
+/** Long enough for the page to paint and be recognised, not long enough to miss. */
+const DELAY_MS = 2500
 
 type State = 'idle' | 'sending' | 'done' | 'error'
 
@@ -34,19 +45,35 @@ type State = 'idle' | 'sending' | 'done' | 'error'
  * localStorage is unavailable in some private-browsing modes and throws rather
  * than returning null, which would take the whole page down from a popup.
  */
-function hasAnswered(): boolean {
+function hasJoined(): boolean {
   try {
-    return window.localStorage.getItem(SEEN_KEY) !== null
+    return window.localStorage.getItem(JOINED_KEY) !== null
   } catch {
     return false
   }
 }
 
-function remember(): void {
+function dismissedThisSession(): boolean {
   try {
-    window.localStorage.setItem(SEEN_KEY, new Date().toISOString())
+    return window.sessionStorage.getItem(DISMISSED_KEY) !== null
+  } catch {
+    return false
+  }
+}
+
+function rememberJoined(): void {
+  try {
+    window.localStorage.setItem(JOINED_KEY, new Date().toISOString())
   } catch {
     /* Nothing to do -- they will simply be asked again next visit. */
+  }
+}
+
+function rememberDismissed(): void {
+  try {
+    window.sessionStorage.setItem(DISMISSED_KEY, '1')
+  } catch {
+    /* Nothing to do -- they will simply be asked again on the next page. */
   }
 }
 
@@ -87,7 +114,8 @@ export function LeagueUpdatesPopup() {
       setIsOpen(true)
       return
     }
-    if (wouldCompete || isAdminArea || hasAnswered()) return
+    if (wouldCompete || isAdminArea) return
+    if (hasJoined() || dismissedThisSession()) return
     const timer = setTimeout(() => setIsOpen(true), DELAY_MS)
     return () => clearTimeout(timer)
   }, [wouldCompete, isAdminArea, forced])
@@ -96,7 +124,7 @@ export function LeagueUpdatesPopup() {
     setIsOpen(false)
     // A forced preview does not count as having been asked, so closing it
     // cannot quietly opt somebody out of ever seeing the real one.
-    if (!forced) remember()
+    if (!forced) rememberDismissed()
   }, [forced])
 
   useEffect(() => {
@@ -121,7 +149,7 @@ export function LeagueUpdatesPopup() {
       })
       if (!response.ok) throw new Error('rejected')
       setState('done')
-      remember()
+      rememberJoined()
       // Left up long enough to be read, then it gets out of the way.
       setTimeout(() => setIsOpen(false), 4000)
     } catch {
