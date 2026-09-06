@@ -57,6 +57,9 @@ export function SignupForm() {
   /** Set when the roster was already full, which changes what we ask for next. */
   const [isWaitlisted, setIsWaitlisted] = useState(false)
   const [hasAgreed, setHasAgreed] = useState(false)
+  // Unticked by default and never required: the league runs whether or not
+  // anyone wants email from us.
+  const [wantsMarketing, setWantsMarketing] = useState(false)
   const [isWaiverOpen, setIsWaiverOpen] = useState(false)
 
   const update = <K extends keyof FormState>(field: K, value: FormState[K]) =>
@@ -92,6 +95,7 @@ export function SignupForm() {
       jerseyNumber: Number(form.jerseyNumber),
       jerseySize: form.jerseySize,
       notes: form.notes || undefined,
+      marketingOptIn: wantsMarketing,
     })
 
     setIsSubmitting(false)
@@ -416,6 +420,29 @@ export function SignupForm() {
               </button>
             </p>
           </div>
+
+          {/* Optional, and only shown when there is an address to send to.
+              Separate from the waiver above, which is required -- bundling a
+              marketing tick into a consent people must give is exactly the
+              pattern that makes an opt-in worthless. */}
+          {form.email.trim() !== '' && (
+            <div className="flex items-start gap-2.5">
+              <input
+                id="signup-marketing"
+                type="checkbox"
+                checked={wantsMarketing}
+                onChange={(e) => setWantsMarketing(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--ink)]"
+              />
+              <label htmlFor="signup-marketing" className="text-[14px] leading-snug text-ink">
+                Email me about PURO kit drops and next season&rsquo;s league.
+                <span className="block text-[13px] text-ink-secondary">
+                  Optional. Nothing to do with your place this season, and you can
+                  unsubscribe from any email.
+                </span>
+              </label>
+            </div>
+          )}
         </div>
 
         <button
@@ -426,8 +453,13 @@ export function SignupForm() {
           {isSubmitting ? 'Submitting…' : 'Register'}
         </button>
 
+        {/* The promise has to survive the box above it: unticked, this line is
+            exactly as true as it always was; ticked, saying "only" would be a
+            lie printed under the button they just pressed. */}
         <p className="mt-3 text-center text-[12px] text-ink-tertiary">
-          We only use your details to run the league.
+          {wantsMarketing
+            ? 'We use your details to run the league, and to send you the emails you asked for.'
+            : 'We only use your details to run the league.'}
         </p>
 
         <p className="mt-4 border-t border-hairline pt-4 text-center text-[13px] text-ink-secondary">

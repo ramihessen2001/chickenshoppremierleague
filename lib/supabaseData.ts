@@ -1177,6 +1177,8 @@ export interface SignupInput {
   jerseyNumber: number
   jerseySize: string
   notes?: string
+  /** Ticked the optional marketing box. Absent is the same as false. */
+  marketingOptIn?: boolean
 }
 
 /**

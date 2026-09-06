@@ -21,6 +21,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fail, readJson } from '@/lib/apiAuth'
+import { subscribeToMarketing } from '@/lib/klaviyo'
 import { sendEmail, registrationEmail, waitlistEmail } from '@/lib/email'
 import { LEAGUE } from '@/config/league'
 
@@ -35,6 +36,8 @@ interface SignupBody {
   jerseyNumber?: number
   jerseySize?: string
   notes?: string
+  /** The optional marketing box. Anything but true is treated as false. */
+  marketingOptIn?: boolean
 }
 
 const JERSEY_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
@@ -157,6 +160,10 @@ export async function POST(request: Request) {
 
   const isWaitlisted = (confirmedCount ?? 0) >= LEAGUE.rosterCap
 
+  // Consent needs an address to attach to, so a phone-only registration can
+  // never be opted in however the box arrives.
+  const wantsMarketing = body.marketingOptIn === true && Boolean(email)
+
   const { error } = await supabaseAdmin.from('signups').insert({
     name,
     email: email || null,
@@ -170,6 +177,10 @@ export async function POST(request: Request) {
     notes: body.notes?.trim() || null,
     season: config.season,
     status: isWaitlisted ? 'waitlisted' : 'pending',
+    // Only ever true when the box was actually ticked, and only meaningful
+    // with an address to send to.
+    marketing_opt_in: wantsMarketing,
+    marketing_consented_at: wantsMarketing ? new Date().toISOString() : null,
   })
 
   if (error) {
@@ -192,6 +203,13 @@ export async function POST(request: Request) {
       to: email,
       ...(isWaitlisted ? waitlistEmail(name) : registrationEmail(name)),
     })
+  }
+
+  // Awaited for the same reason as the receipt above -- this function may be
+  // frozen the moment the response goes out. subscribeToMarketing swallows its
+  // own failures, so Klaviyo being down cannot cost anyone their place.
+  if (wantsMarketing && email) {
+    await subscribeToMarketing(email, name)
   }
 
   return NextResponse.json(

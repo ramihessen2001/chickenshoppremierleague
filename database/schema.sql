@@ -246,6 +246,10 @@ CREATE TABLE signups (
   jersey_size VARCHAR(5)
     CHECK (jersey_size IS NULL OR jersey_size IN ('XS', 'S', 'M', 'L', 'XL', 'XXL')),
   notes TEXT,
+  -- Marketing consent, kept here as well as at the provider so the record of
+  -- who agreed and when is ours. Nobody is opted in by registering.
+  marketing_opt_in BOOLEAN NOT NULL DEFAULT FALSE,
+  marketing_consented_at TIMESTAMPTZ,
   status VARCHAR(20) NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending', 'confirmed', 'waitlisted', 'withdrawn', 'drafted')),
   -- The sign-up fee. A timestamp rather than a boolean: "when did this arrive"
