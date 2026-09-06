@@ -52,6 +52,22 @@ function remember(): void {
 
 export function LeagueUpdatesPopup() {
   const pathname = usePathname()
+  /*
+   * ?updates=1 shows it again regardless of the once-only flag.
+   *
+   * Without this the only way to see it a second time is to clear site data,
+   * which makes it awkward to check a copy change or show somebody what it
+   * looks like -- awkward enough that it stops getting checked.
+   *
+   * Read from window rather than useSearchParams(): this component sits in the
+   * root layout, and that hook would force a Suspense boundary onto every page
+   * in the site and opt them all out of static rendering, which is a steep
+   * price for a preview flag.
+   */
+  const [forced, setForced] = useState(false)
+  useEffect(() => {
+    setForced(new URLSearchParams(window.location.search).get('updates') === '1')
+  }, [pathname])
   const phase = usePhase()
   const [isOpen, setIsOpen] = useState(false)
   const [email, setEmail] = useState('')
@@ -67,15 +83,21 @@ export function LeagueUpdatesPopup() {
   const isAdminArea = pathname.startsWith('/draft') || pathname.startsWith('/signups')
 
   useEffect(() => {
+    if (forced) {
+      setIsOpen(true)
+      return
+    }
     if (wouldCompete || isAdminArea || hasAnswered()) return
     const timer = setTimeout(() => setIsOpen(true), DELAY_MS)
     return () => clearTimeout(timer)
-  }, [wouldCompete, isAdminArea])
+  }, [wouldCompete, isAdminArea, forced])
 
   const dismiss = useCallback(() => {
     setIsOpen(false)
-    remember()
-  }, [])
+    // A forced preview does not count as having been asked, so closing it
+    // cannot quietly opt somebody out of ever seeing the real one.
+    if (!forced) remember()
+  }, [forced])
 
   useEffect(() => {
     if (!isOpen) return
