@@ -1,7 +1,7 @@
 /**
  * Create a player. Admin only.
  *
- *   POST -> { name, jerseyNumber, teamId, position?, isActive? }
+ *   POST -> { name, jerseyNumber, teamId, position?, isActive?, age?, headshotUrl? }
  */
 
 import { NextResponse } from 'next/server'
@@ -14,6 +14,8 @@ interface CreatePlayerBody {
   teamId?: string
   position?: string | null
   isActive?: boolean
+  age?: number | null
+  headshotUrl?: string | null
 }
 
 export async function POST(request: Request) {
@@ -35,6 +37,15 @@ export async function POST(request: Request) {
   ) {
     return fail('jerseyNumber must be a whole number between 0 and 999, or null')
   }
+  // Matches the CHECK on players.age: a typo guard, not the 14-25 eligibility
+  // rule, which stays a judgement for an organiser.
+  if (
+    body.age !== null &&
+    body.age !== undefined &&
+    (!Number.isInteger(body.age) || body.age < 5 || body.age > 99)
+  ) {
+    return fail('age must be a whole number between 5 and 99, or null')
+  }
 
   const { data, error } = await supabaseAdmin
     .from('players')
@@ -44,6 +55,8 @@ export async function POST(request: Request) {
       team_id: body.teamId,
       position: body.position ?? null,
       is_active: body.isActive ?? true,
+      age: body.age ?? null,
+      headshot_url: body.headshotUrl ?? null,
     })
     .select('id')
     .single()

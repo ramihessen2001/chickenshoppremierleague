@@ -15,6 +15,7 @@ import { buttonPrimary, buttonSecondary } from './Modal'
 import { TeamSchedule } from './TeamSchedule'
 import { TeamIdentity } from './TeamIdentity'
 import { EditPlayerModal } from './EditPlayerModal'
+import { PlayerProfileModal } from './PlayerProfileModal'
 import { TradePanel } from './TradePanel'
 import { useAdmin } from '@/lib/adminContext'
 import { usePhase } from '@/lib/usePhase'
@@ -30,6 +31,9 @@ export function TeamRoster({ team, games = [] }: TeamRosterProps) {
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isTradeOpen, setIsTradeOpen] = useState(false)
+  // Held separately from the edit selection so closing one cannot blank the
+  // other's contents mid-animation.
+  const [profilePlayer, setProfilePlayer] = useState<Player | null>(null)
 
   // Trades belong to the season: before it there is nothing settled to trade,
   // and the draft has its own way of moving players onto a club.
@@ -101,6 +105,7 @@ export function TeamRoster({ team, games = [] }: TeamRosterProps) {
               <PlayerList
                 players={team.roster}
                 onEditPlayer={isAdmin ? openFor : undefined}
+                onSelectPlayer={setProfilePlayer}
               />
             </div>
           </section>
@@ -120,6 +125,13 @@ export function TeamRoster({ team, games = [] }: TeamRosterProps) {
         isOpen={isTradeOpen}
         onClose={() => setIsTradeOpen(false)}
         defaultTeamId={team.uuid}
+      />
+
+      <PlayerProfileModal
+        player={profilePlayer}
+        team={team}
+        isOpen={profilePlayer !== null}
+        onClose={() => setProfilePlayer(null)}
       />
 
       <EditPlayerModal

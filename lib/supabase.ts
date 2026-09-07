@@ -55,6 +55,9 @@ export interface Player {
   /** Placed on the team before the draft rather than picked in it. */
   is_captain: boolean
   position?: string
+  /** Age at registration, copied from signups (which is not publicly readable). */
+  age?: number | null
+  headshot_url?: string | null
   created_at: string
   updated_at: string
 }

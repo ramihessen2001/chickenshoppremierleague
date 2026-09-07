@@ -11,6 +11,8 @@ import { useState, useEffect } from 'react'
 import { Player } from '@/types/player'
 import { createPlayer, updatePlayer, notifyDataUpdated } from '@/lib/supabaseData'
 import { useTeams } from '@/lib/teamsContext'
+import { POSITIONS, FLEXIBLE } from '@/lib/positions'
+import { PlayerHeadshot } from './PlayerHeadshot'
 import {
   Modal,
   FormError,
@@ -37,6 +39,10 @@ interface PlayerFormData {
   teamSlug: string
   isActive: boolean
   position: string
+  /** Empty string means no age recorded -- stored as null. */
+  age: string
+  /** Empty string falls the profile back to a name-matched file. */
+  headshotUrl: string
 }
 
 const EMPTY: PlayerFormData = {
@@ -45,6 +51,8 @@ const EMPTY: PlayerFormData = {
   teamSlug: '',
   isActive: true,
   position: '',
+  age: '',
+  headshotUrl: '',
 }
 
 export function EditPlayerModal({
@@ -73,6 +81,8 @@ export function EditPlayerModal({
             teamSlug: player.teamId || fallbackTeam,
             isActive: player.isActive,
             position: player.position ?? '',
+            age: player.age == null ? '' : String(player.age),
+            headshotUrl: player.headshotUrl ?? '',
           }
         : { ...EMPTY, teamSlug: fallbackTeam }
     )
@@ -101,6 +111,16 @@ export function EditPlayerModal({
       jerseyNumber = parsed
     }
 
+    let age: number | null = null
+    if (formData.age.trim() !== '') {
+      const parsed = Number(formData.age)
+      if (!Number.isInteger(parsed) || parsed < 5 || parsed > 99) {
+        setError('Age must be a whole number from 5 to 99, or blank')
+        return
+      }
+      age = parsed
+    }
+
     const team = getTeam(formData.teamSlug)
     if (!team) {
       setError('Please choose a team')
@@ -115,6 +135,8 @@ export function EditPlayerModal({
         teamId: team.id,
         position: formData.position.trim() || null,
         isActive: formData.isActive,
+        age,
+        headshotUrl: formData.headshotUrl.trim() || null,
       }
 
       if (player) {
@@ -206,18 +228,71 @@ export function EditPlayerModal({
           </div>
         </div>
 
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            {/* A select, not free text: the roster groups on these exact
+                strings, so a typo would quietly drop the player into
+                Flexible with no sign anything was wrong. */}
+            <label htmlFor="player-position" className={labelClass}>
+              Position
+            </label>
+            <select
+              id="player-position"
+              value={formData.position}
+              onChange={(e) => update('position', e.target.value)}
+              className={fieldClass}
+            >
+              <option value="">Not set</option>
+              {POSITIONS.map((position) => (
+                <option key={position} value={position}>
+                  {position}
+                </option>
+              ))}
+              <option value="Any">Any ({FLEXIBLE.toLowerCase()})</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="player-age" className={labelClass}>
+              Age <span className="font-normal text-ink-tertiary">optional</span>
+            </label>
+            <input
+              id="player-age"
+              type="number"
+              inputMode="numeric"
+              min={5}
+              max={99}
+              placeholder="From registration"
+              value={formData.age}
+              onChange={(e) => update('age', e.target.value)}
+              className={fieldClass}
+            />
+          </div>
+        </div>
+
         <div>
-          <label htmlFor="player-position" className={labelClass}>
-            Position <span className="font-normal text-ink-tertiary">optional</span>
+          <label htmlFor="player-headshot" className={labelClass}>
+            Headshot <span className="font-normal text-ink-tertiary">optional</span>
           </label>
-          <input
-            id="player-position"
-            type="text"
-            placeholder="Forward, Midfielder, Defender, Goalkeeper"
-            value={formData.position}
-            onChange={(e) => update('position', e.target.value)}
-            className={fieldClass}
-          />
+          <div className="flex items-center gap-3">
+            <PlayerHeadshot
+              name={formData.name || 'New player'}
+              headshotUrl={formData.headshotUrl.trim() || null}
+              size={44}
+            />
+            <input
+              id="player-headshot"
+              type="text"
+              placeholder="/images/players/name.jpg"
+              value={formData.headshotUrl}
+              onChange={(e) => update('headshotUrl', e.target.value)}
+              className={fieldClass}
+            />
+          </div>
+          <p className="mt-1.5 font-util text-[10.5px] uppercase leading-relaxed tracking-[0.06em] text-ink-tertiary">
+            Leave blank and drop the file in /public/images/players named after
+            the player &mdash; it is found on its own.
+          </p>
         </div>
 
         <label className="flex items-center gap-2.5 text-[14px] text-ink">

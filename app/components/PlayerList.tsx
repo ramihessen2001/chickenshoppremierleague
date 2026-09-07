@@ -1,7 +1,9 @@
 /**
  * A team's roster: shirt number, name, position.
  *
- * A plain list rather than a grid of cards -- a squad reads like a team sheet.
+ * A plain list rather than a grid of cards -- a squad reads like a team sheet,
+ * and so does the order: goalkeepers first, then out from the back. See
+ * lib/positions.ts.
  */
 
 'use client'
@@ -10,13 +12,24 @@ import { useState } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
 import { Player, displayJersey } from '@/types/player'
 import { deletePlayer, notifyDataUpdated } from '@/lib/supabaseData'
+import { groupByPosition } from '@/lib/positions'
 
 interface PlayerListProps {
   players: Player[]
   onEditPlayer?: (player: Player) => void
+  /** Makes each name a button. Omitted, the roster is plain text. */
+  onSelectPlayer?: (player: Player) => void
 }
 
-export function PlayerList({ players, onEditPlayer }: PlayerListProps) {
+/** Captain first, then by shirt number, with unnumbered (TBD) players last. */
+function withinLine(a: Player, b: Player): number {
+  if (Boolean(a.isCaptain) !== Boolean(b.isCaptain)) return a.isCaptain ? -1 : 1
+  const aNum = a.jerseyNumber ?? Number.MAX_SAFE_INTEGER
+  const bNum = b.jerseyNumber ?? Number.MAX_SAFE_INTEGER
+  return aNum - bNum || a.name.localeCompare(b.name)
+}
+
+export function PlayerList({ players, onEditPlayer, onSelectPlayer }: PlayerListProps) {
   if (players.length === 0) {
     return (
       <div className="border border-hairline px-5 py-6 text-left">
@@ -25,29 +38,44 @@ export function PlayerList({ players, onEditPlayer }: PlayerListProps) {
     )
   }
 
-  // Captain first, then numbered players ascending, unnumbered (TBD) last.
-  const sorted = [...players].sort((a, b) => {
-    if (Boolean(a.isCaptain) !== Boolean(b.isCaptain)) return a.isCaptain ? -1 : 1
-    const aNum = a.jerseyNumber ?? Number.MAX_SAFE_INTEGER
-    const bNum = b.jerseyNumber ?? Number.MAX_SAFE_INTEGER
-    return aNum - bNum || a.name.localeCompare(b.name)
-  })
+  const lines = groupByPosition(players, (p) => p.position, withinLine)
 
   return (
-    <ul className="border-t border-hairline">
-      {sorted.map((player) => (
-        <li key={player.id}>
-          <PlayerRow
-            player={player}
-            onEdit={onEditPlayer ? () => onEditPlayer(player) : undefined}
-          />
-        </li>
+    <div className="space-y-7">
+      {lines.map((line) => (
+        <section key={line.group} aria-label={line.heading}>
+          <div className="flex items-baseline justify-between gap-3 border-b border-hairline-strong pb-1.5">
+            <h3 className="eyebrow">{line.heading}</h3>
+            <span className="tabular font-util text-[11px] text-ink-tertiary">
+              {line.players.length}
+            </span>
+          </div>
+          <ul>
+            {line.players.map((player) => (
+              <li key={player.id}>
+                <PlayerRow
+                  player={player}
+                  onEdit={onEditPlayer ? () => onEditPlayer(player) : undefined}
+                  onSelect={onSelectPlayer ? () => onSelectPlayer(player) : undefined}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
       ))}
-    </ul>
+    </div>
   )
 }
 
-function PlayerRow({ player, onEdit }: { player: Player; onEdit?: () => void }) {
+function PlayerRow({
+  player,
+  onEdit,
+  onSelect,
+}: {
+  player: Player
+  onEdit?: () => void
+  onSelect?: () => void
+}) {
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
@@ -64,6 +92,10 @@ function PlayerRow({ player, onEdit }: { player: Player; onEdit?: () => void }) 
     }
   }
 
+  const nameClass = `truncate font-display text-[15px] font-bold uppercase tracking-[0.01em] ${
+    player.isActive ? 'text-ink' : 'text-ink-tertiary line-through'
+  }`
+
   return (
     <div className="group flex items-center gap-4 border-b border-hairline py-3">
       <span
@@ -78,13 +110,18 @@ function PlayerRow({ player, onEdit }: { player: Player; onEdit?: () => void }) 
 
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
-          <p
-            className={`truncate font-display text-[15px] font-bold uppercase tracking-[0.01em] ${
-              player.isActive ? 'text-ink' : 'text-ink-tertiary line-through'
-            }`}
-          >
-            {player.name}
-          </p>
+          {onSelect ? (
+            /* The whole row is not the target: the edit and delete controls
+               live in it, and a row-wide click would swallow them. */
+            <button
+              onClick={onSelect}
+              className={`${nameClass} text-left underline decoration-hairline-strong decoration-1 underline-offset-[3px] transition-colors hover:text-court hover:decoration-court`}
+            >
+              {player.name}
+            </button>
+          ) : (
+            <p className={nameClass}>{player.name}</p>
+          )}
           {/* Solid, because a captain is the one fixed point on a roster the
               draft fills in around them. The letter carries it too, so it
               does not depend on the fill alone. */}
@@ -98,12 +135,6 @@ function PlayerRow({ player, onEdit }: { player: Player; onEdit?: () => void }) 
           )}
         </div>
       </div>
-
-      {player.position && (
-        <span className="shrink-0 font-util text-[10.5px] uppercase tracking-[0.1em] text-ink-secondary">
-          {player.position}
-        </span>
-      )}
 
       {onEdit && (
         <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">

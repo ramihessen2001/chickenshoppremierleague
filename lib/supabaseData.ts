@@ -665,6 +665,175 @@ export async function getAllPlayersWithStats() {
   return Array.from(byPlayer.values())
 }
 
+/* -------------------------------------------------------------------------- */
+/* One player's profile                                                       */
+/* -------------------------------------------------------------------------- */
+
+/** The countable things a player can do. Shared by one game and by a season. */
+export interface StatTally {
+  goals: number
+  assists: number
+  saves: number
+  yellowCards: number
+  redCards: number
+  blueCards: number
+}
+
+/** What a player did in a single game. */
+export interface PlayerAppearance extends StatTally {
+  gameId: string
+  gameNumber: number | null
+  weekNumber: number | null
+  date: string
+  isPlayoff: boolean
+  /** Empty when the fixture's other side is an unfilled playoff slot. */
+  opponentName: string
+  opponentSlug: string
+  opponentLogoUrl: string | null
+  wasHome: boolean
+  /** Null until the result is entered. */
+  teamScore: number | null
+  opponentScore: number | null
+  isPlayerOfGame: boolean
+}
+
+export interface PlayerTotals extends StatTally {
+  gamesPlayed: number
+  playerOfGame: number
+}
+
+export interface PlayerProfile {
+  totals: PlayerTotals
+  /** Most recent first. Empty before the season starts. */
+  appearances: PlayerAppearance[]
+}
+
+const emptyTally = (): StatTally => ({
+  goals: 0,
+  assists: 0,
+  saves: 0,
+  yellowCards: 0,
+  redCards: 0,
+  blueCards: 0,
+})
+
+const emptyTotals = (): PlayerTotals => ({
+  ...emptyTally(),
+  gamesPlayed: 0,
+  playerOfGame: 0,
+})
+
+/**
+ * One player's season: totals, and the games they turned up in.
+ *
+ * An appearance is a game the player recorded a statistic in, or was named
+ * player of the game in. The schema has no team-sheet table to read instead,
+ * so a player who played and did nothing measurable will not be listed --
+ * which is worth knowing before reading `gamesPlayed` as minutes.
+ *
+ * Returns empty totals rather than throwing when nothing has been played yet,
+ * so the profile renders the same way in September as it does in November.
+ */
+export async function getPlayerProfile(playerId: string): Promise<PlayerProfile> {
+  const [{ data: stats, error: statsError }, { data: motmGames }, { data: teams }] =
+    await Promise.all([
+      supabase
+        .from('game_statistics')
+        .select('game_id, stat_type, count, game:games(*)')
+        .eq('player_id', playerId),
+      supabase.from('games').select('*').eq('player_of_game_id', playerId),
+      supabase.from('teams').select('id, name, slug, logo_url'),
+    ])
+
+  if (statsError) {
+    console.error('Error fetching player profile:', statsError)
+    return { totals: emptyTotals(), appearances: [] }
+  }
+
+  const clubs = new Map<string, any>((teams ?? []).map((t: any) => [t.id, t]))
+
+  // A player is on one club, and the games they appear in are that club's, so
+  // the side they were on is whichever of the two is not the opponent. Read it
+  // off the statistic rather than passing a team in: a traded player's older
+  // appearances belong to the club they made them for.
+  const games = new Map<string, any>()
+  const perGame = new Map<string, StatTally>()
+
+  for (const stat of (stats ?? []) as any[]) {
+    const game = one<any>(stat.game)
+    if (!game) continue
+    games.set(game.id, game)
+
+    const tally = perGame.get(game.id) ?? emptyTally()
+    const amount = stat.count || 1
+    if (stat.stat_type === 'goal') tally.goals += amount
+    else if (stat.stat_type === 'assist') tally.assists += amount
+    else if (stat.stat_type === 'save') tally.saves += amount
+    else if (stat.stat_type === 'yellow_card') tally.yellowCards += amount
+    else if (stat.stat_type === 'red_card') tally.redCards += amount
+    else if (stat.stat_type === 'blue_card') tally.blueCards += amount
+    perGame.set(game.id, tally)
+  }
+
+  // Being named player of the game is an appearance on its own, even in a game
+  // where nothing else was recorded.
+  for (const game of (motmGames ?? []) as any[]) {
+    games.set(game.id, game)
+    if (!perGame.has(game.id)) perGame.set(game.id, emptyTally())
+  }
+
+  // The player's own club, needed to work out which end of each fixture they
+  // were on. Taken from the statistic rows, which carry team_id directly.
+  const { data: ownRows } = await supabase
+    .from('players')
+    .select('team_id')
+    .eq('id', playerId)
+    .maybeSingle()
+  const ownTeamId = (ownRows as any)?.team_id ?? null
+
+  const appearances: PlayerAppearance[] = []
+  for (const [gameId, game] of games) {
+    const tally = perGame.get(gameId) ?? emptyTally()
+    const wasHome = game.home_team_id === ownTeamId
+    const opponentId = wasHome ? game.away_team_id : game.home_team_id
+    const opponent = opponentId ? clubs.get(opponentId) : null
+
+    appearances.push({
+      gameId,
+      gameNumber: game.game_number ?? null,
+      weekNumber: game.week_number ?? null,
+      date: game.date,
+      isPlayoff: Boolean(game.is_playoff),
+      opponentName: opponent?.name ?? 'TBD',
+      opponentSlug: opponent?.slug ?? '',
+      opponentLogoUrl: opponent?.logo_url ?? null,
+      wasHome,
+      teamScore: wasHome ? game.home_score : game.away_score,
+      opponentScore: wasHome ? game.away_score : game.home_score,
+      isPlayerOfGame: game.player_of_game_id === playerId,
+      ...tally,
+    })
+  }
+
+  appearances.sort((a, b) => b.date.localeCompare(a.date))
+
+  const totals = appearances.reduce<PlayerTotals>(
+    (sum, game) => ({
+      gamesPlayed: sum.gamesPlayed + 1,
+      goals: sum.goals + game.goals,
+      assists: sum.assists + game.assists,
+      saves: sum.saves + game.saves,
+      yellowCards: sum.yellowCards + game.yellowCards,
+      redCards: sum.redCards + game.redCards,
+      blueCards: sum.blueCards + game.blueCards,
+      playerOfGame: sum.playerOfGame + (game.isPlayerOfGame ? 1 : 0),
+    }),
+    emptyTotals()
+  )
+
+  return { totals, appearances }
+}
+
 /**
  * Every archived player with their season totals -- the archive equivalent
  * of `getAllPlayersWithStats`, shown on the stats page during signups and
@@ -1041,6 +1210,10 @@ export interface PlayerWriteFields {
   teamId?: string
   position?: string | null
   isActive?: boolean
+  /** Null clears it back to what the registration said nothing about. */
+  age?: number | null
+  /** Null falls the profile back to a name-matched file, then to initials. */
+  headshotUrl?: string | null
 }
 
 export async function createPlayer(fields: PlayerWriteFields): Promise<string> {

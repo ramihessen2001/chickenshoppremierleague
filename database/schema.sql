@@ -73,7 +73,14 @@ CREATE TABLE players (
   -- it. Their registration keeps status 'confirmed' and a NULL pick_number,
   -- and is kept out of the pool by its player_id instead.
   is_captain BOOLEAN NOT NULL DEFAULT FALSE,
-  position VARCHAR(50),                      -- Forward | Midfielder | Defender | Goalkeeper
+  position VARCHAR(50),                      -- Forward | Midfielder | Defender | Goalkeeper | Any
+  -- Age is collected on signups, which has no public read policy because it
+  -- holds contact details. The profile card is public, so the one field it
+  -- needs is copied here rather than joined.
+  age SMALLINT CHECK (age IS NULL OR age BETWEEN 5 AND 99),
+  -- Portrait under /public, e.g. /images/players/yaseen-jawhar.jpg. NULL falls
+  -- back to a file named after the player, and then to their initials.
+  headshot_url TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(team_id, jersey_number)             -- no duplicate numbers within a team

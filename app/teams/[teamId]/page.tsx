@@ -44,6 +44,8 @@ export default function TeamPage() {
         position: p.position,
         isActive: p.is_active,
         isCaptain: p.is_captain ?? false,
+        age: p.age ?? null,
+        headshotUrl: p.headshot_url ?? null,
         createdAt: p.created_at,
         updatedAt: p.updated_at,
       }))

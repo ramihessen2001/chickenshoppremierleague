@@ -16,8 +16,15 @@ export interface Player {
    * the signups table undrafted.
    */
   isCaptain?: boolean
-  /** Forward | Midfielder | Defender | Goalkeeper */
+  /** Goalkeeper | Defender | Midfielder | Forward | Any. See lib/positions.ts. */
   position?: string
+  /** Age at registration. Null for a player added by hand without one. */
+  age?: number | null
+  /**
+   * An explicit portrait path. Null is the normal case -- the profile then
+   * looks for a file named after the player, and falls back to initials.
+   */
+  headshotUrl?: string | null
   createdAt: string
   updatedAt: string
 }

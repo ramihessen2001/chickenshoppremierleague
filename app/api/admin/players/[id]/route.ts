@@ -15,6 +15,8 @@ interface UpdatePlayerBody {
   teamId?: string
   position?: string | null
   isActive?: boolean
+  age?: number | null
+  headshotUrl?: string | null
 }
 
 type Params = { params: Promise<{ id: string }> }
@@ -40,6 +42,15 @@ export async function PATCH(request: Request, { params }: Params) {
   ) {
     return fail('jerseyNumber must be a whole number between 0 and 999, or null')
   }
+  // Matches the CHECK on players.age: a typo guard, not the 14-25 eligibility
+  // rule, which stays a judgement for an organiser.
+  if (
+    body.age !== undefined &&
+    body.age !== null &&
+    (!Number.isInteger(body.age) || body.age < 5 || body.age > 99)
+  ) {
+    return fail('age must be a whole number between 5 and 99, or null')
+  }
 
   const columns: Record<string, unknown> = {}
   if (body.name !== undefined) columns.name = body.name.trim()
@@ -47,6 +58,8 @@ export async function PATCH(request: Request, { params }: Params) {
   if (body.teamId !== undefined) columns.team_id = body.teamId
   if (body.position !== undefined) columns.position = body.position
   if (body.isActive !== undefined) columns.is_active = body.isActive
+  if (body.age !== undefined) columns.age = body.age
+  if (body.headshotUrl !== undefined) columns.headshot_url = body.headshotUrl
 
   if (Object.keys(columns).length === 0) return fail('No fields to update')
 
