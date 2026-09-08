@@ -289,6 +289,32 @@ CREATE UNIQUE INDEX signups_unique_email_per_season
   WHERE email IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
+-- Subscribers
+-- ---------------------------------------------------------------------------
+-- The league updates list, written before Klaviyo is called rather than after.
+-- /api/subscribe used to keep nothing, on the reasoning that the list was the
+-- record -- which held until the request started failing silently and two days
+-- of addresses went nowhere. NULL synced_at is the retry queue.
+CREATE TABLE subscribers (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email VARCHAR(254) NOT NULL,
+  audience VARCHAR(20) NOT NULL DEFAULT 'league'
+    CHECK (audience IN ('league', 'marketing')),
+  source VARCHAR(40) NOT NULL DEFAULT 'popup',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  synced_at TIMESTAMPTZ,
+  attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+  last_attempt_at TIMESTAMPTZ,
+  last_error TEXT
+);
+
+CREATE UNIQUE INDEX subscribers_unique_email_per_audience
+  ON subscribers (audience, lower(email));
+
+CREATE INDEX idx_subscribers_unsynced
+  ON subscribers (created_at) WHERE synced_at IS NULL;
+
+-- ---------------------------------------------------------------------------
 -- Questions
 -- ---------------------------------------------------------------------------
 -- Messages from the contact form. Like signups they carry an email address, so
@@ -465,6 +491,7 @@ ALTER TABLE awards           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE award_nominees   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE award_votes      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE signups          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE subscribers      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE questions        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE commissioner_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE archive_seasons         ENABLE ROW LEVEL SECURITY;
@@ -491,7 +518,7 @@ CREATE POLICY "public read" ON archive_games           FOR SELECT USING (true);
 CREATE POLICY "public read" ON archive_game_statistics FOR SELECT USING (true);
 CREATE POLICY "public read" ON archive_standings       FOR SELECT USING (true);
 
--- Deliberately NO policy for `signups` or `questions`: they hold email
+-- Deliberately NO policy for `signups`, `subscribers` or `questions`: they hold email
 -- addresses and phone numbers. With RLS on and no policy, the anon key can
 -- neither read nor write them. Submissions and the admin lists both go through
 -- server routes using the service role key.
