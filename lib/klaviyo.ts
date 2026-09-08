@@ -55,20 +55,32 @@ export function isKlaviyoConfigured(audience: KlaviyoAudience = 'marketing'): bo
  * Adds one email address to the configured list as a subscribed marketing
  * profile. Never throws and never rejects.
  *
- * `consentedAt` is recorded as the moment the box was ticked. Klaviyo keeps it
- * as the proof of opt-in, which is the thing you want on hand if anyone ever
- * asks why they are receiving mail.
+ * Returns whether Klaviyo accepted it, so a caller whose whole purpose is the
+ * subscribe can tell the person it failed. The registration path ignores the
+ * result on purpose -- a marketing provider being down must never cost
+ * somebody their place in the league.
+ *
+ * WHY NO consented_at
+ * -------------------
+ * Klaviyo rejects the whole request with a 400 when `consented_at` is sent
+ * alongside `historical_import: false`:
+ *
+ *   "Non-historical email subscription cannot have consented_at timestamp."
+ *
+ * That field is only for backfilling consent gathered elsewhere. For a live
+ * opt-in Klaviyo stamps the time itself, which is the more trustworthy record
+ * anyway -- it is theirs, not ours. Our own copy of when somebody agreed lives
+ * in signups.marketing_consented_at.
  */
 export async function subscribeToMarketing(
   email: string,
   name?: string | null,
-  consentedAt: Date = new Date(),
   audience: KlaviyoAudience = 'marketing'
-): Promise<void> {
+): Promise<boolean> {
   const listId = listIdFor(audience)
   if (!process.env.KLAVIYO_PRIVATE_API_KEY || !listId) {
     console.info(`Klaviyo not configured for ${audience}; skipping subscribe for ${email}`)
-    return
+    return false
   }
 
   // Klaviyo wants a first/last split. Anything after the first space is the
@@ -101,10 +113,7 @@ export async function subscribeToMarketing(
                     ...(lastName ? { last_name: lastName } : {}),
                     subscriptions: {
                       email: {
-                        marketing: {
-                          consent: 'SUBSCRIBED',
-                          consented_at: consentedAt.toISOString(),
-                        },
+                        marketing: { consent: 'SUBSCRIBED' },
                       },
                     },
                   },
@@ -130,8 +139,11 @@ export async function subscribeToMarketing(
         response.status,
         await response.text().catch(() => '')
       )
+      return false
     }
+    return true
   } catch (error) {
     console.error(`Klaviyo ${audience} subscribe for ${email} failed:`, error)
+    return false
   }
 }

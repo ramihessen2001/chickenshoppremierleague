@@ -43,6 +43,17 @@ export async function POST(request: Request) {
     return fail('Sign-ups are not available right now', 503)
   }
 
-  await subscribeToMarketing(email, null, new Date(), 'league')
+  /*
+   * Reported rather than swallowed. Subscribing is the entire point of this
+   * route, so telling somebody they are on the list when Klaviyo refused the
+   * request is a lie -- and it is what hid a malformed payload here for two
+   * days while the form said "You're on the list" to everyone.
+   *
+   * The registration route still ignores its result, which is right there:
+   * losing a marketing opt-in must never cost somebody their place.
+   */
+  const accepted = await subscribeToMarketing(email, null, 'league')
+  if (!accepted) return fail('That did not go through. Try again in a moment.', 502)
+
   return NextResponse.json({ ok: true })
 }
