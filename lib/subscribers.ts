@@ -55,20 +55,22 @@ export async function recordSubscriber(
   audience: KlaviyoAudience,
   source = 'popup'
 ): Promise<string | null> {
+  /*
+   * A plain insert, not an upsert. The unique index is on lower(email), an
+   * expression, and ON CONFLICT cannot be pointed at that through PostgREST --
+   * naming (audience, email) instead makes Postgres reject the statement
+   * outright: "no unique or exclusion constraint matching the ON CONFLICT
+   * specification". That is what took every production write down on the
+   * first deploy. So: insert, and on the duplicate the index raises, look the
+   * existing row up. The address is already recorded either way.
+   */
   const { data, error } = await supabaseAdmin
     .from('subscribers')
-    .upsert(
-      { email, audience, source },
-      { onConflict: 'audience,email', ignoreDuplicates: false }
-    )
+    .insert({ email, audience, source })
     .select('id')
     .maybeSingle()
 
   if (error) {
-    // The unique index is on lower(email), which PostgREST cannot name as a
-    // conflict target, so a repeat address comes back as a duplicate-key
-    // error rather than an update. That is fine -- the address is already
-    // recorded, which is the whole point -- so find the existing row instead.
     if (error.code === '23505') return findSubscriber(email, audience)
     warnUnlessMissingTable('recording', error)
     return null
