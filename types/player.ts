@@ -25,6 +25,13 @@ export interface Player {
    * looks for a file named after the player, and falls back to initials.
    */
   headshotUrl?: string | null
+  /** Overall draft pick; null for a player placed on a club rather than picked. */
+  draftPick?: number | null
+  /**
+   * Round that pick fell in. Null for captains and pre-draft awards, who had
+   * no pick at all -- which is not the same as having been picked late.
+   */
+  draftRound?: number | null
   createdAt: string
   updatedAt: string
 }

@@ -60,6 +60,16 @@
                                   Fails on --black -- use --wash instead. */
   --steel: #5b6165;            /* admin chrome */
 
+  /* An honour marker, spent on first-round picks and nothing else.
+     Deliberately NOT --gold: that name is aliased below to ink-tertiary
+     because the guide deleted decorative gold, and two components already
+     render muted stars through it. Repointing it would change them too.
+     Darker than the gold in the league crest (#f9cd80) and the YM Soccer
+     mark (#e0c06c), both of which sit at 1.3:1 on bone and vanish; this is
+     the same hue carried down to 3.9:1 on bone and 4.3:1 on black, so it
+     holds on either ground. */
+  --medal: #9a6f14;
+
   /* --- Compatibility layer ---------------------------------------------- */
   /* The names the components already use, repointed at the values above.
      Do not delete these: removing one is a rewrite of every file that
@@ -177,6 +187,7 @@
   --color-white: var(--white);
   --color-wash: var(--wash);
   --color-court: var(--court);
+  --color-medal: var(--medal);
   --color-steel: var(--steel);
   --color-red: var(--red);
   --color-red-lift: var(--red-lift);

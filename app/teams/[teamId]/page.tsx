@@ -46,6 +46,8 @@ export default function TeamPage() {
         isCaptain: p.is_captain ?? false,
         age: p.age ?? null,
         headshotUrl: p.headshot_url ?? null,
+        draftPick: p.draft_pick ?? null,
+        draftRound: p.draft_round ?? null,
         createdAt: p.created_at,
         updatedAt: p.updated_at,
       }))

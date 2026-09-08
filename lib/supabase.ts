@@ -58,6 +58,10 @@ export interface Player {
   /** Age at registration, copied from signups (which is not publicly readable). */
   age?: number | null
   headshot_url?: string | null
+  /** Overall draft pick; null for a player placed on a club rather than picked. */
+  draft_pick?: number | null
+  /** Round that pick fell in. Round 1 is marked on the roster. */
+  draft_round?: number | null
   created_at: string
   updated_at: string
 }

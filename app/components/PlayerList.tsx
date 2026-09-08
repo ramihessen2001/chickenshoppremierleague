@@ -10,7 +10,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, Star } from 'lucide-react'
 import { Player, displayJersey } from '@/types/player'
 import { deletePlayer, notifyDataUpdated } from '@/lib/supabaseData'
 import { groupByPosition } from '@/lib/positions'
@@ -128,6 +128,20 @@ function PlayerRow({
             </button>
           ) : (
             <p className={nameClass}>{player.name}</p>
+          )}
+          {/*
+            * A first-round pick. Filled rather than outlined, because at this
+            * size an outline reads as a smudge -- and the title carries it for
+            * anyone who cannot see the colour, since gold on bone is the only
+            * thing separating it from the captain's badge beside it.
+            */}
+          {player.draftRound === 1 && (
+            <Star
+              size={14}
+              className="shrink-0 fill-medal text-medal"
+              role="img"
+              aria-label="First-round pick"
+            />
           )}
           {/* Solid, because a captain is the one fixed point on a roster the
               draft fills in around them. The letter carries it too, so it
