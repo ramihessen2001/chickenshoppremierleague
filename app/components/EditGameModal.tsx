@@ -46,7 +46,6 @@ interface GameFormData {
 }
 
 const PLAYOFF_ROUNDS = [
-  ['play-in', 'Play-in'],
   ['quarterfinal', 'Quarterfinal'],
   ['semifinal', 'Semifinal'],
   ['final', 'Final'],

@@ -50,21 +50,46 @@ export function formatDate(dateString: string): string {
 /**
  * Formats a time string for display
  * Handles both 12-hour and 24-hour formats
- * 
- * @param timeString - Time string (e.g., "6:00 PM" or "18:00")
- * @returns Formatted time in 12-hour format
+ *
+ * @param timeString - Time string (e.g., "6:00 PM", "18:00", or a label like "Maghrib")
+ * @returns Formatted time in 12-hour format, or the original string if it isn't a clock time
  */
 export function formatTime(timeString: string): string {
   // If already in 12-hour format with AM/PM, return as-is
   if (timeString.includes('AM') || timeString.includes('PM')) {
     return timeString
   }
-  
+
+  // Not a 24-hour clock time (e.g. a prayer-time label like "Isha'a") -- leave it alone.
+  if (!/^\d{1,2}:\d{2}$/.test(timeString.trim())) {
+    return timeString
+  }
+
   // Convert 24-hour to 12-hour
   const [hours, minutes] = timeString.split(':').map(Number)
   const period = hours >= 12 ? 'PM' : 'AM'
   const displayHours = hours % 12 || 12
-  
+
   return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`
+}
+
+/**
+ * Chronological order for the prayer-time slot labels used as `game.time`.
+ * Maghrib and Assr are both "first slot of the day" -- they never occur on
+ * the same date, so sharing a rank is fine -- and Isha'a is always later.
+ */
+const TIME_LABEL_ORDER: Record<string, number> = {
+  Maghrib: 0,
+  Assr: 0,
+  "Isha'a": 1,
+}
+
+/** Same-day sort comparator for `game.time`. Falls back to string order for
+ *  anything that isn't one of the known slot labels (e.g. legacy "6:00 PM"). */
+export function compareGameTimes(a: string, b: string): number {
+  const rankA = TIME_LABEL_ORDER[a]
+  const rankB = TIME_LABEL_ORDER[b]
+  if (rankA !== undefined && rankB !== undefined) return rankA - rankB
+  return a.localeCompare(b)
 }
 

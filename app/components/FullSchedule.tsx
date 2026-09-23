@@ -15,6 +15,7 @@ import { EditGameModal } from './EditGameModal'
 import { SeasonScheduler } from './SeasonScheduler'
 import { useAdmin } from '@/lib/adminContext'
 import { getGameById } from '@/lib/supabaseData'
+import { compareGameTimes } from '@/lib/dateUtils'
 
 interface FullScheduleProps {
   games: Game[]
@@ -73,7 +74,7 @@ export function FullSchedule({
     byWeek.get(game.weekNumber)!.push(game)
   }
   for (const weekGames of byWeek.values()) {
-    weekGames.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
+    weekGames.sort((a, b) => a.date.localeCompare(b.date) || compareGameTimes(a.time, b.time))
   }
 
   const playoffGames = byWeek.get(0) ?? []

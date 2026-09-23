@@ -16,9 +16,9 @@ import { getPlayoffGames, getStandings, createGame, notifyDataUpdated } from '@/
 import { Game } from '@/types/game'
 import {
   BracketTeam,
-  playInMatchups,
   quarterfinalMatchups,
-  semifinalMatchup,
+  semifinalMatchups,
+  finalMatchup,
 } from '@/lib/bracket'
 
 /** Every game this generator creates happens at the league's one venue. */
@@ -41,68 +41,59 @@ function winnerOf(game: Game, byId: Map<string, BracketTeam>): BracketTeam | nul
   return winningUuid ? (byId.get(winningUuid) ?? null) : null
 }
 
+/**
+ * Finds the game in `games` that was created for `pair` and returns its
+ * winner, matched by the two team UUIDs rather than array position -- the
+ * database doesn't promise to return a round's games in the order they
+ * were created in, and getting 1v8's winner paired against 4v5's (not
+ * whichever game happens to sort first) is the whole point of the bracket.
+ */
+function winnerOfPair(games: Game[], pair: Pairing, byId: Map<string, BracketTeam>): BracketTeam | null {
+  const ids = new Set(pair.map((t) => t.id))
+  const game = games.find((g) => ids.has(g.homeTeamUUID ?? '') && ids.has(g.awayTeamUUID ?? ''))
+  return game ? winnerOf(game, byId) : null
+}
+
 /** Works out what the next generator action is, or null once the bracket is complete. */
 function nextStage(seeds: BracketTeam[], playoffGames: Game[]): Stage | null {
   const byId = new Map(seeds.map((s) => [s.id, s]))
   const byRound = (round: string) => playoffGames.filter((g) => g.playoffRound === round)
 
-  const playIn = byRound('play-in')
-  if (playIn.length === 0) {
-    const pairs = playInMatchups(seeds)
-    return {
-      round: 'play-in',
-      label: 'Play-in',
-      ready: { description: '5th and 8th, 6th and 7th.', pairs },
-    }
-  }
-  const playInWinners = playIn.map((g) => winnerOf(g, byId))
-  if (playInWinners.includes(null)) {
-    return { round: 'play-in', label: 'Play-in', ready: null }
-  }
-
+  const qfPairs = quarterfinalMatchups(seeds)
   const quarterfinals = byRound('quarterfinal')
   if (quarterfinals.length === 0) {
-    const pairs = quarterfinalMatchups(seeds, playInWinners as Pairing)
     return {
       round: 'quarterfinal',
       label: 'Quarterfinals',
-      ready: {
-        description: '1st and 2nd draw the play-in winners; 3rd plays 4th.',
-        pairs,
-      },
+      ready: { description: '1st v 8th, 2nd v 7th, 3rd v 6th, 4th v 5th.', pairs: qfPairs },
     }
   }
-  const qfWinners = quarterfinals.map((g) => winnerOf(g, byId))
+  const qfWinners = qfPairs.map((pair) => winnerOfPair(quarterfinals, pair, byId))
   if (qfWinners.includes(null)) {
     return { round: 'quarterfinal', label: 'Quarterfinals', ready: null }
   }
 
+  const sfPairs = semifinalMatchups(qfWinners as [BracketTeam, BracketTeam, BracketTeam, BracketTeam])
   const semifinal = byRound('semifinal')
   if (semifinal.length === 0) {
-    const { game, bye } = semifinalMatchup(qfWinners as BracketTeam[])
     return {
       round: 'semifinal',
       label: 'Semifinal',
-      ready: {
-        description: `${bye.name} has the bye straight to the final.`,
-        pairs: [game],
-      },
+      ready: { description: '', pairs: sfPairs },
     }
   }
-  const semifinalWinner = winnerOf(semifinal[0], byId)
-  if (!semifinalWinner) {
+  const sfWinners = sfPairs.map((pair) => winnerOfPair(semifinal, pair, byId))
+  if (sfWinners.includes(null)) {
     return { round: 'semifinal', label: 'Semifinal', ready: null }
   }
 
+  const finalPair = finalMatchup(sfWinners as Pairing)
   const final = byRound('final')
   if (final.length === 0) {
-    const semifinalists = new Set([semifinal[0].homeTeamUUID, semifinal[0].awayTeamUUID])
-    const byeTeam = (qfWinners as BracketTeam[]).find((w) => !semifinalists.has(w.id))
-    if (!byeTeam) return null // Shouldn't happen -- the bracket already has a bye recorded above.
     return {
       round: 'final',
       label: 'Final',
-      ready: { description: '', pairs: [[byeTeam, semifinalWinner]] },
+      ready: { description: '', pairs: [finalPair] },
     }
   }
 

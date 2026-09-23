@@ -19,10 +19,9 @@ import { getPlayoffGames, getGameById } from '@/lib/supabaseData'
 import { formatDate, formatTime } from '@/lib/dateUtils'
 
 /** Rounds in the order they are played. */
-const ROUND_ORDER = ['play-in', 'quarterfinal', 'semifinal', 'final'] as const
+const ROUND_ORDER = ['quarterfinal', 'semifinal', 'final'] as const
 
 const ROUND_LABELS: Record<string, string> = {
-  'play-in': 'Play-in',
   quarterfinal: 'Quarterfinals',
   semifinal: 'Semifinals',
   final: 'Final',

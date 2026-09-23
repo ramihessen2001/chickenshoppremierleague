@@ -1,19 +1,16 @@
 /**
  * Playoff bracket seeding for an 8-team field.
  *
- * The top 4 standings positions bye straight to the quarterfinals; the
- * bottom 4 play a knockout round for the last two spots. Pure and
- * dependency-free, like lib/draft.ts and lib/standings.ts, so the pairing
- * rules can be reasoned about (and tested) on their own, separate from the
- * database calls that turn them into games.
+ * All 8 standings positions make the playoffs -- no byes, no play-in round.
+ * Pure and dependency-free, like lib/draft.ts and lib/standings.ts, so the
+ * pairing rules can be reasoned about (and tested) on their own, separate
+ * from the database calls that turn them into games.
  *
- *   Play-in     5th v 8th, 6th v 7th
- *   Quarterfinals   1st v weaker play-in winner
- *                   2nd v stronger play-in winner
- *                   3rd v 4th
- *   Semifinal   the best-seeded of the 3 quarterfinal winners byes to the
- *               final; the other two play for the last spot
- *   Final       the semifinal bye vs the semifinal winner
+ *   Quarterfinals   1st v 8th, 2nd v 7th, 3rd v 6th, 4th v 5th
+ *   Semifinals      the 1v8 and 4v5 winners meet; the 2v7 and 3v6 winners
+ *                   meet -- so the top two seeds can only face each other
+ *                   in the final
+ *   Final           the two semifinal winners
  */
 
 export interface BracketTeam {
@@ -28,45 +25,35 @@ export interface BracketTeam {
 type Pairing = [BracketTeam, BracketTeam]
 
 /** Needs exactly 8 seeds, ordered 1st through 8th. */
-export function playInMatchups(seeds: BracketTeam[]): [Pairing, Pairing] {
-  if (seeds.length !== 8) {
-    throw new Error('playInMatchups needs exactly 8 seeds')
-  }
-  return [
-    [seeds[4], seeds[7]], // 5th v 8th
-    [seeds[5], seeds[6]], // 6th v 7th
-  ]
-}
-
-/** `playInWinners` are the two play-in survivors, in either order. */
 export function quarterfinalMatchups(
-  seeds: BracketTeam[],
-  playInWinners: Pairing
-): [Pairing, Pairing, Pairing] {
+  seeds: BracketTeam[]
+): [Pairing, Pairing, Pairing, Pairing] {
   if (seeds.length !== 8) {
-    throw new Error('quarterfinalMatchups needs all 8 original seeds')
+    throw new Error('quarterfinalMatchups needs exactly 8 seeds')
   }
-  const [a, b] = playInWinners
-  const weaker = a.rank > b.rank ? a : b
-  const stronger = a.rank > b.rank ? b : a
   return [
-    [seeds[0], weaker], // 1st v weaker play-in winner
-    [seeds[1], stronger], // 2nd v stronger play-in winner
-    [seeds[2], seeds[3]], // 3rd v 4th
+    [seeds[0], seeds[7]], // 1st v 8th
+    [seeds[1], seeds[6]], // 2nd v 7th
+    [seeds[2], seeds[5]], // 3rd v 6th
+    [seeds[3], seeds[4]], // 4th v 5th
   ]
 }
 
 /**
- * The best-seeded of the three quarterfinal winners has earned a bye
- * straight to the final; the other two meet for the last spot.
+ * `qfWinners` are the four quarterfinal winners, in the same order as the
+ * pairings `quarterfinalMatchups` returned them in (1v8, 2v7, 3v6, 4v5).
  */
-export function semifinalMatchup(qfWinners: BracketTeam[]): {
-  game: Pairing
-  bye: BracketTeam
-} {
-  if (qfWinners.length !== 3) {
-    throw new Error('semifinalMatchup needs exactly 3 quarterfinal winners')
-  }
-  const [bye, a, b] = [...qfWinners].sort((x, y) => x.rank - y.rank)
-  return { game: [a, b], bye }
+export function semifinalMatchups(
+  qfWinners: [BracketTeam, BracketTeam, BracketTeam, BracketTeam]
+): [Pairing, Pairing] {
+  const [win18, win27, win36, win45] = qfWinners
+  return [
+    [win18, win45],
+    [win27, win36],
+  ]
+}
+
+/** `sfWinners` are the two semifinal winners, in either order. */
+export function finalMatchup(sfWinners: Pairing): Pairing {
+  return sfWinners
 }

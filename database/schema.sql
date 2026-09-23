@@ -105,7 +105,7 @@ CREATE TABLE games (
   status VARCHAR(20) DEFAULT 'scheduled'
     CHECK (status IN ('scheduled', 'in_progress', 'completed', 'cancelled', 'postponed')),
   is_playoff BOOLEAN DEFAULT FALSE,
-  playoff_round VARCHAR(50),                 -- play-in | quarterfinal | semifinal | final
+  playoff_round VARCHAR(50),                 -- quarterfinal | semifinal | final
   player_of_game_id UUID REFERENCES players(id) ON DELETE SET NULL,
   -- YouTube watch or live URL. A game counts as live when it has a stream and
   -- status = 'in_progress', so there is no separate "is live" flag to forget.
@@ -113,7 +113,7 @@ CREATE TABLE games (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   -- A team cannot play itself, but both sides may be NULL for an unfilled
-  -- playoff slot ("winner of the play-in").
+  -- playoff slot ("winner of the quarterfinal").
   CHECK (home_team_id IS DISTINCT FROM away_team_id
          OR home_team_id IS NULL)
 );

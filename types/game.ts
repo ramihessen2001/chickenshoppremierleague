@@ -31,7 +31,7 @@ export interface Game {
   status: GameStatus
 
   isPlayoff?: boolean
-  /** play-in | quarterfinal | semifinal | final */
+  /** quarterfinal | semifinal | final */
   playoffRound?: string | null
 
   /** YouTube URL. The game is live when this is set and status is in_progress. */

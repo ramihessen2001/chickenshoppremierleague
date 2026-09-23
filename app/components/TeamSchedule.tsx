@@ -11,7 +11,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { Game } from '@/types/game'
 import { useTeams } from '@/lib/teamsContext'
-import { formatDate, formatTime } from '@/lib/dateUtils'
+import { formatDate, formatTime, compareGameTimes } from '@/lib/dateUtils'
 import { BoxScoreModal } from './BoxScoreModal'
 
 interface TeamScheduleProps {
@@ -29,7 +29,7 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
 
   const teamGames = games
     .filter((g) => g.homeTeamId === teamId || g.awayTeamId === teamId)
-    .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
+    .sort((a, b) => a.date.localeCompare(b.date) || compareGameTimes(a.time, b.time))
 
   const isPlayed = (game: Game) =>
     game.status === 'completed' && game.homeScore !== null && game.awayScore !== null

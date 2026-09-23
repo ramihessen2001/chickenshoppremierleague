@@ -61,9 +61,9 @@ export function StandingsPageClient() {
   // table of zeroes to look like something failed to load.
   const beforeKickoff = phase === 'signups' || phase === 'draft'
 
-  // The play-in format below is specific to an 8-team field (top 4 bye,
-  // bottom 4 play in). Shown only once there actually are 8 teams, so it
-  // doesn't say something untrue about a smaller field.
+  // The playoff blurb below is specific to an 8-team field (all 8 make it,
+  // seeded 1v8/2v7/3v6/4v5). Shown only once there actually are 8 teams, so
+  // it doesn't say something untrue about a smaller field.
   const eightTeamPlayoffs = standings.length === 8
 
   return (

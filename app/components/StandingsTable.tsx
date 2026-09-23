@@ -24,7 +24,7 @@ const KEY: [string, string][] = [
 
 interface StandingsTableProps {
   standings: Standing[]
-  /** True once there are exactly 8 teams -- shows the playoff-line divider and blurb. */
+  /** True once there are exactly 8 teams -- shows the playoff-seeding blurb. */
   showPlayoffFormat?: boolean
   emptyTitle?: string
   emptyMessage?: string
@@ -78,11 +78,7 @@ export function StandingsTable({
             {standings.map((row, index) => (
               <tr
                 key={row.teamId}
-                className={`transition-colors hover:bg-ink/[0.04] ${
-                  showPlayoffFormat && index === 3
-                    ? 'border-b-[2.5px] border-hairline-strong'
-                    : 'border-b border-hairline last:border-b-0'
-                }`}
+                className="border-b border-hairline transition-colors last:border-b-0 hover:bg-ink/[0.04]"
               >
                 <td className="w-[26px] py-2 pl-3 pr-2 text-left font-util text-[12px] text-ink-tertiary">
                   {index + 1}
@@ -139,8 +135,7 @@ export function StandingsTable({
         {showPlayoffFormat && (
           <p className="mt-4 border-t border-hairline pt-4 text-[13px] leading-relaxed text-ink-secondary">
             <span className="font-display font-bold uppercase tracking-[0.02em] text-ink">Playoffs.</span>{' '}
-            The top 4 go straight through. 5th–8th play a knockout round
-            first (5th v 8th, 6th v 7th) for the final two spots.
+            All 8 teams make it. Quarterfinals: 1st v 8th, 2nd v 7th, 3rd v 6th, 4th v 5th.
           </p>
         )}
       </div>
