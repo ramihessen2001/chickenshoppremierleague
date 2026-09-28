@@ -205,7 +205,7 @@ function ScheduleRow({ game, onClick, onEditBoxScore, onEditGame }: ScheduleRowP
       </button>
 
       {(onEditBoxScore || onEditGame) && (
-        <div className="absolute right-2 top-2.5 flex gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+        <div className="absolute right-2 top-2.5 flex gap-0.5 rounded-md bg-surface opacity-100 shadow-sm transition-opacity sm:opacity-0 sm:shadow-none sm:focus-within:opacity-100 sm:group-hover:opacity-100">
           {onEditBoxScore && (
             <IconButton onClick={onEditBoxScore} label="Edit box score">
               <Pencil size={14} />

@@ -12,7 +12,6 @@ import Image from 'next/image'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { getCommissionerPosts, deleteCommissionerPost, notifyDataUpdated } from '@/lib/supabaseData'
 import { useAdmin } from '@/lib/adminContext'
-import { LEAGUE } from '@/config/league'
 import { CommissionerPost } from '@/types/commissionerPost'
 import { youTubeVideoId, youTubeEmbedUrl } from '@/lib/youtube'
 import { EditCommissionerPostModal } from './EditCommissionerPostModal'
@@ -71,13 +70,12 @@ export function CommissionersBoard() {
     <div className="flex h-full max-h-[26rem] flex-col border border-hairline sm:max-h-[32rem]">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-hairline px-5 py-4">
         <p className="flex items-center gap-2 font-util text-[10.5px] uppercase tracking-[0.1em] text-ink-secondary">
-          {/* The black wordmark: this header sits on a light surface. */}
           <Image
-            src={LEAGUE.wordmarkUrl}
+            src="/images/ym_soccer.svg"
             alt=""
-            width={128}
-            height={40}
-            className="h-3.5 w-auto object-contain"
+            width={72}
+            height={72}
+            className="h-5 w-5 shrink-0 object-contain"
           />
           Commissioner&rsquo;s board
         </p>

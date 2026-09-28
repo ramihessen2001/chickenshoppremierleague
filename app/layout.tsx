@@ -4,8 +4,10 @@ import './globals.css'
 import { Header } from './components/Header'
 import { Footer } from './components/Footer'
 import { AdminProvider } from '@/lib/adminContext'
+import { StatkeeperProvider } from '@/lib/statkeeperContext'
 import { TeamsProvider } from '@/lib/teamsContext'
 import { AdminBanner } from './components/AdminBanner'
+import { StatkeeperBanner } from './components/StatkeeperBanner'
 import { LeagueUpdatesPopup } from './components/LeagueUpdatesPopup'
 import { LEAGUE } from '@/config/league'
 
@@ -88,13 +90,16 @@ export default function RootLayout({
         className={`${plexCondensed.variable} ${plexSans.variable} ${courierPrime.variable} antialiased min-h-screen flex flex-col`}
       >
         <AdminProvider>
-          <TeamsProvider>
-            <AdminBanner />
-            <Header />
-            <main className="flex-1">{children}</main>
-            <Footer />
-            <LeagueUpdatesPopup />
-          </TeamsProvider>
+          <StatkeeperProvider>
+            <TeamsProvider>
+              <AdminBanner />
+              <StatkeeperBanner />
+              <Header />
+              <main className="flex-1">{children}</main>
+              <Footer />
+              <LeagueUpdatesPopup />
+            </TeamsProvider>
+          </StatkeeperProvider>
         </AdminProvider>
 
         {/*

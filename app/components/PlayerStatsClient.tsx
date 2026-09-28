@@ -18,12 +18,14 @@ import {
 } from '@/lib/supabaseData'
 import { useTeams } from '@/lib/teamsContext'
 import { usePhase } from '@/lib/usePhase'
-import { displayJersey } from '@/types/player'
+import { displayJersey, Player } from '@/types/player'
+import { Team } from '@/types/team'
 import { fallbackTeamLogo } from '@/config/league'
 import { useAdmin } from '@/lib/adminContext'
 import { AwardVoting } from './AwardVoting'
 import { AwardManagement } from './AwardManagement'
 import { PageHeader } from './PageHeader'
+import { PlayerProfileModal } from './PlayerProfileModal'
 
 interface PlayerStats {
   id: string
@@ -44,6 +46,39 @@ type SortOrder = 'asc' | 'desc'
 /** Numeric columns sort high-to-low first, which is what you want from a stat. */
 const NUMERIC_FIELDS: SortField[] = ['goals', 'assists', 'saves']
 
+/**
+ * Adapts a stats-table row into what PlayerProfileModal needs. The modal
+ * fetches the player's season itself by id, so this only has to carry the
+ * identity fields it reads directly -- the table's own query never selected
+ * age, captaincy or a headshot, so the profile opens without those, same as
+ * it does for anyone missing them on the roster page.
+ */
+function toModalPlayer(row: PlayerStats): Player {
+  return {
+    id: row.id,
+    name: row.name,
+    jerseyNumber: row.jerseyNumber,
+    teamId: row.team?.slug ?? '',
+    isActive: true,
+    position: row.position ?? undefined,
+    createdAt: '',
+    updatedAt: '',
+  }
+}
+
+/** The modal only reads `name` and `logoUrl` off the team it's given. */
+function toModalTeam(team: PlayerStats['team']): Team | null {
+  if (!team) return null
+  return {
+    id: team.slug,
+    name: team.name,
+    logoUrl: team.logoUrl,
+    roster: [],
+    createdAt: '',
+    updatedAt: '',
+  }
+}
+
 export function PlayerStatsClient() {
   const { isAdmin } = useAdmin()
   const { teams } = useTeams()
@@ -57,6 +92,10 @@ export function PlayerStatsClient() {
   const [isLoading, setIsLoading] = useState(true)
   const [sortField, setSortField] = useState<SortField>('goals')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  /** Archive-mode rows belong to a different table (archive_players), so the
+   *  profile modal -- which fetches a live player's season by id -- can only
+   *  open for this season's players. */
+  const [profilePlayer, setProfilePlayer] = useState<PlayerStats | null>(null)
 
   useEffect(() => {
     if (phase === null) return
@@ -251,16 +290,31 @@ export function PlayerStatsClient() {
                 {filteredPlayers.map((player) => (
                   <tr
                     key={player.id}
-                    className="border-b border-hairline transition-colors last:border-b-0 hover:bg-ink/[0.04]"
+                    className={`relative border-b border-hairline transition-colors last:border-b-0 hover:bg-ink/[0.04] ${
+                      isArchiveMode ? '' : 'cursor-pointer'
+                    }`}
                   >
                     <td className="py-2 pl-3 pr-4">
                       <div className="flex items-center gap-3">
                         <span className="w-7 shrink-0 text-right font-util text-[12px] text-ink-tertiary">
                           {displayJersey(player.jerseyNumber)}
                         </span>
-                        <span className="font-display text-[14px] font-bold uppercase tracking-[0.01em] text-ink">
-                          {player.name}
-                        </span>
+                        {isArchiveMode ? (
+                          <span className="font-display text-[14px] font-bold uppercase tracking-[0.01em] text-ink">
+                            {player.name}
+                          </span>
+                        ) : (
+                          // The name carries the click, and after:inset-0
+                          // stretches its hit area over the whole row -- same
+                          // trick PlayerList uses on the roster page, since a
+                          // <tr> can't itself be a <button>.
+                          <button
+                            onClick={() => setProfilePlayer(player)}
+                            className="text-left font-display text-[14px] font-bold uppercase tracking-[0.01em] text-ink after:absolute after:inset-0 after:content-['']"
+                          >
+                            {player.name}
+                          </button>
+                        )}
                         {player.manOfTheMatchCount > 0 && (
                           <span
                             className="inline-flex shrink-0 items-center gap-0.5 text-[12px] text-ink-tertiary"
@@ -304,6 +358,13 @@ export function PlayerStatsClient() {
           </div>
         )}
       </div>
+
+      <PlayerProfileModal
+        player={profilePlayer ? toModalPlayer(profilePlayer) : null}
+        team={profilePlayer ? toModalTeam(profilePlayer.team) : null}
+        isOpen={profilePlayer !== null}
+        onClose={() => setProfilePlayer(null)}
+      />
     </>
   )
 }

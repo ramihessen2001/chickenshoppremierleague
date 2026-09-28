@@ -949,7 +949,12 @@ export class ApiError extends Error {
  */
 async function apiRequest<T = unknown>(
   path: string,
-  options: { method: string; body?: unknown; formData?: FormData }
+  options: {
+    method: string
+    body?: unknown
+    formData?: FormData
+    unauthorizedMessage?: string
+  }
 ): Promise<T> {
   const init: RequestInit = { method: options.method }
 
@@ -966,7 +971,8 @@ async function apiRequest<T = unknown>(
   if (!response.ok) {
     const message =
       response.status === 401
-        ? 'Your admin session has expired. Please log in again.'
+        ? (options.unauthorizedMessage ??
+          'Your admin session has expired. Please log in again.')
         : payload.error || `Request failed (${response.status})`
     throw new ApiError(message, response.status, payload)
   }
@@ -1199,6 +1205,40 @@ export async function saveBoxScore(
   await apiRequest(`/api/admin/games/${gameId}/box-score`, {
     method: 'PUT',
     body: input,
+  })
+}
+
+/** Stat types a statkeeper session may record. Blue cards stay admin-only. */
+export type StatkeeperStatType = Exclude<StatType, 'blue_card'>
+
+/**
+ * Saves the statistics a statkeeper is allowed to touch: goals, assists,
+ * saves and cards, plus the game's live/final status. Narrower than
+ * `saveBoxScore` -- see /api/statkeeper/games/[id]/box-score for what's
+ * rejected server-side.
+ */
+export async function saveStatkeeperBoxScore(
+  gameId: string,
+  input: {
+    homeScore: number | null
+    awayScore: number | null
+    status?: 'scheduled' | 'in_progress' | 'completed'
+    statistics: { playerId: string; type: StatkeeperStatType; count?: number }[]
+  }
+): Promise<void> {
+  if (devSandboxActive && isSandboxGameId(gameId)) {
+    updateSandboxGame(gameId, {
+      homeScore: input.homeScore,
+      awayScore: input.awayScore,
+      status: input.status ?? 'completed',
+      updatedAt: new Date().toISOString(),
+    })
+    return
+  }
+  await apiRequest(`/api/statkeeper/games/${gameId}/box-score`, {
+    method: 'PUT',
+    body: input,
+    unauthorizedMessage: 'Your statkeeper session has expired. Please log in again.',
   })
 }
 

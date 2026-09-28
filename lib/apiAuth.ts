@@ -4,7 +4,7 @@
 
 import 'server-only'
 import { NextResponse } from 'next/server'
-import { isAdminRequest } from './auth'
+import { isAdminRequest, isStatkeeperRequest } from './auth'
 
 /**
  * Returns a 401 response if the caller is not an authenticated admin, or null
@@ -15,6 +15,16 @@ import { isAdminRequest } from './auth'
  */
 export async function requireAdmin(): Promise<NextResponse | null> {
   if (await isAdminRequest()) return null
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+}
+
+/**
+ * Returns a 401 response unless the caller is an authenticated statkeeper OR
+ * admin -- admin can do everything statkeeper can. Call at the top of every
+ * statkeeper route handler.
+ */
+export async function requireStatkeeper(): Promise<NextResponse | null> {
+  if ((await isStatkeeperRequest()) || (await isAdminRequest())) return null
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 }
 

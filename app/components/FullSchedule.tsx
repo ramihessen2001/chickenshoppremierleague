@@ -11,9 +11,11 @@ import { WeekSection } from './WeekSection'
 import { PageHeader } from './PageHeader'
 import { BoxScoreModal } from './BoxScoreModal'
 import { EditBoxScoreModal } from './EditBoxScoreModal'
+import { StatkeeperBoxScoreModal } from './StatkeeperBoxScoreModal'
 import { EditGameModal } from './EditGameModal'
 import { SeasonScheduler } from './SeasonScheduler'
 import { useAdmin } from '@/lib/adminContext'
+import { useStatkeeper } from '@/lib/statkeeperContext'
 import { getGameById } from '@/lib/supabaseData'
 import { compareGameTimes } from '@/lib/dateUtils'
 
@@ -21,16 +23,16 @@ interface FullScheduleProps {
   games: Game[]
   currentWeek: number
   totalWeeks: number
-  season?: string | null
 }
 
 export function FullSchedule({
   games,
   currentWeek,
   totalWeeks,
-  season,
 }: FullScheduleProps) {
   const { isAdmin } = useAdmin()
+  const { isStatkeeper } = useStatkeeper()
+  const canRecordStats = isAdmin || isStatkeeper
   const [gameForView, setGameForView] = useState<Game | null>(null)
   const [gameForBoxScore, setGameForBoxScore] = useState<Game | null>(null)
   const [gameForDetails, setGameForDetails] = useState<Game | null>(null)
@@ -83,7 +85,6 @@ export function FullSchedule({
   return (
     <>
       <PageHeader
-        eyebrow={season ?? undefined}
         title="Schedule"
         description={
           hasAnyGames
@@ -113,7 +114,7 @@ export function FullSchedule({
             games={byWeek.get(week) ?? []}
             isCurrentWeek={week === currentWeek}
             onGameClick={handleView}
-            onEditBoxScore={isAdmin ? handleEditBoxScore : undefined}
+            onEditBoxScore={canRecordStats ? handleEditBoxScore : undefined}
             onEditGame={isAdmin ? handleEditGame : undefined}
             onAddGame={isAdmin ? () => handleAddGame(week) : undefined}
           />
@@ -125,7 +126,7 @@ export function FullSchedule({
             games={playoffGames}
             isCurrentWeek={false}
             onGameClick={handleView}
-            onEditBoxScore={isAdmin ? handleEditBoxScore : undefined}
+            onEditBoxScore={canRecordStats ? handleEditBoxScore : undefined}
             onEditGame={isAdmin ? handleEditGame : undefined}
             onAddGame={isAdmin ? () => handleAddGame(0) : undefined}
           />
@@ -137,11 +138,19 @@ export function FullSchedule({
         isOpen={isViewOpen}
         onClose={() => setIsViewOpen(false)}
       />
-      <EditBoxScoreModal
-        game={gameForBoxScore}
-        isOpen={isBoxScoreOpen}
-        onClose={() => setIsBoxScoreOpen(false)}
-      />
+      {isAdmin ? (
+        <EditBoxScoreModal
+          game={gameForBoxScore}
+          isOpen={isBoxScoreOpen}
+          onClose={() => setIsBoxScoreOpen(false)}
+        />
+      ) : (
+        <StatkeeperBoxScoreModal
+          game={gameForBoxScore}
+          isOpen={isBoxScoreOpen}
+          onClose={() => setIsBoxScoreOpen(false)}
+        />
+      )}
       <EditGameModal
         game={gameForDetails}
         isOpen={isDetailsOpen}

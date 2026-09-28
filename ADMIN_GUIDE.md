@@ -13,6 +13,24 @@ out immediately, change `ADMIN_SESSION_SECRET` instead.
 
 ---
 
+## Statkeeper mode
+
+A second, narrower login for whoever is tracking a game live: **STATKEEPER** in
+the footer, password from `STATKEEPER_PASSWORD`. It opens the same box score
+editor admin uses on a game's pencil icon, but cut down to what a statkeeper
+actually needs mid-game:
+
+- Record goals, assists, saves, yellow cards and red cards. The score updates
+  itself from the goals entered, same as admin.
+- Move the game between **Not started**, **In progress** and **Final**.
+
+It cannot record blue cards, set the man of the match, or touch anything else
+in the admin panel — those stay behind the admin login. A statkeeper session
+lasts 12 hours, same as admin, and signing in as admin can always do everything
+a statkeeper session can from the same editor.
+
+---
+
 ## Running a season
 
 ### Before week 1

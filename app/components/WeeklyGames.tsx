@@ -19,7 +19,9 @@ import { LEAGUE } from '@/config/league'
 import { formatDate, formatTime } from '@/lib/dateUtils'
 import { BoxScoreModal } from './BoxScoreModal'
 import { EditBoxScoreModal } from './EditBoxScoreModal'
+import { StatkeeperBoxScoreModal } from './StatkeeperBoxScoreModal'
 import { useAdmin } from '@/lib/adminContext'
+import { useStatkeeper } from '@/lib/statkeeperContext'
 import { getGameById } from '@/lib/supabaseData'
 
 interface WeeklyGamesProps {
@@ -29,6 +31,7 @@ interface WeeklyGamesProps {
 
 export function WeeklyGames({ games, weekNumber }: WeeklyGamesProps) {
   const { isAdmin } = useAdmin()
+  const { isStatkeeper } = useStatkeeper()
   const [gameForView, setGameForView] = useState<Game | null>(null)
   const [gameForEdit, setGameForEdit] = useState<Game | null>(null)
   const [isViewOpen, setIsViewOpen] = useState(false)
@@ -80,7 +83,7 @@ export function WeeklyGames({ games, weekNumber }: WeeklyGamesProps) {
                 <FixtureCard
                   game={game}
                   onOpen={() => open(game, false)}
-                  onEdit={isAdmin ? () => open(game, true) : undefined}
+                  onEdit={isAdmin || isStatkeeper ? () => open(game, true) : undefined}
                 />
               </li>
             ))}
@@ -93,11 +96,19 @@ export function WeeklyGames({ games, weekNumber }: WeeklyGamesProps) {
         isOpen={isViewOpen}
         onClose={() => setIsViewOpen(false)}
       />
-      <EditBoxScoreModal
-        game={gameForEdit}
-        isOpen={isEditOpen}
-        onClose={() => setIsEditOpen(false)}
-      />
+      {isAdmin ? (
+        <EditBoxScoreModal
+          game={gameForEdit}
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+        />
+      ) : (
+        <StatkeeperBoxScoreModal
+          game={gameForEdit}
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+        />
+      )}
     </>
   )
 }
@@ -189,7 +200,7 @@ function FixtureCard({ game, onOpen, onEdit }: FixtureCardProps) {
             e.stopPropagation()
             onEdit()
           }}
-          className="absolute right-3 top-3 p-1.5 text-ink-tertiary opacity-0 transition-opacity hover:bg-ink/[0.06] hover:text-ink focus-visible:opacity-100 group-hover:opacity-100"
+          className="absolute right-3 top-3 rounded-md bg-surface p-1.5 text-ink-tertiary opacity-100 shadow-sm transition-opacity hover:bg-ink/[0.06] hover:text-ink focus-visible:opacity-100 sm:bg-transparent sm:opacity-0 sm:shadow-none sm:group-hover:opacity-100"
           aria-label="Edit box score"
         >
           <Pencil size={14} />

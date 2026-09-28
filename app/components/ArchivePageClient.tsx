@@ -93,8 +93,8 @@ export function ArchivePageClient() {
     <>
       <PageHeader
         eyebrow={season.label}
-        title="Archive"
-        description="Final standings, results and stat leaders -- unchanged from when the season ended."
+        title="Chicken Shop Premier League 2025 Winter"
+        description="Final standings, results and stat leaders."
       />
 
       <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8">

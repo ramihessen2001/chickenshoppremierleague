@@ -83,6 +83,7 @@ change when teams do.
 | `SUPABASE_SERVICE_ROLE_KEY` | **server only** | Bypasses RLS. No `NEXT_PUBLIC_` prefix, deliberately |
 | `ADMIN_PASSWORD` | server only | Checked at `/api/admin/session` |
 | `ADMIN_SESSION_SECRET` | server only | Signs the session cookie; 32+ chars |
+| `STATKEEPER_PASSWORD` | server only | Checked at `/api/statkeeper/session`. Reuses `ADMIN_SESSION_SECRET` to sign its cookie |
 | `NEXT_PUBLIC_SITE_URL` | build | Absolute URLs for the share card. Set in production |
 | `RESEND_API_KEY` | server only | Optional. Without it the site sends no email |
 | `EMAIL_FROM` | server only | Optional. e.g. `CSPL <noreply@your-domain.com>` |
@@ -172,6 +173,15 @@ hours. While signed in you can:
 - set the current week and switch the site into playoff mode
 - upload a standings image
 - create awards, nominate players, and read vote results
+
+### Statkeeper
+
+Click **STATKEEPER** in the footer and enter `STATKEEPER_PASSWORD`. A separate,
+narrower role for whoever is tracking a live game: it can record goals,
+assists, saves, yellow cards and red cards, and move a game between not
+started / in progress / final, but not blue cards, the man of the match, or
+anything else in the admin panel. Admin sessions can do this too, from the same
+box score editor.
 
 ---
 

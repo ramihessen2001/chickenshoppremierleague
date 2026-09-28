@@ -19,6 +19,7 @@ const BASE_NAV = [
   { href: '/schedule', label: 'Schedule' },
   { href: '/standings', label: 'Standings' },
   { href: '/stats', label: 'Stats' },
+  { href: '/rules', label: 'Rules' },
 ]
 
 export function Header() {

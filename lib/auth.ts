@@ -1,5 +1,5 @@
 /**
- * Admin session handling.
+ * Admin and statkeeper session handling.
  *
  * SERVER ONLY.
  *
@@ -12,6 +12,12 @@
  * HMAC-signed, httpOnly cookie. Every admin API route verifies that cookie
  * before touching Supabase. The browser can flip its own UI state all it likes;
  * without a valid signed cookie no write is possible.
+ *
+ * Statkeeper is a second, narrower role built on the same session machinery:
+ * its own password and cookie, but tokens are signed with the same secret and
+ * carry no role of their own -- the cookie name is what says which role a
+ * given token grants. It only unlocks the statkeeper box-score routes, never
+ * the rest of the admin surface.
  */
 
 import 'server-only'
@@ -19,6 +25,7 @@ import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto'
 import { cookies } from 'next/headers'
 
 const COOKIE_NAME = 'cspl_admin'
+const STATKEEPER_COOKIE_NAME = 'cspl_statkeeper'
 
 /** How long a login lasts before the admin has to re-enter the password. */
 const SESSION_DURATION_MS = 12 * 60 * 60 * 1000 // 12 hours
@@ -42,6 +49,23 @@ function getAdminPassword(): string {
   return password
 }
 
+/**
+ * The statkeeper password is separate from the admin password: it's handed out
+ * more widely (whoever is tracking a given game) and only unlocks recording
+ * goals, assists, saves and cards, not the rest of the admin surface. Session
+ * tokens are signed with the same secret as admin -- only the cookie name and
+ * the password checked against differ.
+ */
+function getStatkeeperPassword(): string {
+  const password = process.env.STATKEEPER_PASSWORD
+  if (!password) {
+    throw new Error(
+      'STATKEEPER_PASSWORD is not set. Statkeeper login cannot work without it.'
+    )
+  }
+  return password
+}
+
 /** Constant-time string comparison that tolerates differing lengths. */
 function safeEqual(a: string, b: string): boolean {
   const ha = createHmac('sha256', 'compare').update(a).digest()
@@ -59,6 +83,14 @@ function sign(payload: string): string {
 export function isValidPassword(candidate: unknown): boolean {
   if (typeof candidate !== 'string' || candidate.length === 0) return false
   return safeEqual(candidate, getAdminPassword())
+}
+
+/**
+ * Checks a submitted password against STATKEEPER_PASSWORD.
+ */
+export function isValidStatkeeperPassword(candidate: unknown): boolean {
+  if (typeof candidate !== 'string' || candidate.length === 0) return false
+  return safeEqual(candidate, getStatkeeperPassword())
 }
 
 /**
@@ -100,7 +132,17 @@ export async function isAdminRequest(): Promise<boolean> {
   return verifySessionToken(cookieStore.get(COOKIE_NAME)?.value)
 }
 
+/**
+ * Reads the statkeeper session cookie and reports whether the caller is an
+ * authenticated statkeeper. Use this at the top of statkeeper API routes.
+ */
+export async function isStatkeeperRequest(): Promise<boolean> {
+  const cookieStore = await cookies()
+  return verifySessionToken(cookieStore.get(STATKEEPER_COOKIE_NAME)?.value)
+}
+
 export const ADMIN_COOKIE_NAME = COOKIE_NAME
+export { STATKEEPER_COOKIE_NAME }
 
 /** Cookie options shared by the login and logout routes. */
 export function sessionCookieOptions(expiresAt?: Date) {

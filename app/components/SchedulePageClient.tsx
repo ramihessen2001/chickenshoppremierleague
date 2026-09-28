@@ -19,7 +19,6 @@ export function SchedulePageClient() {
   const [games, setGames] = useState<Game[]>([])
   const [currentWeek, setCurrentWeek] = useState(1)
   const [totalWeeks, setTotalWeeks] = useState(10)
-  const [season, setSeason] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   const fetchData = useCallback(async () => {
@@ -28,7 +27,6 @@ export function SchedulePageClient() {
       if (config) {
         setCurrentWeek(config.current_week)
         setTotalWeeks(config.total_weeks)
-        setSeason(config.season)
       }
 
       // Both dates are ISO (YYYY-MM-DD), so a string compare orders them.
@@ -61,11 +59,6 @@ export function SchedulePageClient() {
   }
 
   return (
-    <FullSchedule
-      games={games}
-      currentWeek={currentWeek}
-      totalWeeks={totalWeeks}
-      season={season}
-    />
+    <FullSchedule games={games} currentWeek={currentWeek} totalWeeks={totalWeeks} />
   )
 }

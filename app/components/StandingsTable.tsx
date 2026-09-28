@@ -7,6 +7,7 @@
  */
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { fallbackTeamLogo } from '@/config/league'
 import { Standing } from '@/types/standing'
 
@@ -28,6 +29,13 @@ interface StandingsTableProps {
   showPlayoffFormat?: boolean
   emptyTitle?: string
   emptyMessage?: string
+  /**
+   * Links each row to /teams/[slug]. Off by default because the archive
+   * reuses this table for a past season's frozen snapshot -- a team there may
+   * have since been renamed or removed from the live `teams` table, and
+   * /teams/[slug] only knows the live one.
+   */
+  linkTeams?: boolean
 }
 
 export function StandingsTable({
@@ -35,6 +43,7 @@ export function StandingsTable({
   showPlayoffFormat = false,
   emptyTitle = 'No standings yet',
   emptyMessage = 'The table will appear here once teams are added.',
+  linkTeams = false,
 }: StandingsTableProps) {
   if (standings.length === 0) {
     return (
@@ -78,7 +87,9 @@ export function StandingsTable({
             {standings.map((row, index) => (
               <tr
                 key={row.teamId}
-                className="border-b border-hairline transition-colors last:border-b-0 hover:bg-ink/[0.04]"
+                className={`relative border-b border-hairline transition-colors last:border-b-0 hover:bg-ink/[0.04] ${
+                  linkTeams ? 'cursor-pointer' : ''
+                }`}
               >
                 <td className="w-[26px] py-2 pl-3 pr-2 text-left font-util text-[12px] text-ink-tertiary">
                   {index + 1}
@@ -96,12 +107,25 @@ export function StandingsTable({
                         className="h-[18px] w-[18px] object-contain"
                       />
                     </span>
-                    <span
-                      className="truncate font-display text-[14px] font-bold uppercase tracking-[0.01em] text-ink"
-                      title={row.teamName}
-                    >
-                      {row.teamShortName}
-                    </span>
+                    {linkTeams ? (
+                      // Same stretched-hit-area trick as the roster page's
+                      // player names: the row is the card, the name carries
+                      // the click, after:inset-0 covers the rest of the <tr>.
+                      <Link
+                        href={`/teams/${row.teamSlug}`}
+                        title={row.teamName}
+                        className="truncate font-display text-[14px] font-bold uppercase tracking-[0.01em] text-ink after:absolute after:inset-0 after:content-['']"
+                      >
+                        {row.teamShortName}
+                      </Link>
+                    ) : (
+                      <span
+                        className="truncate font-display text-[14px] font-bold uppercase tracking-[0.01em] text-ink"
+                        title={row.teamName}
+                      >
+                        {row.teamShortName}
+                      </span>
+                    )}
                   </div>
                 </td>
                 <Cell value={row.gamesPlayed} />

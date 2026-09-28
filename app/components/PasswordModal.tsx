@@ -22,9 +22,17 @@ interface PasswordModalProps {
   onClose: () => void
   /** Resolves to an error message on failure, or null on success. */
   onSubmit: (password: string) => Promise<string | null>
+  title?: string
+  helpText?: string
 }
 
-export function PasswordModal({ isOpen, onClose, onSubmit }: PasswordModalProps) {
+export function PasswordModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  title = 'Admin sign in',
+  helpText = 'Signing in lets you edit results, rosters and the schedule. Sessions last 12 hours.',
+}: PasswordModalProps) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -58,7 +66,7 @@ export function PasswordModal({ isOpen, onClose, onSubmit }: PasswordModalProps)
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={close} title="Admin sign in" size="sm">
+    <Modal isOpen={isOpen} onClose={close} title={title} size="sm">
       <form onSubmit={handleSubmit} id="admin-signin">
         <FormError>{error}</FormError>
 
@@ -77,10 +85,7 @@ export function PasswordModal({ isOpen, onClose, onSubmit }: PasswordModalProps)
           aria-invalid={error ? 'true' : 'false'}
         />
 
-        <p className="mt-3 text-[13px] text-ink-tertiary">
-          Signing in lets you edit results, rosters and the schedule. Sessions
-          last 12 hours.
-        </p>
+        <p className="mt-3 text-[13px] text-ink-tertiary">{helpText}</p>
       </form>
 
       <div className="mt-6 flex justify-end gap-2.5">

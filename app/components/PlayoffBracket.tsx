@@ -11,8 +11,10 @@ import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { Pencil } from 'lucide-react'
 import { useAdmin } from '@/lib/adminContext'
+import { useStatkeeper } from '@/lib/statkeeperContext'
 import { useTeams } from '@/lib/teamsContext'
 import { EditBoxScoreModal } from './EditBoxScoreModal'
+import { StatkeeperBoxScoreModal } from './StatkeeperBoxScoreModal'
 import { BoxScoreModal } from './BoxScoreModal'
 import { Game } from '@/types/game'
 import { getPlayoffGames, getGameById } from '@/lib/supabaseData'
@@ -29,6 +31,8 @@ const ROUND_LABELS: Record<string, string> = {
 
 export function PlayoffBracket() {
   const { isAdmin } = useAdmin()
+  const { isStatkeeper } = useStatkeeper()
+  const canRecordStats = isAdmin || isStatkeeper
   const { teamName, teamLogo } = useTeams()
   const [playoffGames, setPlayoffGames] = useState<Game[]>([])
   const [gameForEdit, setGameForEdit] = useState<Game | null>(null)
@@ -211,13 +215,13 @@ export function PlayoffBracket() {
                           )}
                         </button>
 
-                        {isAdmin && (
+                        {canRecordStats && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
                               open(game, true)
                             }}
-                            className="absolute right-3 top-3 rounded-md p-1.5 text-ink-tertiary opacity-0 transition-opacity hover:bg-surface-sunken hover:text-ink focus-visible:opacity-100 group-hover:opacity-100"
+                            className="absolute right-3 top-3 rounded-md bg-surface p-1.5 text-ink-tertiary opacity-100 shadow-sm transition-opacity hover:bg-surface-sunken hover:text-ink focus-visible:opacity-100 sm:bg-transparent sm:opacity-0 sm:shadow-none sm:group-hover:opacity-100"
                             aria-label="Edit playoff game"
                           >
                             <Pencil size={14} />
@@ -233,12 +237,21 @@ export function PlayoffBracket() {
         </div>
       </section>
 
-      <EditBoxScoreModal
-        game={gameForEdit}
-        isOpen={isEditOpen}
-        onClose={() => setIsEditOpen(false)}
-        onSave={load}
-      />
+      {isAdmin ? (
+        <EditBoxScoreModal
+          game={gameForEdit}
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+          onSave={load}
+        />
+      ) : (
+        <StatkeeperBoxScoreModal
+          game={gameForEdit}
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+          onSave={load}
+        />
+      )}
       <BoxScoreModal
         game={gameForView}
         isOpen={isViewOpen}

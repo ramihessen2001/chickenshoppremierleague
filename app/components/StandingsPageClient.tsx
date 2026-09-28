@@ -29,7 +29,6 @@ import { StandingsTable } from './StandingsTable'
 export function StandingsPageClient() {
   const [standings, setStandings] = useState<Standing[]>([])
   const [phase, setPhase] = useState<LeaguePhase>('season')
-  const [eyebrow, setEyebrow] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -38,7 +37,6 @@ export function StandingsPageClient() {
       const currentPhase = config?.phase ?? 'season'
       setPhase(currentPhase)
 
-      setEyebrow(config?.season ?? null)
       setStandings(await getStandings())
 
       setIsLoading(false)
@@ -69,7 +67,6 @@ export function StandingsPageClient() {
   return (
     <>
       <PageHeader
-        eyebrow={eyebrow ?? undefined}
         title="Standings"
         description={
           beforeKickoff
@@ -86,7 +83,11 @@ export function StandingsPageClient() {
       )}
 
       <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
-        <StandingsTable standings={standings} showPlayoffFormat={eightTeamPlayoffs} />
+        <StandingsTable
+          standings={standings}
+          showPlayoffFormat={eightTeamPlayoffs}
+          linkTeams
+        />
       </div>
     </>
   )
