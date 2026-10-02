@@ -20,6 +20,7 @@ import { PlayoffBracketGenerator } from './PlayoffBracketGenerator'
 import { SignupForm } from './SignupForm'
 import { LiveNow } from './LiveNow'
 import { CommissionersBoard } from './CommissionersBoard'
+import { LiveStreamHero } from './LiveStreamHero'
 import { useAdmin } from '@/lib/adminContext'
 import { useTeams } from '@/lib/teamsContext'
 import { LEAGUE } from '@/config/league'
@@ -258,6 +259,23 @@ export function HomePageClient() {
     return () => window.removeEventListener('dataUpdated', handleUpdate)
   }, [fetchData])
 
+  // The livestream starts and ends while people already have the page open,
+  // so re-read just its link every minute (the same cadence as LiveNow). Only
+  // that one field is taken from the fresh row: a full fetchData() would
+  // reload every fixture and leaderboard for a change to a single value.
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const fresh = await getLeagueConfig()
+      if (!fresh) return
+      setConfig((current) =>
+        current && current.live_stream_url !== fresh.live_stream_url
+          ? { ...current, live_stream_url: fresh.live_stream_url }
+          : current
+      )
+    }, 60_000)
+    return () => clearInterval(interval)
+  }, [])
+
   const handleWeekChange = async (newWeek: number) => {
     setConfig((current) => (current ? { ...current, current_week: newWeek } : current))
     setCurrentWeekGames(await getGamesByWeek(newWeek))
@@ -279,6 +297,9 @@ export function HomePageClient() {
   const isRegistering = phase === 'signups'
   const isPreSeason = phase === 'signups' || phase === 'draft'
   const showsCommissionersBoard = phase === 'season' || phase === 'playoffs'
+  // Read only in the phases where the board shows, so a link left set at the
+  // end of the playoffs can never cover the registration form next season.
+  const liveStreamUrl = showsCommissionersBoard ? config?.live_stream_url || null : null
 
   const actions = heroActions({
     phase,
@@ -300,123 +321,131 @@ export function HomePageClient() {
         {/* While registration is open the form sits beside the headline, and
             once the season starts (through to the playoffs) the commissioner's
             board takes that slot instead, so the first thing on the page is
-            always the thing that changes most often. */}
-        <div
-          className={
-            isRegistering || showsCommissionersBoard
-              ? 'grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:gap-16'
-              : ''
-          }
-        >
-          <div>
-            {/* Sits above the headline so the closing date is the first thing
-                read, before the headline and the form below it. */}
-            {isRegistering && countdown && (
-              <p className="mb-5 inline-flex flex-wrap items-center gap-x-2 rounded-pill border border-hairline-strong px-4 py-1.5 text-[13px] font-medium text-ink">
-                {countdown}
-                <span className="text-ink-tertiary">
-                  Closes {formatDeadline(LEAGUE.registrationDeadline)}
-                </span>
+            always the thing that changes most often.
+
+            While the admin has a livestream set, the stream takes over this
+            whole slot -- headline, buttons and board -- since watching is the
+            only thing anyone opening the site right then is there to do. */}
+        {liveStreamUrl ? (
+          <LiveStreamHero url={liveStreamUrl} />
+        ) : (
+          <div
+            className={
+              isRegistering || showsCommissionersBoard
+                ? 'grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:gap-16'
+                : ''
+            }
+          >
+            <div>
+              {/* Sits above the headline so the closing date is the first thing
+                  read, before the headline and the form below it. */}
+              {isRegistering && countdown && (
+                <p className="mb-5 inline-flex flex-wrap items-center gap-x-2 rounded-pill border border-hairline-strong px-4 py-1.5 text-[13px] font-medium text-ink">
+                  {countdown}
+                  <span className="text-ink-tertiary">
+                    Closes {formatDeadline(LEAGUE.registrationDeadline)}
+                  </span>
+                </p>
+              )}
+
+              <h1
+                className={`font-semibold text-ink ${
+                  isRegistering
+                    ? 'text-[2.5rem] sm:text-[3.25rem]'
+                    : 'max-w-3xl text-[2.75rem] sm:text-[4rem]'
+                }`}
+              >
+                {hero.title}
+              </h1>
+              <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-ink-secondary">
+                {hero.body}
               </p>
-            )}
 
-            <h1
-              className={`font-semibold text-ink ${
-                isRegistering
-                  ? 'text-[2.5rem] sm:text-[3.25rem]'
-                  : 'max-w-3xl text-[2.75rem] sm:text-[4rem]'
-              }`}
-            >
-              {hero.title}
-            </h1>
-            <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-ink-secondary">
-              {hero.body}
-            </p>
-
-            {actions.length > 0 && (
-              <div className="mt-9 flex flex-wrap items-center gap-3">
-                {actions.map(({ href, label, variant }) =>
-                  href.startsWith('#') ? (
-                    <a key={href} href={href} className={BUTTON_STYLES[variant]}>
-                      {label}
-                    </a>
-                  ) : href.startsWith('http') ? (
-                    <a
-                      key={href}
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={BUTTON_STYLES[variant]}
-                    >
-                      {label}
-                    </a>
-                  ) : (
-                    <Link key={href} href={href} className={BUTTON_STYLES[variant]}>
-                      {label}
-                    </Link>
-                  )
-                )}
-              </div>
-            )}
-
-            {/* The facts a prospective player needs before filling the form
-                in. Only while registration is open -- once the season starts
-                the schedule and standings pages say all of this.
-
-                Collapsed behind a toggle on narrow screens, where the whole
-                table between the headline and the form would push the form
-                off the first screen. Always open from `lg` up, where it sits
-                beside the form rather than above it. */}
-            {isRegistering && (
-              <div className="mt-10 max-w-xl">
-                <button
-                  type="button"
-                  onClick={() => setShowDetails((open) => !open)}
-                  aria-expanded={showDetails}
-                  aria-controls="league-details"
-                  className="flex w-full items-center justify-between gap-4 rounded-lg border border-hairline bg-surface px-5 py-3.5 text-[14px] font-medium text-ink transition-colors hover:bg-surface-hover lg:hidden"
-                >
-                  League details
-                  <ChevronDown
-                    size={18}
-                    className={`shrink-0 text-ink-tertiary transition-transform ${
-                      showDetails ? 'rotate-180' : ''
-                    }`}
-                  />
-                </button>
-
-                <dl
-                  id="league-details"
-                  className={`rounded-lg border border-hairline bg-surface max-lg:mt-2 lg:block ${
-                    showDetails ? '' : 'max-lg:hidden'
-                  }`}
-                >
-                  {LEAGUE.details.map(([label, value]) => (
-                    <div
-                      key={label}
-                      className="grid gap-1 border-t border-hairline px-5 py-3.5 first:border-t-0 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4 sm:px-6"
-                    >
-                      <dt className="font-util text-[10.5px] uppercase leading-tight tracking-[0.1em] text-ink-secondary">
+              {actions.length > 0 && (
+                <div className="mt-9 flex flex-wrap items-center gap-3">
+                  {actions.map(({ href, label, variant }) =>
+                    href.startsWith('#') ? (
+                      <a key={href} href={href} className={BUTTON_STYLES[variant]}>
                         {label}
-                      </dt>
-                      <dd className="whitespace-pre-line text-[15px] leading-relaxed text-ink">
-                        {value}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
+                      </a>
+                    ) : href.startsWith('http') ? (
+                      <a
+                        key={href}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={BUTTON_STYLES[variant]}
+                      >
+                        {label}
+                      </a>
+                    ) : (
+                      <Link key={href} href={href} className={BUTTON_STYLES[variant]}>
+                        {label}
+                      </Link>
+                    )
+                  )}
+                </div>
+              )}
+
+              {/* The facts a prospective player needs before filling the form
+                  in. Only while registration is open -- once the season starts
+                  the schedule and standings pages say all of this.
+
+                  Collapsed behind a toggle on narrow screens, where the whole
+                  table between the headline and the form would push the form
+                  off the first screen. Always open from `lg` up, where it sits
+                  beside the form rather than above it. */}
+              {isRegistering && (
+                <div className="mt-10 max-w-xl">
+                  <button
+                    type="button"
+                    onClick={() => setShowDetails((open) => !open)}
+                    aria-expanded={showDetails}
+                    aria-controls="league-details"
+                    className="flex w-full items-center justify-between gap-4 rounded-lg border border-hairline bg-surface px-5 py-3.5 text-[14px] font-medium text-ink transition-colors hover:bg-surface-hover lg:hidden"
+                  >
+                    League details
+                    <ChevronDown
+                      size={18}
+                      className={`shrink-0 text-ink-tertiary transition-transform ${
+                        showDetails ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+
+                  <dl
+                    id="league-details"
+                    className={`rounded-lg border border-hairline bg-surface max-lg:mt-2 lg:block ${
+                      showDetails ? '' : 'max-lg:hidden'
+                    }`}
+                  >
+                    {LEAGUE.details.map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="grid gap-1 border-t border-hairline px-5 py-3.5 first:border-t-0 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4 sm:px-6"
+                      >
+                        <dt className="font-util text-[10.5px] uppercase leading-tight tracking-[0.1em] text-ink-secondary">
+                          {label}
+                        </dt>
+                        <dd className="whitespace-pre-line text-[15px] leading-relaxed text-ink">
+                          {value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
+            </div>
+
+            {isRegistering && (
+              <div id="register" className="scroll-mt-20">
+                <SignupForm />
               </div>
             )}
+
+            {showsCommissionersBoard && <CommissionersBoard />}
           </div>
-
-          {isRegistering && (
-            <div id="register" className="scroll-mt-20">
-              <SignupForm />
-            </div>
-          )}
-
-          {showsCommissionersBoard && <CommissionersBoard />}
-        </div>
+        )}
       </section>
 
       {isAdmin && (
@@ -426,6 +455,7 @@ export function HomePageClient() {
             currentWeek={currentWeek}
             totalWeeks={totalWeeks}
             draftStreamUrl={config?.draft_stream_url ?? null}
+            liveStreamUrl={config?.live_stream_url ?? null}
             seasonLabel={config?.season ?? ''}
             onWeekChange={handleWeekChange}
             onConfigChange={fetchData}

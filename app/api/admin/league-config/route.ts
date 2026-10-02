@@ -2,8 +2,8 @@
  * Update league configuration. Admin only.
  *
  *   PATCH -> { currentWeek?, season?, leagueName?, startDate?, endDate?,
- *              totalWeeks?, phase?, draftStreamUrl?, showHomeFixtures?,
- *              showHomeStats? }
+ *              totalWeeks?, phase?, draftStreamUrl?, liveStreamUrl?,
+ *              showHomeFixtures?, showHomeStats? }
  *
  * league_config holds exactly one row (enforced by a unique index in the
  * schema), so this updates whichever row exists rather than taking an id.
@@ -24,6 +24,7 @@ interface UpdateConfigBody {
   endDate?: string
   phase?: string
   draftStreamUrl?: string | null
+  liveStreamUrl?: string | null
   showHomeFixtures?: boolean
   showHomeStats?: boolean
 }
@@ -63,6 +64,9 @@ export async function PATCH(request: Request) {
   }
   if (body.draftStreamUrl !== undefined) {
     columns.draft_stream_url = body.draftStreamUrl
+  }
+  if (body.liveStreamUrl !== undefined) {
+    columns.live_stream_url = body.liveStreamUrl
   }
   if (body.showHomeFixtures !== undefined) {
     columns.show_home_fixtures = body.showHomeFixtures

@@ -175,6 +175,10 @@ CREATE TABLE league_config (
   -- YouTube watch or live URL for the draft broadcast, set by the admin
   -- before the draft starts. The homepage's "Watch Live" button points here.
   draft_stream_url TEXT,
+  -- YouTube link for a league-wide broadcast during the season or playoffs.
+  -- While set, the stream replaces the homepage headline and the
+  -- commissioner's board; the admin clears it to end the broadcast.
+  live_stream_url TEXT,
   -- Whether the homepage shows this week's fixtures / the stat leaders.
   -- `games` and `game_statistics` have no season column, so last season's
   -- rows are still sitting there at the start of a new one -- these stay off

@@ -19,6 +19,8 @@ interface CurrentWeekControlProps {
   totalWeeks: number
   /** The YouTube link the homepage's "Watch Live" button points to during the draft. */
   draftStreamUrl: string | null
+  /** The league-wide broadcast that replaces the homepage headline while set. */
+  liveStreamUrl: string | null
   /** For the "type the season name to confirm" archive control. */
   seasonLabel: string
   onWeekChange: (newWeek: number) => void
@@ -46,6 +48,7 @@ export function CurrentWeekControl({
   currentWeek,
   totalWeeks,
   draftStreamUrl,
+  liveStreamUrl,
   seasonLabel,
   onWeekChange,
   onConfigChange,
@@ -53,6 +56,9 @@ export function CurrentWeekControl({
   const [isUpdating, setIsUpdating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [streamUrlInput, setStreamUrlInput] = useState(draftStreamUrl ?? '')
+  const [liveUrlInput, setLiveUrlInput] = useState(liveStreamUrl ?? '')
+  /** Same phases the commissioner's board shows in -- the stream takes its slot. */
+  const canGoLive = phase === 'season' || phase === 'playoffs'
 
   const run = async (work: () => Promise<void>) => {
     setIsUpdating(true)
@@ -76,6 +82,14 @@ export function CurrentWeekControl({
   const saveStreamUrl = () =>
     run(async () => {
       await updateLeagueConfig({ draftStreamUrl: streamUrlInput.trim() || null })
+      onConfigChange?.()
+    })
+
+  /** Null ends the broadcast: the headline and the board come back. */
+  const saveLiveUrl = (url: string | null) =>
+    run(async () => {
+      await updateLeagueConfig({ liveStreamUrl: url })
+      setLiveUrlInput(url ?? '')
       onConfigChange?.()
     })
 
@@ -197,6 +211,45 @@ export function CurrentWeekControl({
           </div>
         )}
       </div>
+
+      {canGoLive && (
+        <div className="mt-5 border-t border-hairline pt-5">
+          <label htmlFor="live-stream-url" className="eyebrow block">
+            Homepage livestream
+          </label>
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <input
+              id="live-stream-url"
+              type="text"
+              placeholder="Livestream URL (YouTube)"
+              value={liveUrlInput}
+              onChange={(e) => setLiveUrlInput(e.target.value)}
+              className={`max-w-xs ${fieldClass}`}
+            />
+            <button
+              onClick={() => saveLiveUrl(liveUrlInput.trim() || null)}
+              disabled={isUpdating || liveUrlInput.trim() === (liveStreamUrl ?? '')}
+              className="rounded-pill border border-hairline-strong px-3 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-surface-hover disabled:opacity-50"
+            >
+              {liveStreamUrl ? 'Save' : 'Go live'}
+            </button>
+            {liveStreamUrl && (
+              <button
+                onClick={() => saveLiveUrl(null)}
+                disabled={isUpdating}
+                className="rounded-pill border border-hairline-strong px-3 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-surface-hover disabled:opacity-50"
+              >
+                End stream
+              </button>
+            )}
+          </div>
+          <p className="mt-2.5 text-[13px] text-ink-tertiary">
+            {liveStreamUrl
+              ? 'On air: the stream is showing in place of the headline and the commissioner’s board.'
+              : 'While a link is set, the stream replaces the headline and the commissioner’s board.'}
+          </p>
+        </div>
+      )}
 
       {error && (
         <p className="mt-4 text-[13px] text-negative" role="alert">
