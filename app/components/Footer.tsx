@@ -52,6 +52,14 @@ export function Footer() {
             </nav>
 
             <div className="flex items-center gap-4">
+              {/* A link rather than a dialog like its neighbours: the desk has
+                  its own sign-in screen, and the media team works there. */}
+              <Link
+                href="/desk"
+                className="self-start text-[13px] text-ink-tertiary transition-colors hover:text-ink"
+              >
+                Media team
+              </Link>
               <StatkeeperButton onClick={() => setIsStatkeeperModalOpen(true)} />
               <AdminButton onClick={() => setIsPasswordModalOpen(true)} />
             </div>
