@@ -12,6 +12,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { buttonPrimary, buttonSecondary, fieldClass, FormError, labelClass } from './Modal'
 import { CONTENT_PRESETS, CUSTOM_KIND, presetLabel } from '@/lib/contentPresets'
+import { GRAPHIC_LABELS, Ground, GROUNDS } from '@/lib/graphics/spec'
 import { ContentDraft, ContentDraftStatus } from '@/types/contentDraft'
 
 type SessionState = 'checking' | 'signed-out' | 'signed-in'
@@ -344,7 +345,7 @@ function DraftCard({
   const [copied, setCopied] = useState(false)
   const isEdited = text !== draft.body
 
-  const save = async (fields: { body?: string; status?: ContentDraftStatus }) => {
+  const save = async (fields: { body?: string; status?: ContentDraftStatus; ground?: Ground }) => {
     setIsSaving(true)
     setError(null)
     const response = await fetch(`/api/media/drafts/${draft.id}`, {
@@ -389,16 +390,54 @@ function DraftCard({
           <p className="mt-2 whitespace-pre-line">{draft.brief}</p>
         </details>
 
-        <label htmlFor={`draft-${draft.id}`} className="sr-only">
-          Draft text
-        </label>
-        <textarea
-          id={`draft-${draft.id}`}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={Math.min(24, Math.max(6, text.split('\n').length + 1))}
-          className={`mt-3 ${fieldClass} leading-relaxed`}
-        />
+        <div className={draft.graphic ? 'mt-3 grid gap-5 sm:grid-cols-[15rem_minmax(0,1fr)]' : 'mt-3'}>
+          {draft.graphic && (
+            <div>
+              {/* A plain <img>: the PNG comes from an authenticated route,
+                  which next/image's optimiser cannot fetch. updatedAt changes
+                  whenever the background does, so the preview refreshes. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/api/media/drafts/${draft.id}/image?v=${encodeURIComponent(draft.updatedAt)}`}
+                alt={`${GRAPHIC_LABELS[draft.graphic.type]} graphic`}
+                width={1080}
+                height={1440}
+                className="aspect-[3/4] h-auto w-full border border-hairline"
+              />
+              <div className="mt-2 flex gap-1.5" role="group" aria-label="Graphic background">
+                {GROUNDS.map((ground) => (
+                  <button
+                    key={ground}
+                    type="button"
+                    onClick={() => ground !== draft.ground && save({ ground })}
+                    disabled={isSaving}
+                    aria-pressed={draft.ground === ground}
+                    className={`flex-1 border px-3 py-1.5 text-[13px] font-medium capitalize transition-colors disabled:opacity-50 ${
+                      draft.ground === ground
+                        ? 'border-hairline-strong bg-surface-inverse text-ink-inverse'
+                        : 'border-hairline-strong text-ink hover:bg-surface-hover'
+                    }`}
+                  >
+                    {ground}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label htmlFor={`draft-${draft.id}`} className="sr-only">
+              {draft.graphic ? 'Caption' : 'Draft text'}
+            </label>
+            <textarea
+              id={`draft-${draft.id}`}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={Math.min(24, Math.max(6, text.split('\n').length + 1))}
+              className={`${fieldClass} leading-relaxed`}
+            />
+          </div>
+        </div>
 
         {error && (
           <p className="mt-3 text-[13px] text-negative" role="alert">
@@ -417,9 +456,20 @@ function DraftCard({
               Approve
             </button>
           ) : (
-            <button type="button" onClick={copy} className={buttonPrimary}>
-              {copied ? 'Copied' : 'Copy'}
-            </button>
+            <>
+              <button type="button" onClick={copy} className={buttonPrimary}>
+                {copied ? 'Copied' : draft.graphic ? 'Copy caption' : 'Copy'}
+              </button>
+              {draft.graphic && (
+                <a
+                  href={`/api/media/drafts/${draft.id}/image?download=1&v=${encodeURIComponent(draft.updatedAt)}`}
+                  download
+                  className={buttonPrimary}
+                >
+                  Download image
+                </a>
+              )}
+            </>
           )}
           {isEdited && (
             <button

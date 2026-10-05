@@ -16,6 +16,13 @@ const supabaseHostname = process.env.NEXT_PUBLIC_SUPABASE_URL
 const nextConfig: NextConfig = {
   turbopack: {},
 
+  // The content desk's graphics read their fonts and crests from assets/ at
+  // request time (lib/graphics/render.tsx). Files read with fs are not traced
+  // into the serverless bundle automatically, so name them here.
+  outputFileTracingIncludes: {
+    '/api/media/**/*': ['./assets/fonts/**/*', './assets/crests/**/*'],
+  },
+
   images: {
     remotePatterns: supabaseHostname
       ? [

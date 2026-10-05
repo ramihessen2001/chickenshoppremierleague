@@ -2,8 +2,9 @@
  * The content agent behind the media team's desk. SERVER ONLY.
  *
  * Claude writes a draft from a brief, reading the league's own data through
- * the tools below. Every tool is read-only: the agent cannot publish, post or
- * change anything. A draft only ever leaves the site when a person on the
+ * the tools below, and can attach one of the league's graphics to it
+ * (attach_graphic). No tool writes to the site: the agent cannot publish,
+ * post or change anything. A draft only ever leaves the site when a person on the
  * media team approves it and copies it out, which is what makes the review
  * step a guarantee rather than an instruction the model is asked to follow.
  *
@@ -27,6 +28,14 @@ import {
   getTeams,
 } from './supabaseData'
 import { supabaseAdmin } from './supabaseAdmin'
+import {
+  buildSlate,
+  buildStatLeaders,
+  buildTable,
+  buildTotw,
+  GraphicInputError,
+} from './graphics/build'
+import { GRAPHIC_LABELS, GraphicSpec } from './graphics/spec'
 import { LEAGUE } from '@/config/league'
 import { Game } from '@/types/game'
 
@@ -72,16 +81,34 @@ Many players are under 18, and their families follow these accounts. Aim the iro
 - Fixtures are played in prayer-time slots (Maghrib, Isha'a, Assr) rather than at clock times; use the slot the data gives.
 - Do not mention players' ages.
 
+# Pictures
+
+The league posts four graphics, each a 1080×1440 image: Team of the Week, League Table, Stat Leaders and Matchweek Slate. When a brief is for one of them (or asks for a picture of one), call attach_graphic once so the draft carries the image, and write the caption to go with it.
+
+- The table, stat leaders and slate are filled in from the database automatically; you only choose the type (and, for a slate, optionally the week).
+- For Team of the Week, read that week's box scores first, then pick 1 FWD, 2 MID, 2 DEF and 1 GK, plus a Player of the Week from among the six. Prefer each player's registered position (get_club shows it). The tool checks every pick against the club's roster and works out the stat lines itself; if it reports a problem, fix the pick and call it again.
+- The image already shows the numbers, so the caption should add the story rather than repeat every figure. Do not describe the image in the caption.
+- If the tool says the data isn't there yet (no completed games, no fixtures), write the caption without a picture and say so in a bracketed note.
+
 # Output
 
 Return only the finished content, ready to paste: no preamble, no notes about how you wrote it, no markdown headings. If the brief asks for several pieces (for example a pick list and a caption, or a subject line and an email body), separate them with a line containing only ---. Instagram captions end with #CSPL unless the brief says otherwise.
 
 Past approved drafts are the clearest guide to what the media team likes; check them when the brief matches a kind of post the league has made before.`
 
-/** Slug -> display name, so tool results read in names rather than ids. */
+/**
+ * Club display names keyed by slug AND database id, so tool results read in
+ * names rather than ids. Both keys matter: games and box scores identify
+ * clubs by slug, but the stat leaders read returns the team's database id.
+ */
 async function clubNames(): Promise<Map<string, string>> {
   const teams = await getTeams()
-  return new Map(teams.map((t) => [t.slug, t.short_name || t.name]))
+  const names = new Map<string, string>()
+  for (const team of teams) {
+    names.set(team.slug, team.short_name || team.name)
+    names.set(team.id, team.short_name || team.name)
+  }
+  return names
 }
 
 /** A game as the agent sees it: names, not ids, and no raw stat rows. */
@@ -292,16 +319,88 @@ const tools = [
   }),
 ]
 
+/**
+ * The one tool that does more than read: it attaches a graphic to the draft
+ * being written. Made per draft, because what it attaches lives in this
+ * closure until the draft is saved. It still publishes nothing -- the picture
+ * goes to the review queue with the caption.
+ */
+function attachGraphicTool(onAttach: (spec: GraphicSpec) => void) {
+  return betaTool({
+    name: 'attach_graphic',
+    description:
+      "Attach one of the league's 1080x1440 graphics to this draft. table, stat_leaders and slate are built from the database (slate takes an optional week; without one it shows the next week with games to play). totw needs week, the six picks (1 FWD, 2 MID, 2 DEF, 1 GK) and playerOfTheWeek, who must be one of the picks; each pick is a player's exact name and their club (slug or name). Calling it again replaces the attached graphic.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: ['totw', 'table', 'stat_leaders', 'slate'] },
+        week: { type: 'integer', minimum: 1 },
+        picks: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              line: { type: 'string', enum: ['GK', 'DEF', 'MID', 'FWD'] },
+              player: { type: 'string' },
+              club: { type: 'string' },
+            },
+            required: ['line', 'player', 'club'],
+            additionalProperties: false,
+          },
+        },
+        playerOfTheWeek: {
+          type: 'object',
+          properties: { player: { type: 'string' }, club: { type: 'string' } },
+          required: ['player', 'club'],
+          additionalProperties: false,
+        },
+      },
+      required: ['type'],
+      additionalProperties: false,
+    },
+    run: async (input) => {
+      try {
+        let spec: GraphicSpec
+        if (input.type === 'table') spec = await buildTable()
+        else if (input.type === 'stat_leaders') spec = await buildStatLeaders()
+        else if (input.type === 'slate') spec = await buildSlate(input.week)
+        else {
+          if (!input.week || !input.picks || !input.playerOfTheWeek) {
+            return 'Error: totw needs week, picks and playerOfTheWeek.'
+          }
+          spec = await buildTotw({
+            week: input.week,
+            picks: input.picks,
+            playerOfTheWeek: input.playerOfTheWeek,
+          })
+        }
+        onAttach(spec)
+        return `Attached the ${GRAPHIC_LABELS[spec.type]} graphic. It shows: ${JSON.stringify(spec)}`
+      } catch (error) {
+        if (error instanceof GraphicInputError) return `Error: ${error.message}`
+        throw error
+      }
+    },
+  })
+}
+
 export class ContentAgentError extends Error {}
 
+export interface WrittenDraft {
+  text: string
+  /** The attached picture, or null for a caption-only draft. */
+  graphic: GraphicSpec | null
+}
+
 /**
- * Writes one draft for `brief`. Resolves to the draft's text; throws a
- * ContentAgentError with a message fit to show the media team when the model
- * declines or produces nothing, and lets SDK errors (rate limits, a bad key)
- * through for the route to classify.
+ * Writes one draft for `brief`: the text, plus a graphic when the brief calls
+ * for one. Throws a ContentAgentError with a message fit to show the media
+ * team when the model declines or produces nothing, and lets SDK errors (rate
+ * limits, a bad key) through for the route to classify.
  */
-export async function writeDraft(brief: string, kind: string): Promise<string> {
+export async function writeDraft(brief: string, kind: string): Promise<WrittenDraft> {
   const client = new Anthropic()
+  let graphic: GraphicSpec | null = null
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -322,7 +421,12 @@ export async function writeDraft(brief: string, kind: string): Promise<string> {
     fallbacks: 'default',
     cache_control: { type: 'ephemeral' },
     system: SYSTEM_PROMPT,
-    tools,
+    tools: [
+      ...tools,
+      attachGraphicTool((spec) => {
+        graphic = spec
+      }),
+    ],
     // A draft needs a handful of lookups; this only stops a runaway loop.
     max_iterations: 20,
     messages: [
@@ -351,5 +455,5 @@ export async function writeDraft(brief: string, kind: string): Promise<string> {
   if (message.stop_reason === 'max_tokens') {
     throw new ContentAgentError('The draft ran too long and was cut off. Ask for something shorter.')
   }
-  return text
+  return { text, graphic }
 }

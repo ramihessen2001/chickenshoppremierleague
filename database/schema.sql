@@ -363,6 +363,11 @@ CREATE TABLE content_drafts (
   body TEXT NOT NULL,
   status VARCHAR(12) NOT NULL DEFAULT 'draft'
     CHECK (status IN ('draft', 'approved', 'discarded')),
+  -- Snapshot of the attached graphic (lib/graphics/spec.ts), drawn as a PNG on
+  -- request; NULL for a caption-only draft. `ground` is its background.
+  graphic JSONB,
+  ground VARCHAR(5) NOT NULL DEFAULT 'black'
+    CONSTRAINT content_drafts_ground_check CHECK (ground IN ('black', 'bone')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

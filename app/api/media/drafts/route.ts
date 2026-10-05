@@ -3,7 +3,8 @@
  *
  *   GET  -> { drafts }               newest first, discarded ones left out
  *   POST -> { kind, brief } -> { draft }
- *           runs the content agent on the brief and saves what it writes as a
+ *           runs the content agent on the brief and saves what it writes --
+ *           the caption, plus a graphic when the brief calls for one -- as a
  *           new draft. Nothing is published: the media team reviews it next.
  */
 
@@ -59,9 +60,9 @@ export async function POST(request: Request) {
   }
   const kind = body?.kind && KNOWN_KINDS.has(body.kind) ? body.kind : CUSTOM_KIND
 
-  let text: string
+  let written: Awaited<ReturnType<typeof writeDraft>>
   try {
-    text = await writeDraft(brief, kind)
+    written = await writeDraft(brief, kind)
   } catch (error) {
     if (error instanceof ContentAgentError) return fail(error.message, 422)
     if (error instanceof Anthropic.AuthenticationError) {
@@ -80,13 +81,13 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabaseAdmin
     .from('content_drafts')
-    .insert({ kind, brief, body: text })
+    .insert({ kind, brief, body: written.text, graphic: written.graphic })
     .select()
     .single()
 
   if (error) {
     console.error('Error saving content draft:', error)
-    return fail('The draft was written but could not be saved -- has migration 027 been run?', 500)
+    return fail('The draft was written but could not be saved -- have migrations 027 and 028 been run?', 500)
   }
   return NextResponse.json({ draft: toContentDraft(data as ContentDraftRow) })
 }

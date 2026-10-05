@@ -3,9 +3,10 @@
  *
  * Each preset is just a brief the media team can edit before sending -- the
  * agent treats it exactly like one typed from scratch. They cover what the
- * league has already been posting: results, the four Instagram templates
- * (Team of the Week, table, stat leaders, matchweek slate), transfers,
- * commissioner's board posts and the newsletter.
+ * league has already been posting: results, the four Instagram graphics
+ * (Team of the Week, table, stat leaders, matchweek slate -- those presets ask
+ * for the picture as well as the caption), transfers, commissioner's board
+ * posts and the newsletter.
  *
  * `kind` is stored on the draft as a label, so past approved drafts of the
  * same kind can be shown to the agent as examples of the house style.
@@ -37,25 +38,25 @@ export const CONTENT_PRESETS: ContentPreset[] = [
     kind: 'totw',
     label: 'Team of the Week',
     brief:
-      "Pick a Team of the Week from this week's box scores (1 goalkeeper, 2 defenders, 2 midfielders, 1 forward) plus a Player of the Week. List each pick with their club and stat line, then write the caption.",
+      "Pick a Team of the Week from the latest week's box scores (1 goalkeeper, 2 defenders, 2 midfielders, 1 forward) plus a Player of the Week. Attach the Team of the Week graphic and write the caption.",
   },
   {
     kind: 'table',
     label: 'League table',
     brief:
-      'Write the caption for the league table post: who leads, who is climbing, who is in trouble.',
+      'Attach the League Table graphic and write its caption: who leads, who is climbing, who is in trouble.',
   },
   {
     kind: 'stat_leaders',
     label: 'Stat leaders',
     brief:
-      'Write the caption for the stat leaders post: the top scorers, assisters and goalkeepers by saves.',
+      'Attach the Stat Leaders graphic and write its caption: the top scorers, assisters and goalkeepers by saves.',
   },
   {
     kind: 'slate',
     label: 'Matchweek slate',
     brief:
-      "Preview this weekend's fixtures: every game with its day and slot, and one line on what is at stake in each.",
+      "Attach the Matchweek Slate graphic for this weekend and write its caption: one line on what is at stake in each game.",
   },
   {
     kind: 'trade',
