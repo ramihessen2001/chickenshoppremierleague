@@ -58,7 +58,7 @@ export function Footer() {
                 href="/desk"
                 className="self-start text-[13px] text-ink-tertiary transition-colors hover:text-ink"
               >
-                Media team
+                Media
               </Link>
               <StatkeeperButton onClick={() => setIsStatkeeperModalOpen(true)} />
               <AdminButton onClick={() => setIsPasswordModalOpen(true)} />
