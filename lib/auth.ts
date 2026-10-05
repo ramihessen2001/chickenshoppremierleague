@@ -18,6 +18,11 @@
  * carry no role of their own -- the cookie name is what says which role a
  * given token grants. It only unlocks the statkeeper box-score routes, never
  * the rest of the admin surface.
+ *
+ * Media is a third role on the same machinery: the media team's password and
+ * cookie, unlocking the content desk at /desk and nothing else. Kept apart
+ * from admin on purpose, so the people writing posts never need the password
+ * that can edit results.
  */
 
 import 'server-only'
@@ -26,6 +31,7 @@ import { cookies } from 'next/headers'
 
 const COOKIE_NAME = 'cspl_admin'
 const STATKEEPER_COOKIE_NAME = 'cspl_statkeeper'
+const MEDIA_COOKIE_NAME = 'cspl_media'
 
 /** How long a login lasts before the admin has to re-enter the password. */
 const SESSION_DURATION_MS = 12 * 60 * 60 * 1000 // 12 hours
@@ -66,6 +72,15 @@ function getStatkeeperPassword(): string {
   return password
 }
 
+/** The media team's password: unlocks the content desk, nothing else. */
+function getMediaPassword(): string {
+  const password = process.env.MEDIA_PASSWORD
+  if (!password) {
+    throw new Error('MEDIA_PASSWORD is not set. Content desk login cannot work without it.')
+  }
+  return password
+}
+
 /** Constant-time string comparison that tolerates differing lengths. */
 function safeEqual(a: string, b: string): boolean {
   const ha = createHmac('sha256', 'compare').update(a).digest()
@@ -91,6 +106,14 @@ export function isValidPassword(candidate: unknown): boolean {
 export function isValidStatkeeperPassword(candidate: unknown): boolean {
   if (typeof candidate !== 'string' || candidate.length === 0) return false
   return safeEqual(candidate, getStatkeeperPassword())
+}
+
+/**
+ * Checks a submitted password against MEDIA_PASSWORD.
+ */
+export function isValidMediaPassword(candidate: unknown): boolean {
+  if (typeof candidate !== 'string' || candidate.length === 0) return false
+  return safeEqual(candidate, getMediaPassword())
 }
 
 /**
@@ -141,8 +164,17 @@ export async function isStatkeeperRequest(): Promise<boolean> {
   return verifySessionToken(cookieStore.get(STATKEEPER_COOKIE_NAME)?.value)
 }
 
+/**
+ * Reads the media session cookie and reports whether the caller is signed in
+ * to the content desk.
+ */
+export async function isMediaRequest(): Promise<boolean> {
+  const cookieStore = await cookies()
+  return verifySessionToken(cookieStore.get(MEDIA_COOKIE_NAME)?.value)
+}
+
 export const ADMIN_COOKIE_NAME = COOKIE_NAME
-export { STATKEEPER_COOKIE_NAME }
+export { STATKEEPER_COOKIE_NAME, MEDIA_COOKIE_NAME }
 
 /** Cookie options shared by the login and logout routes. */
 export function sessionCookieOptions(expiresAt?: Date) {

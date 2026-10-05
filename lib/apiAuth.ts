@@ -4,7 +4,7 @@
 
 import 'server-only'
 import { NextResponse } from 'next/server'
-import { isAdminRequest, isStatkeeperRequest } from './auth'
+import { isAdminRequest, isMediaRequest, isStatkeeperRequest } from './auth'
 
 /**
  * Returns a 401 response if the caller is not an authenticated admin, or null
@@ -25,6 +25,15 @@ export async function requireAdmin(): Promise<NextResponse | null> {
  */
 export async function requireStatkeeper(): Promise<NextResponse | null> {
   if ((await isStatkeeperRequest()) || (await isAdminRequest())) return null
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+}
+
+/**
+ * Returns a 401 response unless the caller is signed in to the content desk
+ * OR is an admin. Call at the top of every media route handler.
+ */
+export async function requireMedia(): Promise<NextResponse | null> {
+  if ((await isMediaRequest()) || (await isAdminRequest())) return null
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 }
 

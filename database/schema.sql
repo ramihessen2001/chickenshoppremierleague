@@ -352,6 +352,21 @@ CREATE TABLE commissioner_posts (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- What the content agent writes for the media team at /desk. Drafts are
+-- edited, then approved (ready to copy out) or discarded; nothing here is
+-- shown on the public site. `kind` is the preset it started from, or
+-- 'custom' -- a label, not a constraint.
+CREATE TABLE content_drafts (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  kind VARCHAR(40) NOT NULL DEFAULT 'custom',
+  brief TEXT NOT NULL,
+  body TEXT NOT NULL,
+  status VARCHAR(12) NOT NULL DEFAULT 'draft'
+    CHECK (status IN ('draft', 'approved', 'discarded')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ---------------------------------------------------------------------------
 -- Season archive
 -- ---------------------------------------------------------------------------
@@ -451,6 +466,7 @@ CREATE INDEX idx_signups_season       ON signups(season);
 CREATE INDEX idx_questions_status     ON questions(status);
 CREATE INDEX idx_questions_created    ON questions(created_at DESC);
 CREATE INDEX idx_commissioner_posts_created ON commissioner_posts(created_at DESC);
+CREATE INDEX idx_content_drafts_created    ON content_drafts(created_at DESC);
 CREATE INDEX idx_archive_teams_season       ON archive_teams(archive_season_id);
 CREATE INDEX idx_archive_players_season     ON archive_players(archive_season_id);
 CREATE INDEX idx_archive_players_team       ON archive_players(archive_team_id);
@@ -479,6 +495,8 @@ CREATE TRIGGER update_questions_updated_at     BEFORE UPDATE ON questions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_commissioner_posts_updated_at BEFORE UPDATE ON commissioner_posts
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_content_drafts_updated_at BEFORE UPDATE ON content_drafts
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ---------------------------------------------------------------------------
 -- Row Level Security
@@ -504,6 +522,8 @@ ALTER TABLE archive_players         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE archive_games           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE archive_game_statistics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE archive_standings       ENABLE ROW LEVEL SECURITY;
+-- No policies: drafts are reachable only through the service role behind /api/media.
+ALTER TABLE content_drafts          ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "public read" ON teams           FOR SELECT USING (true);
 CREATE POLICY "public read" ON players         FOR SELECT USING (true);
@@ -560,3 +580,4 @@ COMMENT ON TABLE league_config   IS 'Global league configuration (single row)';
 COMMENT ON TABLE awards          IS 'End-of-season awards open for voting';
 COMMENT ON TABLE signups         IS 'Pre-draft registrations. Contains contact details; not publicly readable';
 COMMENT ON TABLE questions       IS 'Contact form messages. Contains email addresses; not publicly readable';
+COMMENT ON TABLE content_drafts  IS 'Content desk drafts for the media team; not publicly readable';
