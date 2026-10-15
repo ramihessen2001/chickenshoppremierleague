@@ -1,8 +1,8 @@
 /**
- * A draft's graphic as a 1080x1440 PNG. Media team (or admin) only.
+ * A draft's graphic as a PNG. Media team (or admin) only.
  *
- *   GET [?download=1] -> PNG, drawn from the draft's stored snapshot on its
- *                        chosen background. With download=1 the browser saves
+ *   GET [?download=1] -> PNG, drawn from the draft's stored snapshot in its
+ *                        chosen style and background. With download=1 the browser saves
  *                        it as a file instead of showing it.
  */
 
@@ -37,7 +37,7 @@ export async function GET(request: Request, { params }: Params) {
   if (new URL(request.url).searchParams.get('download')) {
     const date = draft.createdAt.slice(0, 10)
     headers['Content-Disposition'] =
-      `attachment; filename="cspl-${draft.graphic.type.replace('_', '-')}-${draft.ground}-${date}.png"`
+      `attachment; filename="cspl-${draft.graphic.type.replace('_', '-')}-${draft.style}-${draft.ground}-${date}.png"`
   }
-  return renderGraphic(draft.graphic, draft.ground, headers)
+  return renderGraphic(draft.graphic, draft.ground, draft.style, headers)
 }

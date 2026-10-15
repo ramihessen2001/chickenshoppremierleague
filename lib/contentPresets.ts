@@ -59,6 +59,18 @@ export const CONTENT_PRESETS: ContentPreset[] = [
       "Attach the Matchweek Slate graphic for this weekend and write its caption: one line on what is at stake in each game.",
   },
   {
+    kind: 'power_rankings',
+    label: 'Power rankings',
+    brief:
+      'Rank all eight clubs after the latest matchweek with a one-line verdict on each, attach the Power Rankings graphic and write the caption.',
+  },
+  {
+    kind: 'matchday',
+    label: 'Matchday story',
+    brief:
+      "Attach the matchday story for [WHICH GAME, e.g. today's Maghrib game] and write a one-line caption to go with it.",
+  },
+  {
     kind: 'trade',
     label: 'Transfer / trade',
     brief: 'Announce this move: [WHO] from [CLUB] to [CLUB]. [ANY OTHER DETAILS]',

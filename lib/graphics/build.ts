@@ -11,6 +11,7 @@
 import 'server-only'
 import {
   getAllGames,
+  getGameById,
   getGamesByWeek,
   getLeagueConfig,
   getStandings,
@@ -18,10 +19,14 @@ import {
   getTeamBySlug,
   getTeams,
 } from '../supabaseData'
+import { supabaseAdmin } from '../supabaseAdmin'
 import { LEAGUE } from '@/config/league'
 import { Game } from '@/types/game'
 import {
   GraphicClub,
+  MatchdayGraphic,
+  POWER_RANKING_BLURB_MAX,
+  PowerRankingsGraphic,
   SlateGraphic,
   StatLeadersGraphic,
   TableGraphic,
@@ -129,6 +134,63 @@ export async function buildStatLeaders(): Promise<StatLeadersGraphic> {
   }
 }
 
+/** "Saturday" and "10 October" for a YYYY-MM-DD date. */
+function dayLabels(iso: string) {
+  const when = parseLocalDate(iso)
+  return {
+    weekday: when.toLocaleDateString('en-US', { weekday: 'long' }),
+    date: when.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }),
+  }
+}
+
+/**
+ * A club as a fixture shows it: name, crest slug, and where it sits in the
+ * table ("6th · 1 pt") once it has played -- null before its first game.
+ */
+function sideMaker(
+  standings: Awaited<ReturnType<typeof getStandings>>,
+  clubs: Map<string, GraphicClub>
+) {
+  const standingOf = new Map(
+    standings.map((row, index) => [
+      row.teamSlug,
+      row.gamesPlayed > 0
+        ? `${ordinal(index + 1)} · ${row.points} ${row.points === 1 ? 'pt' : 'pts'}`
+        : null,
+    ])
+  )
+  return (slug: string) => ({
+    ...(clubs.get(slug) ?? { slug, name: 'TBD' }),
+    standing: standingOf.get(slug) ?? null,
+  })
+}
+
+/** The matchday story for one game. */
+export async function buildMatchday(gameId: string): Promise<MatchdayGraphic> {
+  const [game, standings, clubs, season] = await Promise.all([
+    getGameById(gameId),
+    getStandings(),
+    clubDirectory(),
+    seasonLabel(),
+  ])
+  if (!game) throw new GraphicInputError(`No game with id ${gameId}.`)
+  if (!game.homeTeamId || !game.awayTeamId) {
+    throw new GraphicInputError('That game does not have both clubs set yet.')
+  }
+
+  const side = sideMaker(standings, clubs)
+  return {
+    type: 'matchday',
+    season,
+    week: game.weekNumber,
+    ...dayLabels(game.date),
+    slot: game.time,
+    venue: game.location || 'ICNEF',
+    home: side(game.homeTeamId),
+    away: side(game.awayTeamId),
+  }
+}
+
 /**
  * The fixtures for one week, grouped by day. With no week given, the next
  * week from the current one that still has a game to play.
@@ -157,24 +219,11 @@ export async function buildSlate(week?: number): Promise<SlateGraphic> {
     throw new GraphicInputError(`Week ${chosenWeek} has no fixtures to show.`)
   }
 
-  const standingOf = new Map(
-    standings.map((row, index) => [
-      row.teamSlug,
-      row.gamesPlayed > 0
-        ? `${ordinal(index + 1)} · ${row.points} ${row.points === 1 ? 'pt' : 'pts'}`
-        : null,
-    ])
-  )
-  const side = (slug: string) => ({
-    ...(clubs.get(slug) ?? { slug, name: 'TBD' }),
-    standing: standingOf.get(slug) ?? null,
-  })
+  const side = sideMaker(standings, clubs)
 
   const days: SlateGraphic['days'] = []
   for (const game of fixtures) {
-    const when = parseLocalDate(game.date)
-    const weekday = when.toLocaleDateString('en-US', { weekday: 'long' })
-    const date = when.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })
+    const { weekday, date } = dayLabels(game.date)
     let day = days.find((d) => d.date === date)
     if (!day) {
       day = { weekday, date, games: [] }
@@ -337,4 +386,86 @@ export async function buildTotw(input: TotwInput): Promise<TotwGraphic> {
         .map((s) => ({ label: s.value === 1 ? s.label.slice(0, -1) : s.label, value: s.value })),
     },
   }
+}
+
+/** What the agent hands over for power rankings: every club, best first. */
+export interface PowerRankingsInput {
+  week: number
+  ranking: { club: string; blurb: string }[]
+}
+
+/**
+ * Power rankings from the agent's order and verdicts. Checks every club is
+ * ranked exactly once and each verdict fits, then adds what is fact: each
+ * club's record and points from the table, and how far it has moved since
+ * the last power rankings the media team approved.
+ */
+export async function buildPowerRankings(input: PowerRankingsInput): Promise<PowerRankingsGraphic> {
+  const [teams, standings, season, previous] = await Promise.all([
+    getTeams(),
+    getStandings(),
+    seasonLabel(),
+    lastApprovedPowerRankings(),
+  ])
+
+  const findTeam = (club: string) =>
+    teams.find((t) =>
+      [t.slug, t.name, t.short_name ?? ''].some((v) => normalise(v) === normalise(club))
+    )
+
+  const ranked = input.ranking.map((entry) => {
+    const team = findTeam(entry.club)
+    if (!team) throw new GraphicInputError(`No club called "${entry.club}".`)
+    const blurb = entry.blurb.trim()
+    if (!blurb) throw new GraphicInputError(`${team.name} needs a verdict.`)
+    if (blurb.length > POWER_RANKING_BLURB_MAX) {
+      throw new GraphicInputError(
+        `The verdict for ${team.name} is ${blurb.length} characters; keep each under ${POWER_RANKING_BLURB_MAX}.`
+      )
+    }
+    return { team, blurb }
+  })
+
+  const slugs = ranked.map((r) => r.team.slug)
+  const missing = teams.filter((t) => !slugs.includes(t.slug)).map((t) => t.name)
+  if (new Set(slugs).size !== slugs.length) {
+    throw new GraphicInputError('A club is ranked twice; rank each club exactly once.')
+  }
+  if (missing.length > 0) {
+    throw new GraphicInputError(`Every club must be ranked. Missing: ${missing.join(', ')}.`)
+  }
+
+  const standingOf = new Map(standings.map((row) => [row.teamSlug, row]))
+  return {
+    type: 'power_rankings',
+    season,
+    week: input.week,
+    rows: ranked.map(({ team, blurb }, index) => {
+      const row = standingOf.get(team.slug)
+      const before = previous?.get(team.slug)
+      return {
+        rank: index + 1,
+        club: { slug: team.slug, name: team.short_name || team.name },
+        record: `${row?.wins ?? 0}-${row?.draws ?? 0}-${row?.losses ?? 0}`,
+        points: row?.points ?? 0,
+        blurb,
+        movement: before === undefined ? null : before - (index + 1),
+      }
+    }),
+  }
+}
+
+/** Club slug -> rank in the newest approved power rankings, or null if there are none. */
+async function lastApprovedPowerRankings(): Promise<Map<string, number> | null> {
+  const { data, error } = await supabaseAdmin
+    .from('content_drafts')
+    .select('graphic')
+    .eq('status', 'approved')
+    .filter('graphic->>type', 'eq', 'power_rankings')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error || !data?.graphic) return null
+  const last = data.graphic as PowerRankingsGraphic
+  return new Map(last.rows.map((row) => [row.club.slug, row.rank]))
 }

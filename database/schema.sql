@@ -368,6 +368,8 @@ CREATE TABLE content_drafts (
   graphic JSONB,
   ground VARCHAR(5) NOT NULL DEFAULT 'black'
     CONSTRAINT content_drafts_ground_check CHECK (ground IN ('black', 'bone')),
+  -- Style id from lib/graphics/styles.ts; unknown ids render as PURO.
+  style VARCHAR(40) NOT NULL DEFAULT 'puro',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

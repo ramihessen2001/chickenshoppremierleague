@@ -2,13 +2,21 @@
  * A graphic drawn from today's data, without a draft. Media team (or admin) only.
  *
  *   GET ?type=table|stat_leaders|slate&ground=black|bone[&week=N] -> PNG
+ *   GET ?type=matchday&game=<game id>&ground=black|bone           -> PNG
+ *   Any of them also takes &style=<style id> (PURO by default).
  *
  * Team of the Week is not offered here: it needs the six picks, which only
  * come from a draft.
  */
 
 import { fail, requireMedia } from '@/lib/apiAuth'
-import { buildSlate, buildStatLeaders, buildTable, GraphicInputError } from '@/lib/graphics/build'
+import {
+  buildMatchday,
+  buildSlate,
+  buildStatLeaders,
+  buildTable,
+  GraphicInputError,
+} from '@/lib/graphics/build'
 import { renderGraphic } from '@/lib/graphics/render'
 import { GraphicSpec, Ground, GROUNDS } from '@/lib/graphics/spec'
 
@@ -31,11 +39,15 @@ export async function GET(request: Request) {
     if (type === 'table') spec = await buildTable()
     else if (type === 'stat_leaders') spec = await buildStatLeaders()
     else if (type === 'slate') spec = await buildSlate(week)
-    else return fail('type must be table, stat_leaders or slate')
+    else if (type === 'matchday') {
+      const game = params.get('game')
+      if (!game) return fail('matchday needs a game id')
+      spec = await buildMatchday(game)
+    } else return fail('type must be table, stat_leaders, slate or matchday')
   } catch (error) {
     if (error instanceof GraphicInputError) return fail(error.message, 422)
     throw error
   }
 
-  return renderGraphic(spec, ground, { 'Cache-Control': 'private, no-store' })
+  return renderGraphic(spec, ground, params.get('style'), { 'Cache-Control': 'private, no-store' })
 }

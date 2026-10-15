@@ -29,6 +29,8 @@ import {
 } from './supabaseData'
 import { supabaseAdmin } from './supabaseAdmin'
 import {
+  buildMatchday,
+  buildPowerRankings,
   buildSlate,
   buildStatLeaders,
   buildTable,
@@ -36,6 +38,7 @@ import {
   GraphicInputError,
 } from './graphics/build'
 import { GRAPHIC_LABELS, GraphicSpec } from './graphics/spec'
+import { PURO, STYLE_IDS, STYLES } from './graphics/styles'
 import { LEAGUE } from '@/config/league'
 import { Game } from '@/types/game'
 
@@ -83,12 +86,16 @@ Many players are under 18, and their families follow these accounts. Aim the iro
 
 # Pictures
 
-The league posts four graphics, each a 1080×1440 image: Team of the Week, League Table, Stat Leaders and Matchweek Slate. When a brief is for one of them (or asks for a picture of one), call attach_graphic once so the draft carries the image, and write the caption to go with it.
+The league posts four feed graphics, each a 1080×1440 image — Team of the Week, League Table, Stat Leaders and Matchweek Slate — and a 1080×1920 matchday story for each game on its day. When a brief is for one of them (or asks for a picture of one), call attach_graphic so the draft carries the image, and write the caption to go with it. A draft holds one picture, so a matchday story covers one game: if the brief asks for several games' stories, attach the first game's and say in a bracketed note that each other game needs its own draft.
 
-- The table, stat leaders and slate are filled in from the database automatically; you only choose the type (and, for a slate, optionally the week).
+- The table, stat leaders, slate and matchday story are filled in from the database automatically; you only choose the type (for a slate, optionally the week; for a matchday story, the game).
+- A story caption is short: a line or two to overlay or post alongside, not a report.
+- Power rankings are the one graphic that is your opinion. Rank all eight clubs, best first, judging results, points, goal difference and recent form (read the table and the latest box scores first), and give each a verdict of at most 90 characters in the house voice. Verdicts are about the club and its situation, never mocking an individual player. The tool adds each club's record, points and movement since the last approved rankings; do not repeat those numbers in the verdicts.
 - For Team of the Week, read that week's box scores first, then pick 1 FWD, 2 MID, 2 DEF and 1 GK, plus a Player of the Week from among the six. Prefer each player's registered position (get_club shows it). The tool checks every pick against the club's roster and works out the stat lines itself; if it reports a problem, fix the pick and call it again.
 - The image already shows the numbers, so the caption should add the story rather than repeat every figure. Do not describe the image in the caption.
 - If the tool says the data isn't there yet (no completed games, no fixtures), write the caption without a picture and say so in a bracketed note.
+- Graphics are drawn in a style. Use PURO unless the brief names another style or clearly asks for one of these by description; pass it as attach_graphic's style. Never invent a style.
+${STYLES.map((s) => `  - ${s.id}: ${s.name}. ${s.description}`).join('\n')}
 
 # Output
 
@@ -325,16 +332,30 @@ const tools = [
  * closure until the draft is saved. It still publishes nothing -- the picture
  * goes to the review queue with the caption.
  */
-function attachGraphicTool(onAttach: (spec: GraphicSpec) => void) {
+function attachGraphicTool(onAttach: (spec: GraphicSpec, style: string) => void) {
   return betaTool({
     name: 'attach_graphic',
     description:
-      "Attach one of the league's 1080x1440 graphics to this draft. table, stat_leaders and slate are built from the database (slate takes an optional week; without one it shows the next week with games to play). totw needs week, the six picks (1 FWD, 2 MID, 2 DEF, 1 GK) and playerOfTheWeek, who must be one of the picks; each pick is a player's exact name and their club (slug or name). Calling it again replaces the attached graphic.",
+      "Attach one of the league's graphics to this draft. table, stat_leaders and slate are 1080x1440 posts built from the database (slate takes an optional week; without one it shows the next week with games to play). matchday is a 1080x1920 Instagram story for one game, built from the database: pass its gameId from get_games. power_rankings needs week and ranking: every club exactly once, best first, each with a verdict of at most 90 characters; records, points and movement are added for you. totw needs week, the six picks (1 FWD, 2 MID, 2 DEF, 1 GK) and playerOfTheWeek, who must be one of the picks; each pick is a player's exact name and their club (slug or name). Calling it again replaces the attached graphic.",
     inputSchema: {
       type: 'object',
       properties: {
-        type: { type: 'string', enum: ['totw', 'table', 'stat_leaders', 'slate'] },
+        type: { type: 'string', enum: ['totw', 'table', 'stat_leaders', 'slate', 'matchday', 'power_rankings'] },
         week: { type: 'integer', minimum: 1 },
+        gameId: { type: 'string', description: 'For matchday: the game, from get_games.' },
+        ranking: {
+          type: 'array',
+          description: 'For power_rankings: every club, best first.',
+          items: {
+            type: 'object',
+            properties: {
+              club: { type: 'string', description: 'Slug or name.' },
+              blurb: { type: 'string', description: 'The verdict, at most 90 characters.' },
+            },
+            required: ['club', 'blurb'],
+            additionalProperties: false,
+          },
+        },
         picks: {
           type: 'array',
           items: {
@@ -354,6 +375,11 @@ function attachGraphicTool(onAttach: (spec: GraphicSpec) => void) {
           required: ['player', 'club'],
           additionalProperties: false,
         },
+        style: {
+          type: 'string',
+          enum: STYLE_IDS,
+          description: `The style to draw it in; ${PURO.id} unless the brief asks for another.`,
+        },
       },
       required: ['type'],
       additionalProperties: false,
@@ -364,7 +390,13 @@ function attachGraphicTool(onAttach: (spec: GraphicSpec) => void) {
         if (input.type === 'table') spec = await buildTable()
         else if (input.type === 'stat_leaders') spec = await buildStatLeaders()
         else if (input.type === 'slate') spec = await buildSlate(input.week)
-        else {
+        else if (input.type === 'matchday') {
+          if (!input.gameId) return 'Error: matchday needs gameId.'
+          spec = await buildMatchday(input.gameId)
+        } else if (input.type === 'power_rankings') {
+          if (!input.week || !input.ranking) return 'Error: power_rankings needs week and ranking.'
+          spec = await buildPowerRankings({ week: input.week, ranking: input.ranking })
+        } else {
           if (!input.week || !input.picks || !input.playerOfTheWeek) {
             return 'Error: totw needs week, picks and playerOfTheWeek.'
           }
@@ -374,8 +406,9 @@ function attachGraphicTool(onAttach: (spec: GraphicSpec) => void) {
             playerOfTheWeek: input.playerOfTheWeek,
           })
         }
-        onAttach(spec)
-        return `Attached the ${GRAPHIC_LABELS[spec.type]} graphic. It shows: ${JSON.stringify(spec)}`
+        const style = input.style && STYLE_IDS.includes(input.style) ? input.style : PURO.id
+        onAttach(spec, style)
+        return `Attached the ${GRAPHIC_LABELS[spec.type]} graphic in the ${style} style. It shows: ${JSON.stringify(spec)}`
       } catch (error) {
         if (error instanceof GraphicInputError) return `Error: ${error.message}`
         throw error
@@ -390,6 +423,8 @@ export interface WrittenDraft {
   text: string
   /** The attached picture, or null for a caption-only draft. */
   graphic: GraphicSpec | null
+  /** The style the graphic is drawn in; PURO when there is no graphic. */
+  style: string
 }
 
 /**
@@ -401,6 +436,7 @@ export interface WrittenDraft {
 export async function writeDraft(brief: string, kind: string): Promise<WrittenDraft> {
   const client = new Anthropic()
   let graphic: GraphicSpec | null = null
+  let style = PURO.id
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -423,8 +459,9 @@ export async function writeDraft(brief: string, kind: string): Promise<WrittenDr
     system: SYSTEM_PROMPT,
     tools: [
       ...tools,
-      attachGraphicTool((spec) => {
+      attachGraphicTool((spec, chosenStyle) => {
         graphic = spec
+        style = chosenStyle
       }),
     ],
     // A draft needs a handful of lookups; this only stops a runaway loop.
@@ -455,5 +492,5 @@ export async function writeDraft(brief: string, kind: string): Promise<WrittenDr
   if (message.stop_reason === 'max_tokens') {
     throw new ContentAgentError('The draft ran too long and was cut off. Ask for something shorter.')
   }
-  return { text, graphic }
+  return { text, graphic, style }
 }

@@ -12,7 +12,8 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { buttonPrimary, buttonSecondary, fieldClass, FormError, labelClass } from './Modal'
 import { CONTENT_PRESETS, CUSTOM_KIND, presetLabel } from '@/lib/contentPresets'
-import { GRAPHIC_LABELS, Ground, GROUNDS } from '@/lib/graphics/spec'
+import { GRAPHIC_LABELS, GRAPHIC_SIZES, Ground } from '@/lib/graphics/spec'
+import { resolveStyle, STYLES } from '@/lib/graphics/styles'
 import { ContentDraft, ContentDraftStatus } from '@/types/contentDraft'
 
 type SessionState = 'checking' | 'signed-out' | 'signed-in'
@@ -345,7 +346,12 @@ function DraftCard({
   const [copied, setCopied] = useState(false)
   const isEdited = text !== draft.body
 
-  const save = async (fields: { body?: string; status?: ContentDraftStatus; ground?: Ground }) => {
+  const save = async (fields: {
+    body?: string
+    status?: ContentDraftStatus
+    ground?: Ground
+    style?: string
+  }) => {
     setIsSaving(true)
     setError(null)
     const response = await fetch(`/api/media/drafts/${draft.id}`, {
@@ -395,33 +401,54 @@ function DraftCard({
             <div>
               {/* A plain <img>: the PNG comes from an authenticated route,
                   which next/image's optimiser cannot fetch. updatedAt changes
-                  whenever the background does, so the preview refreshes. */}
+                  whenever the style or background does, so the preview
+                  refreshes. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={`/api/media/drafts/${draft.id}/image?v=${encodeURIComponent(draft.updatedAt)}`}
                 alt={`${GRAPHIC_LABELS[draft.graphic.type]} graphic`}
-                width={1080}
-                height={1440}
-                className="aspect-[3/4] h-auto w-full border border-hairline"
+                width={GRAPHIC_SIZES[draft.graphic.type].width}
+                height={GRAPHIC_SIZES[draft.graphic.type].height}
+                className="h-auto w-full border border-hairline"
               />
+              <label htmlFor={`style-${draft.id}`} className={`mt-3 ${labelClass}`}>
+                Style
+              </label>
+              <select
+                id={`style-${draft.id}`}
+                value={draft.style}
+                onChange={(e) => save({ style: e.target.value })}
+                disabled={isSaving}
+                className={fieldClass}
+              >
+                {STYLES.map((style) => (
+                  <option key={style.id} value={style.id}>
+                    {style.name}
+                  </option>
+                ))}
+              </select>
+              {/* A style offering one background (Broadcast is bone only) has
+                  nothing to switch between, so the switch is left out. */}
+              {resolveStyle(draft.style).grounds.length > 1 && (
               <div className="mt-2 flex gap-1.5" role="group" aria-label="Graphic background">
-                {GROUNDS.map((ground) => (
+                {resolveStyle(draft.style).grounds.map((ground) => (
                   <button
                     key={ground}
                     type="button"
                     onClick={() => ground !== draft.ground && save({ ground })}
                     disabled={isSaving}
                     aria-pressed={draft.ground === ground}
-                    className={`flex-1 border px-3 py-1.5 text-[13px] font-medium capitalize transition-colors disabled:opacity-50 ${
+                    className={`flex-1 border px-3 py-1.5 text-[13px] font-medium transition-colors disabled:opacity-50 ${
                       draft.ground === ground
                         ? 'border-hairline-strong bg-surface-inverse text-ink-inverse'
                         : 'border-hairline-strong text-ink hover:bg-surface-hover'
                     }`}
                   >
-                    {ground}
+                    {resolveStyle(draft.style).palettes[ground].label}
                   </button>
                 ))}
               </div>
+              )}
             </div>
           )}
 

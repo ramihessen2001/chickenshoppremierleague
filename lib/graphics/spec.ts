@@ -7,14 +7,32 @@
  * graphic stays the same even if a result is corrected afterwards -- the
  * media team approved this picture, not whatever the table says today.
  *
- * Mirrors the four 1080x1440 Instagram templates designed on the canvas.
- * Pure types, shared by the desk UI and the server.
+ * Mirrors the four 1080x1440 Instagram templates designed on the canvas, plus
+ * a 1080x1920 matchday story per game. Pure types, shared by the desk UI and
+ * the server.
  */
 
-export type GraphicType = 'totw' | 'table' | 'stat_leaders' | 'slate'
+export type GraphicType = 'totw' | 'table' | 'stat_leaders' | 'slate' | 'matchday' | 'power_rankings'
 export type Ground = 'black' | 'bone'
 
-export const GRAPHIC_TYPES: GraphicType[] = ['totw', 'table', 'stat_leaders', 'slate']
+export const GRAPHIC_TYPES: GraphicType[] = [
+  'totw',
+  'table',
+  'stat_leaders',
+  'slate',
+  'matchday',
+  'power_rankings',
+]
+
+/** Pixel size of each graphic: the four feed posts are 3:4, the matchday story 9:16. */
+export const GRAPHIC_SIZES: Record<GraphicType, { width: number; height: number }> = {
+  totw: { width: 1080, height: 1440 },
+  table: { width: 1080, height: 1440 },
+  stat_leaders: { width: 1080, height: 1440 },
+  slate: { width: 1080, height: 1440 },
+  matchday: { width: 1080, height: 1920 },
+  power_rankings: { width: 1080, height: 1440 },
+}
 export const GROUNDS: Ground[] = ['black', 'bone']
 
 /** A club as a graphic shows it: the slug picks the crest, the name is printed. */
@@ -100,11 +118,60 @@ export interface TotwGraphic {
   }
 }
 
-export type GraphicSpec = TableGraphic | StatLeadersGraphic | SlateGraphic | TotwGraphic
+/** A 1080x1920 Instagram story for one game on its day. */
+export interface MatchdayGraphic {
+  type: 'matchday'
+  season: string
+  week: number
+  /** "Saturday" */
+  weekday: string
+  /** "10 October" */
+  date: string
+  /** The prayer-time slot, e.g. "Maghrib". */
+  slot: string
+  venue: string
+  home: GraphicClub & { standing: string | null }
+  away: GraphicClub & { standing: string | null }
+}
+
+/**
+ * The league's power rankings: every club in the order the content agent
+ * judged them, each with a one-line verdict. The order and verdicts are the
+ * agent's opinion; the records, points and movement are computed.
+ */
+export interface PowerRankingsGraphic {
+  type: 'power_rankings'
+  season: string
+  week: number
+  rows: {
+    rank: number
+    club: GraphicClub
+    /** "3-0-0": won, drawn, lost, from the table. */
+    record: string
+    points: number
+    /** One line from the agent, at most POWER_RANKING_BLURB_MAX characters. */
+    blurb: string
+    /** Places moved since the last approved power rankings: +2 up, -1 down, 0 same, null with none to compare. */
+    movement: number | null
+  }[]
+}
+
+/** A verdict has to fit two lines beside the crest. */
+export const POWER_RANKING_BLURB_MAX = 90
+
+export type GraphicSpec =
+  | PowerRankingsGraphic
+  | TableGraphic
+  | StatLeadersGraphic
+  | SlateGraphic
+  | TotwGraphic
+  | MatchdayGraphic
 
 export const GRAPHIC_LABELS: Record<GraphicType, string> = {
   totw: 'Team of the Week',
   table: 'League Table',
   stat_leaders: 'Stat Leaders',
   slate: 'Matchweek Slate',
+  matchday: 'Matchday Story',
+  power_rankings: 'Power Rankings',
 }

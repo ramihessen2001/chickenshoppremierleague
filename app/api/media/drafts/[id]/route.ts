@@ -5,6 +5,7 @@
  *     body    the edited text
  *     status  'draft' | 'approved' | 'discarded'
  *     ground  'black' | 'bone', the graphic's background
+ *     style   a style id from lib/graphics/styles.ts
  *
  * Approving only marks a draft ready to copy out -- nothing here publishes.
  */
@@ -14,6 +15,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fail, readJson, requireMedia } from '@/lib/apiAuth'
 import { ContentDraftRow, ContentDraftStatus, toContentDraft } from '@/types/contentDraft'
 import { Ground, GROUNDS } from '@/lib/graphics/spec'
+import { STYLE_IDS } from '@/lib/graphics/styles'
 
 const STATUSES: ContentDraftStatus[] = ['draft', 'approved', 'discarded']
 
@@ -24,7 +26,9 @@ export async function PATCH(request: Request, { params }: Params) {
   if (denied) return denied
 
   const { id } = await params
-  const body = await readJson<{ body?: string; status?: string; ground?: string }>(request)
+  const body = await readJson<{ body?: string; status?: string; ground?: string; style?: string }>(
+    request
+  )
   if (!body) return fail('Invalid request body')
 
   const columns: Record<string, unknown> = {}
@@ -45,6 +49,12 @@ export async function PATCH(request: Request, { params }: Params) {
       return fail(`ground must be one of: ${GROUNDS.join(', ')}`)
     }
     columns.ground = body.ground
+  }
+  if (body.style !== undefined) {
+    if (!STYLE_IDS.includes(body.style)) {
+      return fail(`style must be one of: ${STYLE_IDS.join(', ')}`)
+    }
+    columns.style = body.style
   }
   if (Object.keys(columns).length === 0) return fail('No fields to update')
 

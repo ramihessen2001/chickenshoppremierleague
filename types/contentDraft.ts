@@ -18,6 +18,8 @@ export interface ContentDraft {
   graphic: GraphicSpec | null
   /** Background the picture is drawn on. */
   ground: Ground
+  /** Style id from lib/graphics/styles.ts. */
+  style: string
   createdAt: string
   updatedAt: string
 }
@@ -31,6 +33,7 @@ export interface ContentDraftRow {
   status: ContentDraftStatus
   graphic: GraphicSpec | null
   ground: Ground | null
+  style: string | null
   created_at: string
   updated_at: string
 }
@@ -44,6 +47,7 @@ export function toContentDraft(row: ContentDraftRow): ContentDraft {
     status: row.status,
     graphic: row.graphic ?? null,
     ground: row.ground ?? 'black',
+    style: row.style ?? 'puro',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

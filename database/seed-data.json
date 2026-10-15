@@ -34,8 +34,6 @@
       "slug": "cscp",
       "shortName": "CSCP",
       "primaryColor": "#A1CBCC",
-      "sponsorName": "JAX FISH AND CHICKEN",
-      "sponsorLogoUrl": "/images/sponsors/jaxfnc.svg",
       "kitImageUrl": "/images/teams/kits/cscp.svg",
       "players": []
     },
@@ -50,6 +48,8 @@
       "name": "S.C Paris",
       "slug": "scparis",
       "primaryColor": "#14426F",
+      "sponsorName": "JAX FISH AND CHICKEN",
+      "sponsorLogoUrl": "/images/sponsors/jaxfnc.svg",
       "kitImageUrl": "/images/teams/kits/scparis.svg",
       "players": []
     },

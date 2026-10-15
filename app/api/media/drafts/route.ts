@@ -81,13 +81,13 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabaseAdmin
     .from('content_drafts')
-    .insert({ kind, brief, body: written.text, graphic: written.graphic })
+    .insert({ kind, brief, body: written.text, graphic: written.graphic, style: written.style })
     .select()
     .single()
 
   if (error) {
     console.error('Error saving content draft:', error)
-    return fail('The draft was written but could not be saved -- have migrations 027 and 028 been run?', 500)
+    return fail('The draft was written but could not be saved -- have migrations 027-029 been run?', 500)
   }
   return NextResponse.json({ draft: toContentDraft(data as ContentDraftRow) })
 }
