@@ -34,6 +34,8 @@
       "slug": "cscp",
       "shortName": "CSCP",
       "primaryColor": "#A1CBCC",
+      "sponsorName": "PURO AIRWAYS",
+      "sponsorLogoUrl": "/images/sponsors/PUROAirways.svg",
       "kitImageUrl": "/images/teams/kits/cscp.svg",
       "players": []
     },
@@ -41,6 +43,8 @@
       "name": "S.C Cairo",
       "slug": "sccairo",
       "primaryColor": "#FED800",
+      "sponsorName": "FADE FACTORY",
+      "sponsorLogoUrl": "/images/sponsors/FadeFactory.svg",
       "kitImageUrl": "/images/teams/kits/sccairo.svg",
       "players": []
     },
@@ -93,6 +97,8 @@
       "name": "S.C Mansoura",
       "slug": "scmansoura",
       "primaryColor": "#F78F24",
+      "sponsorName": "MIXERS FC",
+      "sponsorLogoUrl": "/images/sponsors/MixersLion.svg",
       "kitImageUrl": "/images/teams/kits/scmansoura.svg",
       "players": []
     }
