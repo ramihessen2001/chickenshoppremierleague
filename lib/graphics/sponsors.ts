@@ -9,9 +9,7 @@
  *
  * `file` is in assets/sponsors/ -- the logos from public/images/sponsors/ with
  * their <style> classes inlined as attributes, which the renderer needs (it
- * ignores <style> inside an image). Black Sea's is the PNG lifted out of its
- * SVG, which the renderer would not draw as embedded. Redo that conversion
- * when a logo changes.
+ * ignores <style> inside an image). Redo that conversion when a logo changes.
  * Pure data.
  */
 
@@ -30,7 +28,7 @@ export const SPONSORS: Sponsor[] = [
   { slug: 'scdakar', name: 'Uswah Institute', file: 'uswah.svg' },
   { slug: 'scramallah', name: 'Hook Fish and Chicken', file: 'hooks.svg' },
   { slug: 'sckabul', name: 'VIP Automotive', file: 'vipauto.svg' },
-  { slug: 'scistanbul', name: 'Black Sea Auto', file: 'blacksea.png' },
+  { slug: 'scistanbul', name: 'Black Sea Auto', file: 'blacksea.svg' },
   { slug: 'scmansoura', name: 'Mixers FC', file: 'MixersLion.svg' },
 ]
 

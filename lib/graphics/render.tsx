@@ -399,19 +399,49 @@ function SponsorLogo({ sponsor, width, height }: { sponsor: Sponsor; width: numb
 }
 
 /**
+ * How big to draw a logo so the sponsors look equally large. Logos are very
+ * different shapes -- a wide wordmark next to a tall crest -- so a common
+ * height or width makes the wide ones loom or the tall ones shrink. Giving
+ * each logo the same AREA evens that out: height is sqrt(area / ratio), held
+ * to `maxH` and to `maxW` (a wide logo is limited by width first).
+ */
+function sponsorSize(ratio: number, area: number, maxH: number, maxW: number) {
+  const height = Math.min(maxH, Math.sqrt(area / ratio), maxW / ratio)
+  return { width: Math.round(height * ratio), height: Math.round(height) }
+}
+
+const sponsorRatio = (sponsor: Sponsor) => assetImage('sponsors', sponsor.file)?.ratio ?? 1
+
+/**
  * All eight sponsors in one row above the footer URL, on a single bar in the
  * style's bar colours. The bar is one block behind the whole row: no logo has a
- * background of its own. Each logo gets an equal cell and sits in the middle of
- * it, so the row is centred between the margins whatever shape the logos are.
+ * background of its own. The logos share one area (the largest that fits the
+ * row with a gap between each), and the gaps are equal, so the row is centred
+ * between the margins whatever shape the logos are.
  */
 function SponsorStrip({ t }: { t: Theme }) {
+  const ratios = SPONSORS.map(sponsorRatio)
+  const room = 936 - 2 * 28 - 7 * 26 // the bar's padding and the smallest gaps
+  const rowWidth = (area: number) =>
+    ratios.reduce((sum, ratio) => sum + sponsorSize(ratio, area, 62, room).width, 0)
+  let area = 12000
+  while (area > 1000 && rowWidth(area) > room) area -= 100
   return (
-    <div style={{ display: 'flex', alignItems: 'center', height: 92, marginBottom: 22, padding: '0 6px', ...barSurface(t) }}>
-      {SPONSORS.map((sponsor) => (
-        <div key={sponsor.slug} style={{ display: 'flex', flex: 1, justifyContent: 'center' }}>
-          <SponsorLogo sponsor={sponsor} width={104} height={64} />
-        </div>
-      ))}
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        height: 92,
+        marginBottom: 22,
+        padding: '0 28px',
+        ...barSurface(t),
+      }}
+    >
+      {SPONSORS.map((sponsor, i) => {
+        const { width, height } = sponsorSize(ratios[i], area, 62, room)
+        return <SponsorLogo key={sponsor.slug} sponsor={sponsor} width={width} height={height} />
+      })}
     </div>
   )
 }
@@ -1176,7 +1206,10 @@ function Matchday({ spec, t }: { spec: MatchdayGraphic; t: Theme }) {
               <div key={club.slug} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 400, gap: 10 }}>
                 {sponsor && (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                    <SponsorLogo sponsor={sponsor} width={340} height={100} />
+                    {/* A fixed-height slot, so both sponsors' names sit on the same line however tall the logos are. */}
+                    <div style={{ display: 'flex', height: 118, alignItems: 'center' }}>
+                      <SponsorLogo sponsor={sponsor} {...sponsorSize(sponsorRatio(sponsor), 9500, 118, 340)} />
+                    </div>
                     <div
                       style={{
                         display: 'flex',

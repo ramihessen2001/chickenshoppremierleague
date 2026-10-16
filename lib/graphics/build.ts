@@ -194,7 +194,8 @@ export async function buildMatchday(gameId: string): Promise<MatchdayGraphic> {
 /** Earlier slots first within a day. */
 const SLOT_ORDER = ['assr', 'maghrib', "isha'a"]
 const slotRank = (slot: string) => {
-  const rank = SLOT_ORDER.indexOf(slot.trim().toLowerCase())
+  // The apostrophe in Isha'a may be straight or curly depending on who typed it.
+  const rank = SLOT_ORDER.indexOf(slot.trim().toLowerCase().replace(/[’‘`]/g, "'"))
   return rank === -1 ? SLOT_ORDER.length : rank
 }
 
@@ -275,9 +276,10 @@ export async function buildSlate(week?: number): Promise<SlateGraphic> {
       .sort((a, b) => a - b)[0] ??
     currentWeek
 
-  const fixtures = games.filter(
-    (g) => g.weekNumber === chosenWeek && g.status !== 'cancelled'
-  )
+  // Chronological: by day, and within a day Maghrib before Isha'a.
+  const fixtures = games
+    .filter((g) => g.weekNumber === chosenWeek && g.status !== 'cancelled')
+    .sort((a, b) => a.date.localeCompare(b.date) || slotRank(a.time) - slotRank(b.time))
   if (fixtures.length === 0) {
     throw new GraphicInputError(`Week ${chosenWeek} has no fixtures to show.`)
   }
