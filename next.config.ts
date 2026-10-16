@@ -20,7 +20,7 @@ const nextConfig: NextConfig = {
   // request time (lib/graphics/render.tsx). Files read with fs are not traced
   // into the serverless bundle automatically, so name them here.
   outputFileTracingIncludes: {
-    '/api/media/**/*': ['./assets/fonts/**/*', './assets/crests/**/*'],
+    '/api/media/**/*': ['./assets/fonts/**/*', './assets/crests/**/*', './assets/sponsors/**/*'],
   },
 
   images: {

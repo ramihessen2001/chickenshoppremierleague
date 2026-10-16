@@ -115,6 +115,27 @@ export interface GraphicStyle {
    * moves up into the date line.
    */
   storyFooter: boolean
+  /**
+   * All eight club sponsors in a strip above the footer URL of every post
+   * graphic. (Matchday stories carry the two clubs' own sponsors instead; see
+   * storySponsors.)
+   */
+  sponsorFooter: boolean
+  /** On a matchday story, each club's own sponsor logo under the club's name. */
+  storySponsors: boolean
+  /**
+   * How the masthead (crest, league name, kicker) and title are laid out.
+   * classic: a row of crest and name over a heavy rule, the title below it.
+   * band: the masthead is a full-width bar across the top edge, with the
+   * kicker in a chip at its right, closed by an accent line.
+   * tab: the kicker moves onto the title bar, as a tab sitting on its top-left corner.
+   * bandTitle: the band also holds the graphic's title (LEAGUE TABLE...) in
+   * large type under the crest and league name, so there is no title bar below.
+   * bandPill: as bandTitle, with the league's pill logo (name included) in
+   * place of the crest and name.
+   * The fonts and kicker text are the same in all of them.
+   */
+  header: 'classic' | 'band' | 'tab' | 'bandTitle' | 'bandPill'
   /** Height of an accent strip across the top edge in px; 0 for none. */
   accentBar: number
   /** Multiplies crest sizes; 1 is PURO's. Kept to 0.85-1.2 so layouts hold. */
@@ -137,6 +158,9 @@ export type StyleOverrides = Pick<GraphicStyle, 'id' | 'name' | 'description'> &
     showSeason: boolean
     showVenue: boolean
     storyFooter: boolean
+    sponsorFooter: boolean
+    storySponsors: boolean
+    header: GraphicStyle['header']
     accentBar: number
     crestScale: number
   }>
@@ -210,73 +234,137 @@ export const PURO: GraphicStyle = {
   showSeason: true,
   showVenue: true,
   storyFooter: true,
+  sponsorFooter: false,
+  storySponsors: false,
+  header: 'classic',
   accentBar: 0,
   crestScale: 1,
 }
 
-/**
- * Every style the media team can choose, PURO first. Add new styles below
- * PURO as overrides: only what differs.
+/*
+ * From two references: Premier League broadcast graphics of 2007-2013 (an
+ * opening-weekend fixture list and a live league table), taken all the way.
+ * The background is the broadcast itself: a deep royal-to-navy gradient with a
+ * studio glow from the top. On it, glossy white rows with navy type, red "v"
+ * chips, navy points boxes, the leader's row in sky blue, and the title in a
+ * glossy white banner. In the league's own fonts and crests. First built as
+ * "Broadcast"; renamed CSPL by the league.
  */
-export const STYLES: StyleOverrides[] = [
-  { id: PURO.id, name: PURO.name, description: PURO.description },
+const CSPL: StyleOverrides = {
+  id: 'cspl',
+  name: 'CSPL',
+  description:
+    'Late-2000s TV football graphics: royal-blue studio background, glossy white rows, red \'v\' chips, navy points boxes, sky-blue leader. For big fixtures, tables and matchday stories.',
+  grounds: ['black'],
+  palettes: {
+    black: {
+      label: 'Blue',
+      bg: '#2350c9',
+      bgTo: '#06144a',
+      ink: '#ffffff',
+      ink2: '#a9bdec',
+      rule: '#3d60c2',
+      heavy: '#e9eefc',
+      accent: '#7fd0f5',
+      onAccent: '#06144a',
+      texture: 'rgba(255, 255, 255, 0.22)',
+      barFrom: '#ffffff',
+      barTo: '#d3dae8',
+      barInk: '#0a1d5c',
+      barInk2: '#5a6a95',
+      chipFrom: '#e8404a',
+      chipTo: '#9a0d18',
+      chipInk: '#ffffff',
+      figureBg: '#0c2268',
+      figureInk: '#ffffff',
+      highlightBg: '#8dd6f7',
+      highlightInk: '#06144a',
+    },
+  },
+  texture: 'spotlight',
+  title: { italic: false, treatment: 'banner', align: 'left', scale: 0.82 },
+  // The league chose the title tab: the matchweek sits on the title bar's corner.
+  header: 'tab',
+  rules: { heavy: 5, light: 2 },
+  rows: 'bars',
+  gloss: true,
+  radius: 8,
+  highlightLeader: true,
+  // The rows are white, so crests read straight on them: no plates.
+  crestPlates: false,
+  // The league asked for these off: no season, no venue or address, and
+  // matchday stories without their slot / venue / website block.
+  showSeason: false,
+  showVenue: false,
+  storyFooter: false,
+  // All eight sponsors close every post graphic; a matchday story shows the
+  // two clubs' own sponsors under their names, where the footer block was.
+  sponsorFooter: true,
+  storySponsors: true,
+}
 
+/**
+ * Every style the media team can choose. PURO is retired: it stays defined
+ * above as the base every style is built from, and as the look of graphics
+ * already made in it, but it is no longer offered for new ones.
+ */
+export const STYLES: StyleOverrides[] = [CSPL]
+
+/** The style new graphics are drawn in. */
+export const DEFAULT_STYLE_ID = CSPL.id
+
+/**
+ * The styles the desk's style picker offers for a draft: the current ones,
+ * plus PURO when the draft was already made in it, so it still shows what the
+ * picture is drawn in.
+ */
+export function selectableStyles(currentId: string): Pick<StyleOverrides, 'id' | 'name'>[] {
+  return currentId === PURO.id ? [{ id: PURO.id, name: `${PURO.name} (retired)` }, ...STYLES] : STYLES
+}
+
+/**
+ * Styles under design. Not in STYLES, so the desk doesn't list them and the
+ * agent can't pick them, but the preview route draws them by id
+ * (/api/media/graphics/preview?style=cspl-header-band) so the league can see
+ * them before one is adopted. Promote one by moving it into STYLES.
+ */
+export const DRAFT_STYLES: StyleOverrides[] = [
   /*
-   * From two references: Premier League broadcast graphics of 2007-2013 (an
-   * opening-weekend fixture list and a live league table), taken all the way
-   * -- an earlier version on bone was dropped because the bone fought the
-   * look. The background is the broadcast itself: a deep royal-to-navy
-   * gradient with a studio glow from the top. On it, glossy white rows with
-   * navy type (the fixture list), red "v" chips, navy points boxes, the
-   * leader's row in sky blue, and the title in a glossy white banner (the
-   * table's title strip). In the league's own fonts and crests. First built
-   * as "Broadcast"; renamed CSPL by the league.
+   * CSPL with the header redone after the Premier League's 2007-2016
+   * broadcasts: the masthead is a full-width glossy bar along the top edge,
+   * crest at its left and the matchweek in a red chip at its right, closed by
+   * a sky-blue line, and the title is set big in white beneath it. Same
+   * fonts, crest, league name and kicker text.
    */
   {
-    id: 'cspl',
-    name: 'CSPL',
-    description:
-      'Late-2000s TV football graphics: royal-blue studio background, glossy white rows, red \'v\' chips, navy points boxes, sky-blue leader. For big fixtures, tables and matchday stories.',
-    grounds: ['black'],
-    palettes: {
-      black: {
-        label: 'Blue',
-        bg: '#2350c9',
-        bgTo: '#06144a',
-        ink: '#ffffff',
-        ink2: '#a9bdec',
-        rule: '#3d60c2',
-        heavy: '#e9eefc',
-        accent: '#7fd0f5',
-        onAccent: '#06144a',
-        texture: 'rgba(255, 255, 255, 0.22)',
-        barFrom: '#ffffff',
-        barTo: '#d3dae8',
-        barInk: '#0a1d5c',
-        barInk2: '#5a6a95',
-        chipFrom: '#e8404a',
-        chipTo: '#9a0d18',
-        chipInk: '#ffffff',
-        figureBg: '#0c2268',
-        figureInk: '#ffffff',
-        highlightBg: '#8dd6f7',
-        highlightInk: '#06144a',
-      },
-    },
-    texture: 'spotlight',
-    title: { italic: false, treatment: 'banner', align: 'center', scale: 0.82 },
-    rules: { heavy: 5, light: 2 },
-    rows: 'bars',
-    gloss: true,
-    radius: 8,
-    highlightLeader: true,
-    // The rows are white, so crests read straight on them: no plates.
-    crestPlates: false,
-    // The league asked for these off: no season, no venue or address, and
-    // matchday stories without their slot / venue / website block.
-    showSeason: false,
-    showVenue: false,
-    storyFooter: false,
+    ...CSPL,
+    id: 'cspl-header-band',
+    name: 'CSPL · header: band',
+    description: 'Draft: CSPL with a full-width masthead bar and the matchweek in a red chip.',
+    header: 'band',
+    title: { italic: false, treatment: 'plain', align: 'left', scale: 0.86 },
+  },
+  /*
+   * The band variant taken further: the title of the graphic moves up into
+   * the band, under the crest and league name, so the whole header is one
+   * glossy bar and the content starts straight beneath it.
+   */
+  {
+    ...CSPL,
+    id: 'cspl-header-band-title',
+    name: 'CSPL · header: band with title',
+    description: 'Draft: CSPL with the league name and the graphic title together in one full-width band.',
+    header: 'bandTitle',
+    title: { italic: false, treatment: 'plain', align: 'left', scale: 0.9 },
+  },
+  /* The same, with the league's pill logo standing in for the crest and name. */
+  {
+    ...CSPL,
+    id: 'cspl-header-band-pill',
+    name: 'CSPL · header: band with pill logo',
+    description: 'Draft: as the band with title, using the CSPL pill logo for the league name.',
+    header: 'bandPill',
+    title: { italic: false, treatment: 'plain', align: 'left', scale: 0.9 },
   },
 ]
 
@@ -284,7 +372,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 /** A complete style: the overrides for `id` laid over PURO. Unknown ids get PURO. */
 export function resolveStyle(id: string | null | undefined): GraphicStyle {
-  const overrides = STYLES.find((s) => s.id === id)
+  const overrides = [...STYLES, ...DRAFT_STYLES].find((s) => s.id === id)
   if (!overrides || overrides.id === PURO.id) return PURO
   const title = { ...PURO.title, ...overrides.title }
   const grounds = (overrides.grounds ?? PURO.grounds).filter((g) => GROUNDS.includes(g))
@@ -308,6 +396,9 @@ export function resolveStyle(id: string | null | undefined): GraphicStyle {
     showSeason: overrides.showSeason ?? PURO.showSeason,
     showVenue: overrides.showVenue ?? PURO.showVenue,
     storyFooter: overrides.storyFooter ?? PURO.storyFooter,
+    sponsorFooter: overrides.sponsorFooter ?? PURO.sponsorFooter,
+    storySponsors: overrides.storySponsors ?? PURO.storySponsors,
+    header: overrides.header ?? PURO.header,
     accentBar: clamp(overrides.accentBar ?? PURO.accentBar, 0, 40),
     crestScale: clamp(overrides.crestScale ?? PURO.crestScale, 0.85, 1.2),
   }

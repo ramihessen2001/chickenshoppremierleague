@@ -191,6 +191,69 @@ export async function buildMatchday(gameId: string): Promise<MatchdayGraphic> {
   }
 }
 
+/** Earlier slots first within a day. */
+const SLOT_ORDER = ['assr', 'maghrib', "isha'a"]
+const slotRank = (slot: string) => {
+  const rank = SLOT_ORDER.indexOf(slot.trim().toLowerCase())
+  return rank === -1 ? SLOT_ORDER.length : rank
+}
+
+/**
+ * A matchday story for every game of one matchweek, in the order they are
+ * played. With no week given, the current matchweek (the league's setting),
+ * or the next week with a game still to play if that one has none. Cancelled
+ * and postponed games are left out, as are games that do not have both clubs
+ * set yet -- `skipped` counts those so the caller can say so.
+ */
+export async function buildMatchdayWeek(
+  week?: number
+): Promise<{ week: number; stories: MatchdayGraphic[]; skipped: number }> {
+  const [games, standings, config, clubs] = await Promise.all([
+    getAllGames(),
+    getStandings(),
+    getLeagueConfig(),
+    clubDirectory(),
+  ])
+
+  const currentWeek = config?.current_week ?? 1
+  const hasGames = (w: number) =>
+    games.some((g) => g.weekNumber === w && g.status !== 'cancelled' && g.status !== 'postponed')
+  const chosenWeek =
+    week ??
+    (hasGames(currentWeek)
+      ? currentWeek
+      : games
+          .filter((g) => g.weekNumber > currentWeek && g.status === 'scheduled')
+          .map((g) => g.weekNumber)
+          .sort((a, b) => a - b)[0]) ??
+    currentWeek
+
+  const fixtures = games
+    .filter((g) => g.weekNumber === chosenWeek && g.status !== 'cancelled' && g.status !== 'postponed')
+    .sort((a, b) => a.date.localeCompare(b.date) || slotRank(a.time) - slotRank(b.time))
+  if (fixtures.length === 0) {
+    throw new GraphicInputError(`Matchweek ${chosenWeek} has no games to make stories for.`)
+  }
+
+  const side = sideMaker(standings, clubs)
+  const season = config?.season ?? LEAGUE.fallbackSeason
+  const ready = fixtures.filter((g) => g.homeTeamId && g.awayTeamId)
+  return {
+    week: chosenWeek,
+    skipped: fixtures.length - ready.length,
+    stories: ready.map((game) => ({
+      type: 'matchday' as const,
+      season,
+      week: game.weekNumber,
+      ...dayLabels(game.date),
+      slot: game.time,
+      venue: game.location || 'ICNEF',
+      home: side(game.homeTeamId),
+      away: side(game.awayTeamId),
+    })),
+  }
+}
+
 /**
  * The fixtures for one week, grouped by day. With no week given, the next
  * week from the current one that still has a game to play.

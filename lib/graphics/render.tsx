@@ -34,6 +34,7 @@ import {
   TableGraphic,
   TotwGraphic,
 } from './spec'
+import { Sponsor, SPONSORS, sponsorOf } from './sponsors'
 import { GraphicStyle, groundFor, resolveStyle, StylePalette } from './styles'
 
 const WIDTH = 1080
@@ -52,6 +53,12 @@ interface Theme extends StylePalette {
   crest: (box: number) => number
   /** Rows drawn as filled bars rather than type over rules. */
   bars: boolean
+  /**
+   * The sponsor strip is on and the title is still a bar of its own, so the
+   * content below has to give up some height. (With the title in the header
+   * band, that height is already saved.)
+   */
+  compact: boolean
   /** CSS backgrounds for bars and "v" chips: a sheen when glossy, else flat. */
   barFill: string
   chipFill: string
@@ -71,6 +78,7 @@ function makeTheme(style: GraphicStyle, ground: Ground): Theme {
     lightW: style.rules.light,
     crest: (box) => Math.round(box * style.crestScale),
     bars: style.rows === 'bars',
+    compact: style.sponsorFooter && style.header !== 'bandTitle' && style.header !== 'bandPill',
     barFill: fill(palette.barFrom, palette.barTo),
     chipFill: fill(palette.chipFrom, palette.chipTo),
     radius: style.radius,
@@ -218,34 +226,58 @@ function Title({
   t,
   marginTop,
   lineHeight = 0.94,
+  kicker,
 }: {
   text: string
   size: number
   t: Theme
   marginTop: number
   lineHeight?: number
+  /** The matchweek line; in the 'tab' header it sits on the banner's corner. */
+  kicker?: string
 }) {
+  if (t.style.header === 'bandTitle' || t.style.header === 'bandPill') return null
   const { italic, scale, align, treatment } = t.style.title
   const band = treatment === 'band'
   if (treatment === 'banner') {
+    const tab = t.style.header === 'tab' && kicker
+    const corner = Math.min(t.radius, 8)
     return (
-      <div
-        style={{
-          display: 'flex',
-          marginTop,
-          alignSelf: 'stretch',
-          justifyContent: align === 'center' ? 'center' : 'flex-start',
-          padding: '20px 30px 12px',
-          ...barSurface(t),
-          fontFamily: DISPLAY,
-          fontWeight: 700,
-          fontStyle: italic ? 'italic' : 'normal',
-          fontSize: Math.round(size * scale),
-          lineHeight: 1,
-          textTransform: 'uppercase',
-        }}
-      >
-        {text}
+      <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0, marginTop: tab ? marginTop - 12 : marginTop, alignSelf: 'stretch' }}>
+        {tab && (
+          <div
+            style={{
+              display: 'flex',
+              alignSelf: 'flex-start',
+              padding: '12px 26px 8px',
+              background: t.figureBg,
+              color: t.figureInk,
+              borderRadius: `${corner}px ${corner}px 0 0`,
+              fontSize: 22,
+              letterSpacing: 2,
+              textTransform: 'uppercase',
+            }}
+          >
+            {kicker}
+          </div>
+        )}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: align === 'center' ? 'center' : 'flex-start',
+            padding: '20px 30px 12px',
+            ...barSurface(t),
+            ...(tab ? { borderTopLeftRadius: 0 } : {}),
+            fontFamily: DISPLAY,
+            fontWeight: 700,
+            fontStyle: italic ? 'italic' : 'normal',
+            fontSize: Math.round(size * scale),
+            lineHeight: 1,
+            textTransform: 'uppercase',
+          }}
+        >
+          {text}
+        </div>
       </div>
     )
   }
@@ -253,6 +285,7 @@ function Title({
     <div
       style={{
         display: 'flex',
+        flexShrink: 0,
         marginTop,
         alignSelf: align === 'center' ? 'center' : 'flex-start',
         fontFamily: DISPLAY,
@@ -294,27 +327,34 @@ function loadFonts(): Fonts {
   return fonts
 }
 
-/** Crest SVGs as data URIs with their aspect ratio, read once per slug. */
-const crestCache = new Map<string, { src: string; ratio: number } | null>()
+/** SVGs from assets/ as data URIs with their aspect ratio, read once per file. */
+const imageCache = new Map<string, { src: string; ratio: number } | null>()
 
-function crestData(slug: string) {
-  if (!crestCache.has(slug)) {
+function assetImage(dir: 'crests' | 'sponsors', file: string) {
+  const key = `${dir}/${file}`
+  if (!imageCache.has(key)) {
     try {
-      const svg = readFileSync(join(ASSETS, 'crests', `${slug}.svg`), 'utf8')
-      const box = svg.match(/viewBox="([\d.\s-]+)"/)?.[1].trim().split(/\s+/).map(Number)
-      const ratio = box && box[2] > 0 && box[3] > 0 ? box[2] / box[3] : 1
-      crestCache.set(slug, {
-        src: `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`,
-        ratio,
-      })
+      const bytes = readFileSync(join(ASSETS, dir, file))
+      let ratio = 1
+      let mime = 'image/svg+xml'
+      if (file.endsWith('.png')) {
+        // A PNG states its size in the header: width and height, 4 bytes each, from byte 16.
+        mime = 'image/png'
+        ratio = bytes.readUInt32BE(16) / bytes.readUInt32BE(20)
+      } else {
+        const box = bytes.toString('utf8').match(/viewBox="([\d.\s-]+)"/)?.[1].trim().split(/\s+/).map(Number)
+        ratio = box && box[2] > 0 && box[3] > 0 ? box[2] / box[3] : 1
+      }
+      imageCache.set(key, { src: `data:${mime};base64,${bytes.toString('base64')}`, ratio })
     } catch {
-      crestCache.set(slug, null)
+      imageCache.set(key, null)
     }
   }
-  return crestCache.get(slug) ?? null
+  return imageCache.get(key) ?? null
 }
 
-/** A crest fitted inside a box, keeping its proportions. */
+const crestData = (slug: string) => assetImage('crests', `${slug}.svg`)
+
 /**
  * A crest fitted inside a box, keeping its proportions. With `plate`, it sits
  * on a light plate inside the box: on a coloured bar, crests drawn in the
@@ -344,6 +384,38 @@ function Crest({ slug, box, plate }: { slug: string; box: number; plate?: { bg: 
   )
 }
 
+/** A sponsor's logo fitted inside a box, keeping its proportions. It sits straight on the background. */
+function SponsorLogo({ sponsor, width, height }: { sponsor: Sponsor; width: number; height: number }) {
+  const logo = assetImage('sponsors', sponsor.file)
+  if (!logo) return <div style={{ display: 'flex', width, height }} />
+  const fitWidth = Math.min(width, Math.round(height * logo.ratio))
+  const fitHeight = Math.round(fitWidth / logo.ratio)
+  return (
+    <div style={{ display: 'flex', width, height, alignItems: 'center', justifyContent: 'center' }}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- next/og draws plain <img> */}
+      <img src={logo.src} width={fitWidth} height={fitHeight} alt="" />
+    </div>
+  )
+}
+
+/**
+ * All eight sponsors in one row above the footer URL, on a single bar in the
+ * style's bar colours. The bar is one block behind the whole row: no logo has a
+ * background of its own. Each logo gets an equal cell and sits in the middle of
+ * it, so the row is centred between the margins whatever shape the logos are.
+ */
+function SponsorStrip({ t }: { t: Theme }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', height: 92, marginBottom: 22, padding: '0 6px', ...barSurface(t) }}>
+      {SPONSORS.map((sponsor) => (
+        <div key={sponsor.slug} style={{ display: 'flex', flex: 1, justifyContent: 'center' }}>
+          <SponsorLogo sponsor={sponsor} width={104} height={64} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function siteHost(): string {
   const url = process.env.NEXT_PUBLIC_SITE_URL || 'https://chickenshoppremierleague.vercel.app'
   try {
@@ -351,6 +423,187 @@ function siteHost(): string {
   } catch {
     return 'chickenshoppremierleague.vercel.app'
   }
+}
+
+/**
+ * The masthead: league crest, league name, and the kicker (matchweek line).
+ * `bleedTop` is the padding above it to reach the graphic's top edge, so the
+ * 'band' header can run edge to edge; the matchday story passes 0 because its
+ * top 250px is left clear of Instagram's own controls.
+ */
+function Masthead({
+  t,
+  season,
+  kicker,
+  bleedTop,
+  title,
+  titleSize,
+}: {
+  t: Theme
+  season: string
+  kicker: string
+  bleedTop: number
+  /** The graphic's title and its size, for the headers that carry it. */
+  title: string
+  titleSize: number
+}) {
+  const withTitle = t.style.header === 'bandTitle' || t.style.header === 'bandPill'
+  const band = t.style.header === 'band' || withTitle
+  const name = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexGrow: 1 }}>
+      <div
+        style={{
+          display: 'flex',
+          fontFamily: DISPLAY,
+          fontWeight: 700,
+          // The band's chip needs the room, so its league name is a touch smaller.
+          fontSize: band ? 28 : 30,
+          lineHeight: 1,
+          textTransform: 'uppercase',
+        }}
+      >
+        YM Chicken Shop Premier League
+      </div>
+      {t.style.showSeason && (
+        <div style={{ display: 'flex', fontSize: 21, letterSpacing: 2, textTransform: 'uppercase', color: band ? t.barInk2 : t.ink2 }}>
+          {season}
+        </div>
+      )}
+    </div>
+  )
+
+  const chip = (
+    <div
+      style={{
+        display: 'flex',
+        flexShrink: 0,
+        // Courier Prime is monospaced, so the chip's width follows from the text:
+        // 22px type is 13.2px a letter plus 2px of spacing. Left to size itself
+        // it wraps the matchweek onto two lines.
+        width: Math.ceil(kicker.length * 15.2) + 44,
+        justifyContent: 'center',
+        padding: '14px 0 10px',
+        background: t.chipFill,
+        color: t.chipInk,
+        borderRadius: Math.min(t.radius, 8),
+        fontSize: 22,
+        letterSpacing: 2,
+        textTransform: 'uppercase',
+      }}
+    >
+      {kicker}
+    </div>
+  )
+
+  if (withTitle) {
+    const pill = t.style.header === 'bandPill' ? assetImage('crests', 'csplpill.svg') : null
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignSelf: 'stretch', margin: `${-bleedTop}px -72px 0` }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 18,
+            padding: `${bleedTop > 0 ? 40 : 28}px 72px 30px`,
+            background: t.barFill,
+            color: t.barInk,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
+            {pill ? (
+              <div style={{ display: 'flex', flexGrow: 1 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- next/og draws plain <img> */}
+                <img src={pill.src} width={Math.round(84 * pill.ratio)} height={84} alt="" />
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 22, flexGrow: 1 }}>
+                <Crest slug="cspl" box={88} />
+                <div
+                  style={{
+                    display: 'flex',
+                    fontFamily: DISPLAY,
+                    fontWeight: 700,
+                    fontSize: 30,
+                    lineHeight: 1,
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  YM Chicken Shop Premier League
+                </div>
+              </div>
+            )}
+            {chip}
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              fontFamily: DISPLAY,
+              fontWeight: 700,
+              fontSize: Math.round(titleSize * 0.9),
+              lineHeight: 0.95,
+              textTransform: 'uppercase',
+            }}
+          >
+            {title}
+          </div>
+        </div>
+        <div style={{ display: 'flex', height: 8, background: t.accent }} />
+      </div>
+    )
+  }
+
+  if (band) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignSelf: 'stretch', margin: `${-bleedTop}px -72px 0` }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 24,
+            padding: `${bleedTop > 0 ? 34 : 26}px 72px 26px`,
+            background: t.barFill,
+            color: t.barInk,
+          }}
+        >
+          <Crest slug="cspl" box={104} />
+          {name}
+          {chip}
+        </div>
+        <div style={{ display: 'flex', height: 8, background: t.accent }} />
+      </div>
+    )
+  }
+
+  // The title tab drops the rule under the masthead and gives its room to a
+  // bigger crest and league name.
+  const tab = t.style.header === 'tab'
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: tab ? 28 : 24,
+        ...(tab ? {} : { paddingBottom: 28, borderBottom: `${t.heavyW}px solid ${t.heavy}` }),
+      }}
+    >
+      <Crest slug="cspl" box={tab ? 124 : 100} />
+      {tab ? (
+        <div style={{ display: 'flex', flexGrow: 1, flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 42, lineHeight: 1, textTransform: 'uppercase' }}>
+            YM Chicken Shop Premier League
+          </div>
+          {t.style.showSeason && (
+            <div style={{ display: 'flex', fontSize: 21, letterSpacing: 2, textTransform: 'uppercase', color: t.ink2 }}>{season}</div>
+          )}
+        </div>
+      ) : (
+        name
+      )}
+      {!tab && (
+        <div style={{ display: 'flex', fontSize: 22, letterSpacing: 2, textTransform: 'uppercase', color: t.accent }}>{kicker}</div>
+      )}
+    </div>
+  )
 }
 
 function Frame({
@@ -383,37 +636,28 @@ function Frame({
       }}
     >
       <AccentBar t={t} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 24, paddingBottom: 28, borderBottom: `${t.heavyW}px solid ${t.heavy}` }}>
-        <Crest slug="cspl" box={100} />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexGrow: 1 }}>
-          <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 30, lineHeight: 1, textTransform: 'uppercase' }}>
-            YM Chicken Shop Premier League
-          </div>
-          {t.style.showSeason && (
-            <div style={{ fontSize: 21, letterSpacing: 2, textTransform: 'uppercase', color: t.ink2 }}>{season}</div>
-          )}
-        </div>
-        <div style={{ fontSize: 22, letterSpacing: 2, textTransform: 'uppercase', color: t.accent }}>{kicker}</div>
-      </div>
+      <Masthead t={t} season={season} kicker={kicker} bleedTop={64} title={title} titleSize={108} />
 
-      <Title text={title} size={108} t={t} marginTop={40} />
+      <Title text={title} size={108} t={t} marginTop={40} kicker={kicker} />
 
       {children}
 
-      <div
-        style={{
-          marginTop: 'auto',
-          paddingTop: 22,
-          borderTop: `${t.lightW}px solid ${t.rule}`,
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: 20,
-          letterSpacing: 1.5,
-          color: t.ink2,
-        }}
-      >
-        <div>{siteHost()}</div>
-        {t.style.showVenue && <div style={{ textTransform: 'uppercase' }}>{footerRight}</div>}
+      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 'auto' }}>
+        {t.style.sponsorFooter && <SponsorStrip t={t} />}
+        <div
+          style={{
+            display: 'flex',
+            paddingTop: 22,
+            borderTop: `${t.lightW}px solid ${t.rule}`,
+            justifyContent: 'space-between',
+            fontSize: 20,
+            letterSpacing: 1.5,
+            color: t.ink2,
+          }}
+        >
+          <div>{siteHost()}</div>
+          {t.style.showVenue && <div style={{ textTransform: 'uppercase' }}>{footerRight}</div>}
+        </div>
       </div>
     </div>
   )
@@ -426,7 +670,8 @@ const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0')
 function Table({ spec, t }: { spec: TableGraphic; t: Theme }) {
   const numeric = ['GP', 'W', 'D', 'L', 'GF', 'GA', 'GD']
   const cell = { width: 56, display: 'flex', justifyContent: 'flex-end' } as const
-  const rowHeight = Math.min(98, Math.floor(790 / Math.max(spec.rows.length, 1)))
+  // The sponsor strip takes about 70px more than the footer alone had spare.
+  const rowHeight = Math.min(98, Math.floor((t.compact ? 656 : 790) / Math.max(spec.rows.length, 1)))
   return (
     <Frame t={t} season={spec.season} kicker={afterWeekLabel(spec.afterWeek)} title="League Table">
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: 44 }}>
@@ -449,7 +694,8 @@ function Table({ spec, t }: { spec: TableGraphic; t: Theme }) {
               {label}
             </div>
           ))}
-          <div style={{ width: 84, display: 'flex', justifyContent: 'flex-end' }}>Pts</div>
+          {/* With bar rows the points sit in a box; the header is centred over it. */}
+          <div style={{ width: 84, display: 'flex', justifyContent: t.bars ? 'center' : 'flex-end', paddingRight: t.bars ? 4 : 0 }}>Pts</div>
         </div>
 
         {spec.rows.map((row, ri) => {
@@ -501,6 +747,8 @@ function Table({ spec, t }: { spec: TableGraphic; t: Theme }) {
 }
 
 function StatLeaders({ spec, t }: { spec: StatLeadersGraphic; t: Theme }) {
+  // With the sponsor strip below, each category gives up a little height.
+  const tight = t.style.sponsorFooter
   return (
     <Frame t={t} season={spec.season} kicker={afterWeekLabel(spec.afterWeek)} title="Stat Leaders">
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: 20 }}>
@@ -512,8 +760,8 @@ function StatLeaders({ spec, t }: { spec: StatLeadersGraphic; t: Theme }) {
               style={{
                 display: 'flex',
                 gap: 48,
-                padding: '26px 0',
-                height: 322,
+                padding: tight ? '16px 0' : '26px 0',
+                height: tight ? 262 : 322,
                 borderBottom: ci < spec.categories.length - 1 ? `${t.lightW}px solid ${t.rule}` : 'none',
               }}
             >
@@ -534,7 +782,7 @@ function StatLeaders({ spec, t }: { spec: StatLeadersGraphic; t: Theme }) {
                 </div>
                 {leader ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 124, lineHeight: 0.82 }}>{leader.total}</div>
+                    <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: tight ? 100 : 124, lineHeight: 0.82 }}>{leader.total}</div>
                     <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 34, lineHeight: 1, textTransform: 'uppercase' }}>
                       {leader.player}
                     </div>
@@ -558,8 +806,8 @@ function StatLeaders({ spec, t }: { spec: StatLeadersGraphic; t: Theme }) {
                       alignItems: 'center',
                       gap: 14,
                       ...(t.bars
-                        ? { ...barSurface(t), height: 54, marginTop: 8, padding: '0 8px 0 14px' }
-                        : { height: 62, borderBottom: ri < rest.length - 1 ? `${t.lightW}px solid ${t.rule}` : 'none' }),
+                        ? { ...barSurface(t), height: tight ? 50 : 54, marginTop: 8, padding: '0 8px 0 14px' }
+                        : { height: tight ? 56 : 62, borderBottom: ri < rest.length - 1 ? `${t.lightW}px solid ${t.rule}` : 'none' }),
                     }}
                   >
                     <div style={{ width: 48, display: 'flex', fontSize: 24, color: t.bars ? t.barInk2 : t.ink2 }}>{row.rank}</div>
@@ -585,7 +833,7 @@ function Slate({ spec, t }: { spec: SlateGraphic; t: Theme }) {
   const gameCount = spec.days.reduce((n, d) => n + d.games.length, 0)
   // Bars carry a gap between them, and a banner title stands taller, so bar
   // rows are a little shorter to fit the same four games.
-  const rowHeight = gameCount <= 4 ? (t.bars ? 168 : 188) : Math.max(120, Math.floor(820 / gameCount))
+  const rowHeight = gameCount <= 4 ? (t.bars ? (t.compact ? (t.style.header === 'tab' ? 144 : 150) : 168) : 188) : Math.max(120, Math.floor(820 / gameCount))
   const crest = rowHeight >= 160 ? 92 : 72
 
   // Both sides face the "v": the home crest sits right of its name, the away
@@ -659,6 +907,7 @@ function Slate({ spec, t }: { spec: SlateGraphic; t: Theme }) {
                 key={gi}
                 style={{
                   display: 'flex',
+                  position: 'relative',
                   alignItems: 'center',
                   ...(t.bars
                     ? { ...barSurface(t), height: rowHeight - 14, marginTop: 14, padding: '0 20px' }
@@ -668,11 +917,14 @@ function Slate({ spec, t }: { spec: SlateGraphic; t: Theme }) {
                       }),
                 }}
               >
+                {/* The slot is a small tag in the row's top-left corner, so it does not push the "v" off the middle. */}
                 <div
                   style={{
-                    width: t.bars ? 130 : 150,
+                    position: 'absolute',
+                    top: 10,
+                    left: 22,
                     display: 'flex',
-                    fontSize: 22,
+                    fontSize: 17,
                     letterSpacing: 2,
                     textTransform: 'uppercase',
                     color: t.bars ? t.barInk2 : t.accent,
@@ -711,15 +963,19 @@ const SPOTS: { x: number; y: number }[] = [
 function Totw({ spec, t }: { spec: TotwGraphic; t: Theme }) {
   const line = { position: 'absolute', border: `${t.lightW + 1}px solid ${t.rule}` } as const
   const potw = spec.playerOfTheWeek
+  // With the sponsor strip below, the pitch is drawn 10% shorter and its
+  // markers a little smaller, so the six still stand clear of each other.
+  const k = t.compact ? 0.87 : 1
+  const y = (n: number) => Math.round(n * k)
   return (
     <Frame t={t} season={spec.season} kicker={`Matchweek ${pad(spec.week)}`} title="Team of the Week">
-      <div style={{ position: 'relative', display: 'flex', height: 740, marginTop: 36, border: `${t.lightW + 1}px solid ${t.rule}` }}>
-        <div style={{ position: 'absolute', left: 0, right: 0, top: 367, height: 0, borderTop: `${t.lightW + 1}px solid ${t.rule}` }} />
-        <div style={{ ...line, left: 375, top: 277, width: 180, height: 180, borderRadius: 90 }} />
-        <div style={{ ...line, left: 235, top: -3, width: 460, height: 150, borderTop: 'none' }} />
-        <div style={{ ...line, left: 355, top: -3, width: 220, height: 56, borderTop: 'none' }} />
-        <div style={{ ...line, left: 235, bottom: -3, width: 460, height: 150, borderBottom: 'none' }} />
-        <div style={{ ...line, left: 355, bottom: -3, width: 220, height: 56, borderBottom: 'none' }} />
+      <div style={{ position: 'relative', display: 'flex', height: y(740), marginTop: 36, border: `${t.lightW + 1}px solid ${t.rule}` }}>
+        <div style={{ position: 'absolute', left: 0, right: 0, top: y(367), height: 0, borderTop: `${t.lightW + 1}px solid ${t.rule}` }} />
+        <div style={{ ...line, left: 375, top: y(277), width: 180, height: y(180), borderRadius: 90 }} />
+        <div style={{ ...line, left: 235, top: -3, width: 460, height: y(150), borderTop: 'none' }} />
+        <div style={{ ...line, left: 355, top: -3, width: 220, height: y(56), borderTop: 'none' }} />
+        <div style={{ ...line, left: 235, bottom: -3, width: 460, height: y(150), borderBottom: 'none' }} />
+        <div style={{ ...line, left: 355, bottom: -3, width: 220, height: y(56), borderBottom: 'none' }} />
 
         {spec.picks.map((pick, i) => (
           <div
@@ -727,7 +983,7 @@ function Totw({ spec, t }: { spec: TotwGraphic; t: Theme }) {
             style={{
               position: 'absolute',
               left: SPOTS[i].x - 160,
-              top: SPOTS[i].y,
+              top: y(SPOTS[i].y),
               width: 320,
               display: 'flex',
               flexDirection: 'column',
@@ -735,7 +991,7 @@ function Totw({ spec, t }: { spec: TotwGraphic; t: Theme }) {
               gap: 10,
             }}
           >
-            <Crest slug={pick.club.slug} box={t.crest(84)} />
+            <Crest slug={pick.club.slug} box={t.crest(k < 1 ? 60 : 84)} />
             <div
               style={{
                 display: 'flex',
@@ -874,24 +1130,9 @@ function Matchday({ spec, t }: { spec: MatchdayGraphic; t: Theme }) {
       }}
     >
       <AccentBar t={t} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 24, paddingBottom: 28, borderBottom: `${t.heavyW}px solid ${t.heavy}` }}>
-        <Crest slug="cspl" box={100} />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexGrow: 1 }}>
-          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 30, lineHeight: 1, textTransform: 'uppercase' }}>
-            YM Chicken Shop Premier League
-          </div>
-          {t.style.showSeason && (
-            <div style={{ display: 'flex', fontSize: 21, letterSpacing: 2, textTransform: 'uppercase', color: t.ink2 }}>
-              {spec.season}
-            </div>
-          )}
-        </div>
-        <div style={{ display: 'flex', fontSize: 22, letterSpacing: 2, textTransform: 'uppercase', color: t.accent }}>
-          {spec.week > 0 ? `Matchweek ${pad(spec.week)}` : 'Playoffs'}
-        </div>
-      </div>
+      <Masthead t={t} season={spec.season} kicker={spec.week > 0 ? `Matchweek ${pad(spec.week)}` : 'Playoffs'} bleedTop={0} title="Matchday" titleSize={200} />
 
-      <Title text="Matchday" size={200} t={t} marginTop={48} lineHeight={0.9} />
+      <Title text="Matchday" size={200} t={t} marginTop={48} lineHeight={0.9} kicker={spec.week > 0 ? `Matchweek ${pad(spec.week)}` : 'Playoffs'} />
       <div style={{ display: 'flex', marginTop: 24, alignSelf: t.style.title.align === 'center' ? 'center' : 'flex-start', fontSize: 30, letterSpacing: 3, textTransform: 'uppercase', color: t.accent }}>
         {/* Without the bottom block, the slot (the game's time) joins the date line. */}
         {footer ? `${spec.weekday} · ${spec.date}` : `${spec.weekday} · ${spec.date} · ${spec.slot}`}
@@ -903,8 +1144,8 @@ function Matchday({ spec, t }: { spec: MatchdayGraphic; t: Theme }) {
           alignItems: 'flex-start',
           justifyContent: 'space-between',
           marginTop: 'auto',
-          // With no footer below, auto margins on both sides centre the fixture.
-          marginBottom: footer ? 0 : 'auto',
+          // With no footer and no sponsor bar below, auto margins on both sides centre the fixture.
+          marginBottom: footer || t.style.storySponsors ? 0 : 'auto',
         }}
       >
         {side(spec.home)}
@@ -913,6 +1154,48 @@ function Matchday({ spec, t }: { spec: MatchdayGraphic; t: Theme }) {
         </div>
         {side(spec.away)}
       </div>
+
+      {/* One bar under the fixture holds both clubs' sponsors, each centred under its club. */}
+      {t.style.storySponsors && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            height: 190,
+            marginTop: 32,
+            marginBottom: footer ? 0 : 'auto',
+            ...barSurface(t),
+          }}
+        >
+          {[spec.home, spec.away].map((club) => {
+            const sponsor = sponsorOf(club.slug)
+            return (
+              <div key={club.slug} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 400, gap: 10 }}>
+                {sponsor && (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                    <SponsorLogo sponsor={sponsor} width={340} height={100} />
+                    <div
+                      style={{
+                        display: 'flex',
+                        fontFamily: DISPLAY,
+                        fontWeight: 700,
+                        fontSize: 26,
+                        lineHeight: 1,
+                        letterSpacing: 1,
+                        textTransform: 'uppercase',
+                        textAlign: 'center',
+                      }}
+                    >
+                      {sponsor.name}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {footer && (
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: 'auto' }}>
@@ -953,7 +1236,7 @@ function Arrow({ up, color }: { up: boolean; color: string }) {
 }
 
 function PowerRankings({ spec, t }: { spec: PowerRankingsGraphic; t: Theme }) {
-  const rowHeight = Math.min(116, Math.floor(930 / Math.max(spec.rows.length, 1)))
+  const rowHeight = Math.min(116, Math.floor((t.compact ? 800 : t.style.sponsorFooter ? 900 : 930) / Math.max(spec.rows.length, 1)))
   return (
     <Frame t={t} season={spec.season} kicker={`Matchweek ${pad(spec.week)}`} title="Power Rankings">
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: t.bars ? 22 : 30 }}>

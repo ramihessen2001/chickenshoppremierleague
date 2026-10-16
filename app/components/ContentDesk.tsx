@@ -1,8 +1,9 @@
 /**
- * The content desk: the media team writes a brief (or starts from a preset),
- * the content agent drafts it from the league's data, and the draft lands in
- * a review queue. Every draft is edited and approved here before anyone
- * copies it out -- the agent itself cannot publish anything.
+ * The content desk: the media team picks one of the league's six graphics (and
+ * may add a line, such as which game), the content agent makes it from the
+ * league's data, and it lands in a review queue. Every graphic is approved
+ * here before anyone downloads it -- the agent itself cannot publish anything.
+ * There are no captions: the agent makes pictures only.
  *
  * Signed in separately from admin, with the media team's own password.
  */
@@ -11,9 +12,9 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { buttonPrimary, buttonSecondary, fieldClass, FormError, labelClass } from './Modal'
-import { CONTENT_PRESETS, CUSTOM_KIND, presetLabel } from '@/lib/contentPresets'
+import { CONTENT_PRESETS, presetLabel } from '@/lib/contentPresets'
 import { GRAPHIC_LABELS, GRAPHIC_SIZES, Ground } from '@/lib/graphics/spec'
-import { resolveStyle, STYLES } from '@/lib/graphics/styles'
+import { resolveStyle, selectableStyles } from '@/lib/graphics/styles'
 import { ContentDraft, ContentDraftStatus } from '@/types/contentDraft'
 
 type SessionState = 'checking' | 'signed-out' | 'signed-in'
@@ -125,8 +126,8 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [view, setView] = useState<QueueView>('draft')
 
-  const [kind, setKind] = useState(CUSTOM_KIND)
-  const [brief, setBrief] = useState('')
+  const [kind, setKind] = useState('')
+  const [details, setDetails] = useState('')
   const [isWriting, setIsWriting] = useState(false)
   const [writeError, setWriteError] = useState<string | null>(null)
 
@@ -145,18 +146,12 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
     loadDrafts()
   }, [loadDrafts])
 
-  const choosePreset = (presetKind: string) => {
-    const preset = CONTENT_PRESETS.find((p) => p.kind === presetKind)
-    if (!preset) return
-    setKind(preset.kind)
-    setBrief(preset.brief)
-    setWriteError(null)
-  }
+  const chosen = CONTENT_PRESETS.find((p) => p.kind === kind)
 
   const writeDraft = async (event: FormEvent) => {
     event.preventDefault()
-    if (!brief.trim()) {
-      setWriteError('Write a brief first')
+    if (!chosen) {
+      setWriteError('Choose which graphic to make')
       return
     }
     setIsWriting(true)
@@ -165,20 +160,20 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
       const response = await fetch('/api/media/drafts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind, brief }),
+        body: JSON.stringify({ kind, details }),
       })
       if (response.status === 401) return onSignedOut()
       if (!response.ok) {
         setWriteError(await errorMessage(response))
         return
       }
-      const { draft } = await response.json()
-      setDrafts((current) => [draft, ...current])
+      const { drafts: made } = (await response.json()) as { drafts: ContentDraft[] }
+      setDrafts((current) => [...made, ...current])
       setView('draft')
-      setBrief('')
-      setKind(CUSTOM_KIND)
+      setDetails('')
+      setKind('')
     } catch {
-      setWriteError('Lost the connection while the draft was being written. Try again.')
+      setWriteError('Lost the connection while the graphic was being made. Try again.')
     } finally {
       setIsWriting(false)
     }
@@ -214,18 +209,23 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
 
       <div className="mt-10 grid gap-12 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] lg:gap-16">
         <form onSubmit={writeDraft} className="lg:sticky lg:top-24 lg:self-start">
-          <h2 className="text-[26px] text-ink">New draft</h2>
+          <h2 className="text-[26px] text-ink">Make a graphic</h2>
 
-          <p className={`mt-5 ${labelClass}`}>Start from</p>
-          <div className="flex flex-wrap gap-1.5">
+          <p id="graphic-choice" className={`mt-5 ${labelClass}`}>
+            Which graphic
+          </p>
+          <div className="grid grid-cols-2 gap-2" role="group" aria-labelledby="graphic-choice">
             {CONTENT_PRESETS.map((preset) => (
               <button
                 key={preset.kind}
                 type="button"
-                onClick={() => choosePreset(preset.kind)}
+                onClick={() => {
+                  setKind(preset.kind)
+                  setWriteError(null)
+                }}
                 disabled={isWriting}
                 aria-pressed={kind === preset.kind}
-                className={`border px-3 py-1.5 text-[13px] font-medium transition-colors disabled:opacity-50 ${
+                className={`border px-3 py-3 text-left text-[14px] font-medium transition-colors disabled:opacity-50 ${
                   kind === preset.kind
                     ? 'border-hairline-strong bg-surface-inverse text-ink-inverse'
                     : 'border-hairline-strong text-ink hover:bg-surface-hover'
@@ -236,31 +236,28 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
             ))}
           </div>
 
-          <label htmlFor="desk-brief" className={`mt-6 ${labelClass}`}>
-            Brief
+          <label htmlFor="desk-details" className={`mt-6 ${labelClass}`}>
+            Details <span className="font-normal text-ink-tertiary">(optional)</span>
           </label>
-          <textarea
-            id="desk-brief"
-            rows={7}
-            value={brief}
-            onChange={(e) => setBrief(e.target.value)}
-            disabled={isWriting}
-            placeholder="Anything you want: a caption, a report, a newsletter, a roast of the table…"
+          <input
+            id="desk-details"
+            type="text"
+            maxLength={300}
+            value={details}
+            onChange={(e) => setDetails(e.target.value)}
+            disabled={isWriting || !chosen}
+            placeholder={chosen?.detailHint ?? 'Choose a graphic first'}
             className={fieldClass}
           />
-          <p className="mt-2 text-[13px] text-ink-tertiary">
-            Presets are only a starting point: edit the brief however you like. Fill in anything in
-            [BRACKETS].
-          </p>
 
           <div className="mt-5">
             <FormError>{writeError}</FormError>
-            <button type="submit" disabled={isWriting} className={`w-full ${buttonPrimary}`}>
-              {isWriting ? 'Writing…' : 'Write draft'}
+            <button type="submit" disabled={isWriting || !chosen} className={`w-full ${buttonPrimary}`}>
+              {isWriting ? 'Making…' : kind === 'matchday' ? 'Make stories' : 'Make graphic'}
             </button>
             {isWriting && (
               <p className="mt-3 text-[13px] text-ink-tertiary" role="status">
-                The agent is reading the league data and writing. This can take a minute.
+                The agent is reading the league data and making the graphic. This can take a minute.
               </p>
             )}
           </div>
@@ -308,8 +305,8 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
               </p>
               <p className="mt-2 text-[15px] text-ink-secondary">
                 {view === 'draft'
-                  ? 'Write a brief to get a draft.'
-                  : 'Approved drafts wait here, ready to copy out.'}
+                  ? 'Make a graphic to see it here.'
+                  : 'Approved graphics wait here, ready to download.'}
               </p>
             </div>
           ) : (
@@ -340,18 +337,12 @@ function DraftCard({
   onChange: (draft: ContentDraft) => void
   onSignedOut: () => void
 }) {
-  const [text, setText] = useState(draft.body)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
-  const isEdited = text !== draft.body
+  const styles = selectableStyles(draft.style)
+  const grounds = resolveStyle(draft.style).grounds
 
-  const save = async (fields: {
-    body?: string
-    status?: ContentDraftStatus
-    ground?: Ground
-    style?: string
-  }) => {
+  const save = async (fields: { status?: ContentDraftStatus; ground?: Ground; style?: string }) => {
     setIsSaving(true)
     setError(null)
     const response = await fetch(`/api/media/drafts/${draft.id}`, {
@@ -368,20 +359,7 @@ function DraftCard({
     onChange((await response.json()).draft)
   }
 
-  // Approving saves any unsaved edits in the same request, so what gets
-  // approved is always what is on screen.
-  const setStatus = (status: ContentDraftStatus) =>
-    save(isEdited ? { body: text, status } : { status })
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      setError('Could not copy. Select the text and copy it by hand.')
-    }
-  }
+  const setStatus = (status: ContentDraftStatus) => save({ status })
 
   return (
     <article className="border border-hairline">
@@ -392,46 +370,58 @@ function DraftCard({
 
       <div className="px-5 py-4">
         <details className="text-[13px] text-ink-secondary">
-          <summary className="cursor-pointer">Brief</summary>
+          <summary className="cursor-pointer">Request</summary>
           <p className="mt-2 whitespace-pre-line">{draft.brief}</p>
         </details>
 
-        <div className={draft.graphic ? 'mt-3 grid gap-5 sm:grid-cols-[15rem_minmax(0,1fr)]' : 'mt-3'}>
-          {draft.graphic && (
-            <div>
-              {/* A plain <img>: the PNG comes from an authenticated route,
-                  which next/image's optimiser cannot fetch. updatedAt changes
-                  whenever the style or background does, so the preview
-                  refreshes. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`/api/media/drafts/${draft.id}/image?v=${encodeURIComponent(draft.updatedAt)}`}
-                alt={`${GRAPHIC_LABELS[draft.graphic.type]} graphic`}
-                width={GRAPHIC_SIZES[draft.graphic.type].width}
-                height={GRAPHIC_SIZES[draft.graphic.type].height}
-                className="h-auto w-full border border-hairline"
-              />
-              <label htmlFor={`style-${draft.id}`} className={`mt-3 ${labelClass}`}>
-                Style
-              </label>
-              <select
-                id={`style-${draft.id}`}
-                value={draft.style}
-                onChange={(e) => save({ style: e.target.value })}
-                disabled={isSaving}
-                className={fieldClass}
-              >
-                {STYLES.map((style) => (
-                  <option key={style.id} value={style.id}>
-                    {style.name}
-                  </option>
-                ))}
-              </select>
-              {/* A style offering one background (Broadcast is bone only) has
-                  nothing to switch between, so the switch is left out. */}
-              {resolveStyle(draft.style).grounds.length > 1 && (
+        {/* The agent only writes here when something needs the team's attention
+            (missing data, a game it could not find). A graphic needs no caption. */}
+        {draft.body && (
+          <p className="mt-3 border-l-2 border-hairline-strong pl-3 text-[14px] text-ink-secondary whitespace-pre-line">
+            {draft.body}
+          </p>
+        )}
+
+        {draft.graphic && (
+          <div className="mt-4 mx-auto w-full max-w-sm">
+            {/* A plain <img>: the PNG comes from an authenticated route,
+                which next/image's optimiser cannot fetch. updatedAt changes
+                whenever the style or background does, so the preview
+                refreshes. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/media/drafts/${draft.id}/image?v=${encodeURIComponent(draft.updatedAt)}`}
+              alt={`${GRAPHIC_LABELS[draft.graphic.type]} graphic`}
+              width={GRAPHIC_SIZES[draft.graphic.type].width}
+              height={GRAPHIC_SIZES[draft.graphic.type].height}
+              className="h-auto w-full border border-hairline"
+            />
+
+            {/* With a single style and background there is nothing to choose,
+                so the controls only appear once the league has more than one. */}
+            {styles.length > 1 && (
+              <>
+                <label htmlFor={`style-${draft.id}`} className={`mt-3 ${labelClass}`}>
+                  Style
+                </label>
+                <select
+                  id={`style-${draft.id}`}
+                  value={draft.style}
+                  onChange={(e) => save({ style: e.target.value })}
+                  disabled={isSaving}
+                  className={fieldClass}
+                >
+                  {styles.map((style) => (
+                    <option key={style.id} value={style.id}>
+                      {style.name}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+            {grounds.length > 1 && (
               <div className="mt-2 flex gap-1.5" role="group" aria-label="Graphic background">
-                {resolveStyle(draft.style).grounds.map((ground) => (
+                {grounds.map((ground) => (
                   <button
                     key={ground}
                     type="button"
@@ -448,23 +438,9 @@ function DraftCard({
                   </button>
                 ))}
               </div>
-              )}
-            </div>
-          )}
-
-          <div>
-            <label htmlFor={`draft-${draft.id}`} className="sr-only">
-              {draft.graphic ? 'Caption' : 'Draft text'}
-            </label>
-            <textarea
-              id={`draft-${draft.id}`}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={Math.min(24, Math.max(6, text.split('\n').length + 1))}
-              className={`${fieldClass} leading-relaxed`}
-            />
+            )}
           </div>
-        </div>
+        )}
 
         {error && (
           <p className="mt-3 text-[13px] text-negative" role="alert">
@@ -472,58 +448,27 @@ function DraftCard({
           </p>
         )}
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {draft.status === 'draft' ? (
-            <button
-              type="button"
-              onClick={() => setStatus('approved')}
-              disabled={isSaving}
-              className={buttonPrimary}
-            >
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {draft.status === 'draft' && (
+            <button type="button" onClick={() => setStatus('approved')} disabled={isSaving} className={buttonPrimary}>
               Approve
             </button>
-          ) : (
-            <>
-              <button type="button" onClick={copy} className={buttonPrimary}>
-                {copied ? 'Copied' : draft.graphic ? 'Copy caption' : 'Copy'}
-              </button>
-              {draft.graphic && (
-                <a
-                  href={`/api/media/drafts/${draft.id}/image?download=1&v=${encodeURIComponent(draft.updatedAt)}`}
-                  download
-                  className={buttonPrimary}
-                >
-                  Download image
-                </a>
-              )}
-            </>
           )}
-          {isEdited && (
-            <button
-              type="button"
-              onClick={() => save({ body: text })}
-              disabled={isSaving}
-              className={buttonSecondary}
+          {draft.graphic && (
+            <a
+              href={`/api/media/drafts/${draft.id}/image?download=1&v=${encodeURIComponent(draft.updatedAt)}`}
+              download
+              className={draft.status === 'approved' ? buttonPrimary : buttonSecondary}
             >
-              Save edits
-            </button>
+              Download image
+            </a>
           )}
           {draft.status === 'approved' && (
-            <button
-              type="button"
-              onClick={() => setStatus('draft')}
-              disabled={isSaving}
-              className={buttonSecondary}
-            >
+            <button type="button" onClick={() => setStatus('draft')} disabled={isSaving} className={buttonSecondary}>
               Back to review
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setStatus('discarded')}
-            disabled={isSaving}
-            className={buttonSecondary}
-          >
+          <button type="button" onClick={() => setStatus('discarded')} disabled={isSaving} className={buttonSecondary}>
             Discard
           </button>
         </div>

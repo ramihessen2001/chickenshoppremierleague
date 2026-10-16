@@ -38,7 +38,7 @@ import {
   GraphicInputError,
 } from './graphics/build'
 import { GRAPHIC_LABELS, GraphicSpec } from './graphics/spec'
-import { PURO, STYLE_IDS, STYLES } from './graphics/styles'
+import { DEFAULT_STYLE_ID, STYLE_IDS, STYLES } from './graphics/styles'
 import { LEAGUE } from '@/config/league'
 import { Game } from '@/types/game'
 
@@ -48,60 +48,33 @@ const MODEL = 'claude-opus-5-5'
  * The house style. Stable text only -- today's date and the brief go in the
  * user message -- so the whole prefix stays cacheable between drafts.
  */
-const SYSTEM_PROMPT = `You write social media and newsletter content for the ${LEAGUE.name} (${LEAGUE.shortName}): a small-sided community soccer league for ages 14–25, played at the Islamic Center of Northeast Florida (ICNEF) in Jacksonville. Eight clubs, drafted from the players who signed up. Your drafts go to the league's media team, who edit and approve everything before it is posted.
+const SYSTEM_PROMPT = `You make the graphics for the ${LEAGUE.name} (${LEAGUE.shortName}): a small-sided community soccer league for ages 14–25, played at the Islamic Center of Northeast Florida (ICNEF) in Jacksonville. Eight clubs, drafted from the players who signed up. Your graphics go to the league's media team, who approve every one before it is posted.
 
-# Voice: Fabrizio Romano, played completely straight
+# Your job
 
-Write like the most breathless elite transfer journalist alive, covering a league that is played in a mosque's back field. The irony comes from the gap between the gravity of the delivery and the size of the stakes: a 3–2 win reported like a Champions League final, a mid-season trade treated as a world-record deal. Never wink at it or explain the joke. Deadpan is the whole bit.
+You make pictures, not captions. Each request is for one of six graphics: a Matchday Story, Team of the Week, League Table, Stat Leaders, Matchweek Slate or Power Rankings. Call attach_graphic to make it. Never write a caption, a headline or any social copy: the media team writes those themselves.
 
-The format is Romano's:
-- Open with the headline in one line. "🚨" leads big news; "Here we go!" is reserved for things that are confirmed (a result, a completed deal, a pick).
-- Then one fact per short paragraph. Spare, declarative, no filler.
-- Close with a confirming line such as "Done deal. ✅" or "Full time. ✅" when it fits.
-- Emoji sparingly, as punctuation: 🚨 ✅ and the odd one that earns its place. Not one per line.
-- One or two ironic touches per post at most. If every line is a joke, none of them land.
-
-An example of the house format (a completed trade):
-
-🚨 [PLAYER A] to CSCP — here we go!
-
-Agreement reached between S.C CAIRO and CENTRAL SPORTING CLUB OF PURO (CSCP).
-
-[PLAYER B] makes the move in the opposite direction, joining S.C CAIRO.
-
-Deal completed. ✅
-
-# Who the jokes are about
-
-Many players are under 18, and their families follow these accounts. Aim the irony at situations, at the league's self-importance, and at the drama of the table — never at an individual player's ability, body, background or mistakes. A goalkeeper who conceded six is "having a difficult evening", not a punchline. No profanity, nothing a parent would wince at.
+When the graphic is attached, reply with just "Done." If something needs the media team's attention — the data isn't there yet, a game they asked for couldn't be found, they asked for several games' stories — reply with one or two plain sentences saying so, and nothing else. No voice, no emoji, no hashtags.
 
 # Facts
 
-- Every score, scorer, assist, save, standing, fixture, date and name must come from your tools. Look things up before writing; do not rely on anything else.
+- Every score, scorer, assist, save, standing, fixture, date and name must come from your tools. Look things up before you decide anything; do not rely on anything else.
 - Spell player and club names exactly as the data does. CSCP is the accepted short name for Central Sporting Club Of PURO; other clubs go by their names (S.C Cairo, S.C Dakar, and so on).
-- If something the brief needs is missing — no completed games yet, an unrecorded stat — write a placeholder in square brackets, like [SCORER] or [KICKOFF TIME], so the media team can see what to fill in. Never guess.
-- Never invent quotes from real people. Obvious comic hyperbole is fine only where no reader could mistake it for a reported fact.
-- Fixtures are played in prayer-time slots (Maghrib, Isha'a, Assr) rather than at clock times; use the slot the data gives.
+- Never guess. If the tool says the data isn't there yet (no completed games, no fixtures), attach nothing and say so.
+- Fixtures are played in prayer-time slots (Maghrib, Isha'a, Assr) rather than at clock times.
 - Do not mention players' ages.
 
-# Pictures
+# The graphics
 
-The league posts four feed graphics, each a 1080×1440 image — Team of the Week, League Table, Stat Leaders and Matchweek Slate — and a 1080×1920 matchday story for each game on its day. When a brief is for one of them (or asks for a picture of one), call attach_graphic so the draft carries the image, and write the caption to go with it. A draft holds one picture, so a matchday story covers one game: if the brief asks for several games' stories, attach the first game's and say in a bracketed note that each other game needs its own draft.
+The feed graphics are 1080×1440 images; the matchday story is 1080×1920. A request holds one picture, so a matchday story covers one game: if several games' stories are asked for, attach the first game's and say in your reply that each other game needs its own request. If no game is named, use the next game to be played.
 
-- The table, stat leaders, slate and matchday story are filled in from the database automatically; you only choose the type (for a slate, optionally the week; for a matchday story, the game).
-- A story caption is short: a line or two to overlay or post alongside, not a report.
-- Power rankings are the one graphic that is your opinion. Rank all eight clubs, best first, judging results, points, goal difference and recent form (read the table and the latest box scores first), and give each a verdict of at most 90 characters in the house voice. Verdicts are about the club and its situation, never mocking an individual player. The tool adds each club's record, points and movement since the last approved rankings; do not repeat those numbers in the verdicts.
+- The table, stat leaders, slate and matchday story are filled in from the database automatically; you only choose the type (for a slate, optionally the week; for a matchday story, the game from get_games).
+- Power rankings are the one graphic that is your opinion. Rank all eight clubs, best first, judging results, points, goal difference and recent form (read the table and the latest box scores first), and give each a verdict of at most 90 characters. Write the verdicts in the voice of a breathless elite transfer journalist reporting a league played in a mosque's back field, completely deadpan: the irony is the gap between the gravity of the delivery and the size of the stakes. Verdicts are about the club and its situation, never about an individual player's ability, body, background or mistakes (many players are under 18 and their families follow these accounts). No profanity, nothing a parent would wince at. The tool adds each club's record, points and movement since the last approved rankings; do not repeat those numbers in the verdicts.
 - For Team of the Week, read that week's box scores first, then pick 1 FWD, 2 MID, 2 DEF and 1 GK, plus a Player of the Week from among the six. Prefer each player's registered position (get_club shows it). The tool checks every pick against the club's roster and works out the stat lines itself; if it reports a problem, fix the pick and call it again.
-- The image already shows the numbers, so the caption should add the story rather than repeat every figure. Do not describe the image in the caption.
-- If the tool says the data isn't there yet (no completed games, no fixtures), write the caption without a picture and say so in a bracketed note.
-- Graphics are drawn in a style. Use PURO unless the brief names another style or clearly asks for one of these by description; pass it as attach_graphic's style. Never invent a style.
+- Graphics are drawn in a style. Use ${DEFAULT_STYLE_ID} unless the request names another style; pass it as attach_graphic's style. Never invent a style.
 ${STYLES.map((s) => `  - ${s.id}: ${s.name}. ${s.description}`).join('\n')}
 
-# Output
-
-Return only the finished content, ready to paste: no preamble, no notes about how you wrote it, no markdown headings. If the brief asks for several pieces (for example a pick list and a caption, or a subject line and an email body), separate them with a line containing only ---. Instagram captions end with #CSPL unless the brief says otherwise.
-
-Past approved drafts are the clearest guide to what the media team likes; check them when the brief matches a kind of post the league has made before.`
+Past approved graphics are the clearest guide to what the media team likes; check them for power rankings, where the verdicts are yours.`
 
 /**
  * Club display names keyed by slug AND database id, so tool results read in
@@ -302,7 +275,7 @@ const tools = [
   betaTool({
     name: 'get_past_approved_drafts',
     description:
-      'Drafts the media team approved before, newest first: the best guide to the house style. Filter by kind (match_report, weekly_roundup, totw, table, stat_leaders, slate, trade, board_post, newsletter, custom) to see past posts of the same type.',
+      'Graphics the media team approved before, newest first, each with the data it showed. The best guide to the house style, above all for power-rankings verdicts. Filter by kind (matchday, totw, table, stat_leaders, slate, power_rankings).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -314,7 +287,7 @@ const tools = [
     run: async ({ kind, limit }) => {
       let query = supabaseAdmin
         .from('content_drafts')
-        .select('kind, brief, body, created_at')
+        .select('kind, brief, graphic, created_at')
         .eq('status', 'approved')
         .order('created_at', { ascending: false })
         .limit(limit ?? 3)
@@ -378,7 +351,7 @@ function attachGraphicTool(onAttach: (spec: GraphicSpec, style: string) => void)
         style: {
           type: 'string',
           enum: STYLE_IDS,
-          description: `The style to draw it in; ${PURO.id} unless the brief asks for another.`,
+          description: `The style to draw it in; ${DEFAULT_STYLE_ID} unless the brief asks for another.`,
         },
       },
       required: ['type'],
@@ -406,7 +379,7 @@ function attachGraphicTool(onAttach: (spec: GraphicSpec, style: string) => void)
             playerOfTheWeek: input.playerOfTheWeek,
           })
         }
-        const style = input.style && STYLE_IDS.includes(input.style) ? input.style : PURO.id
+        const style = input.style && STYLE_IDS.includes(input.style) ? input.style : DEFAULT_STYLE_ID
         onAttach(spec, style)
         return `Attached the ${GRAPHIC_LABELS[spec.type]} graphic in the ${style} style. It shows: ${JSON.stringify(spec)}`
       } catch (error) {
@@ -420,23 +393,23 @@ function attachGraphicTool(onAttach: (spec: GraphicSpec, style: string) => void)
 export class ContentAgentError extends Error {}
 
 export interface WrittenDraft {
+  /** A note for the media team when something needs their attention; empty otherwise. */
   text: string
-  /** The attached picture, or null for a caption-only draft. */
-  graphic: GraphicSpec | null
-  /** The style the graphic is drawn in; PURO when there is no graphic. */
+  /** The graphic the agent made. */
+  graphic: GraphicSpec
+  /** The style the graphic is drawn in; the default style when there is no graphic. */
   style: string
 }
 
 /**
- * Writes one draft for `brief`: the text, plus a graphic when the brief calls
- * for one. Throws a ContentAgentError with a message fit to show the media
+ * Makes one graphic for `brief`. Throws a ContentAgentError with a message fit to show the media
  * team when the model declines or produces nothing, and lets SDK errors (rate
  * limits, a bad key) through for the route to classify.
  */
 export async function writeDraft(brief: string, kind: string): Promise<WrittenDraft> {
   const client = new Anthropic()
   let graphic: GraphicSpec | null = null
-  let style = PURO.id
+  let style = DEFAULT_STYLE_ID
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -486,11 +459,15 @@ export async function writeDraft(brief: string, kind: string): Promise<WrittenDr
     .join('\n')
     .trim()
 
-  if (!text) {
-    throw new ContentAgentError('The agent finished without writing anything. Try again.')
-  }
   if (message.stop_reason === 'max_tokens') {
-    throw new ContentAgentError('The draft ran too long and was cut off. Ask for something shorter.')
+    throw new ContentAgentError('The graphic ran too long and was cut off. Try again.')
   }
-  return { text, graphic, style }
+  // The graphic is assigned inside the tool's callback, which the compiler cannot follow.
+  const attached = graphic as GraphicSpec | null
+  if (!attached) {
+    // No graphic means the agent explained why (usually that the data isn't there yet).
+    throw new ContentAgentError(text || 'The agent could not make this graphic. Try again.')
+  }
+  // "Done." is the expected reply; anything else is a note for the media team.
+  return { text: text === 'Done.' ? '' : text, graphic: attached, style }
 }

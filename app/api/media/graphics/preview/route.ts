@@ -3,7 +3,8 @@
  *
  *   GET ?type=table|stat_leaders|slate&ground=black|bone[&week=N] -> PNG
  *   GET ?type=matchday&game=<game id>&ground=black|bone           -> PNG
- *   Any of them also takes &style=<style id> (PURO by default).
+ *   Any of them also takes &style=<style id> (CSPL by default). Styles still under
+ *   design (DRAFT_STYLES in lib/graphics/styles.ts) can be previewed here by id.
  *
  * Team of the Week is not offered here: it needs the six picks, which only
  * come from a draft.
@@ -19,6 +20,7 @@ import {
 } from '@/lib/graphics/build'
 import { renderGraphic } from '@/lib/graphics/render'
 import { GraphicSpec, Ground, GROUNDS } from '@/lib/graphics/spec'
+import { DEFAULT_STYLE_ID } from '@/lib/graphics/styles'
 
 export async function GET(request: Request) {
   const denied = await requireMedia()
@@ -49,5 +51,5 @@ export async function GET(request: Request) {
     throw error
   }
 
-  return renderGraphic(spec, ground, params.get('style'), { 'Cache-Control': 'private, no-store' })
+  return renderGraphic(spec, ground, params.get('style') ?? DEFAULT_STYLE_ID, { 'Cache-Control': 'private, no-store' })
 }
