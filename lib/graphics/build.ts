@@ -18,11 +18,18 @@ import {
   getStatLeaders,
   getTeamBySlug,
   getTeams,
+  getTeamsWithPlayers,
 } from '../supabaseData'
 import { supabaseAdmin } from '../supabaseAdmin'
 import { LEAGUE } from '@/config/league'
 import { Game } from '@/types/game'
 import {
+  AWARD_KINDS,
+  AWARD_LABELS,
+  AWARD_RACE_MAX,
+  AWARD_RACE_MIN,
+  AwardKind,
+  AwardRaceGraphic,
   GraphicClub,
   MatchdayGraphic,
   POWER_RANKING_BLURB_MAX,
@@ -32,6 +39,7 @@ import {
   TableGraphic,
   TotwGraphic,
   TotwLine,
+  YOUNG_PLAYER_MAX_AGE,
 } from './spec'
 
 /** Thrown for input the agent can fix -- the message goes back to it verbatim. */
@@ -533,4 +541,216 @@ async function lastApprovedPowerRankings(): Promise<Map<string, number> | null> 
   if (error || !data?.graphic) return null
   const last = data.graphic as PowerRankingsGraphic
   return new Map(last.rows.map((row) => [row.club.slug, row.rank]))
+}
+
+// ---------------------------------------------------------------------------
+// Award races
+// ---------------------------------------------------------------------------
+
+/** One player's season so far, with the facts an award is judged on. */
+export interface AwardPoolEntry {
+  player: string
+  club: GraphicClub
+  position: string
+  goals: number
+  assists: number
+  saves: number
+  /** The club's, not the player's. */
+  clubCleanSheets: number
+  clubGoalsAgainst: number
+  /** Why they cannot be put forward for this award, or null when they can. */
+  ineligible: string | null
+  age: number | null
+}
+
+/**
+ * Every active player with their season totals, from the completed games'
+ * box scores, and whether they are eligible for `award`. Eligibility is the
+ * only place age is used; it never appears on a graphic.
+ */
+async function awardPool(award: AwardKind): Promise<AwardPoolEntry[]> {
+  const [teams, games, standings] = await Promise.all([
+    getTeamsWithPlayers(),
+    getAllGames(),
+    getStandings(),
+  ])
+  const completed = games.filter((g) => g.status === 'completed')
+
+  const totals = new Map<string, { goal: number; assist: number; save: number }>()
+  for (const game of completed) {
+    for (const stat of game.statistics) {
+      if (stat.type !== 'goal' && stat.type !== 'assist' && stat.type !== 'save') continue
+      const entry = totals.get(stat.playerId) ?? { goal: 0, assist: 0, save: 0 }
+      entry[stat.type] += stat.count ?? 1
+      totals.set(stat.playerId, entry)
+    }
+  }
+
+  const cleanSheets = (slug: string) =>
+    completed.filter(
+      (g) =>
+        (g.homeTeamId === slug && g.awayScore === 0) || (g.awayTeamId === slug && g.homeScore === 0)
+    ).length
+  const against = new Map(standings.map((row) => [row.teamSlug, row.goalsAgainst]))
+
+  const pool: AwardPoolEntry[] = []
+  for (const team of teams) {
+    const club = { slug: team.slug, name: team.short_name || team.name }
+    for (const player of team.players.filter((p) => p.is_active)) {
+      const stats = totals.get(player.id) ?? { goal: 0, assist: 0, save: 0 }
+      const position = (player.position ?? '').trim()
+      const age = player.age ?? null
+
+      let ineligible: string | null = null
+      if (award === 'young_player') {
+        if (age === null) ineligible = 'has no age on record, so cannot be checked for the Young Player award'
+        else if (age > YOUNG_PLAYER_MAX_AGE) ineligible = 'is too old for the Young Player award'
+      } else if (award === 'best_keeper') {
+        if (normalise(position) !== 'goalkeeper' && stats.save === 0) ineligible = 'is not a goalkeeper'
+      } else if (award === 'best_defender') {
+        if (normalise(position) !== 'defender') ineligible = 'is not a defender'
+      }
+
+      pool.push({
+        player: player.name,
+        club,
+        position: position || 'Flexible',
+        goals: stats.goal,
+        assists: stats.assist,
+        saves: stats.save,
+        clubCleanSheets: cleanSheets(team.slug),
+        clubGoalsAgainst: against.get(team.slug) ?? 0,
+        ineligible,
+        age,
+      })
+    }
+  }
+  return pool
+}
+
+/**
+ * The players the content agent should weigh for an award, with their season
+ * totals: only those eligible, best first by the award's obvious measure
+ * (goals and assists; saves; the club's clean sheets), at most 20. Age is
+ * left out -- the agent never needs it, only the eligibility it decides.
+ */
+export async function awardCandidates(award: AwardKind) {
+  const pool = (await awardPool(award)).filter((e) => !e.ineligible)
+  const score = (e: AwardPoolEntry) =>
+    award === 'best_keeper'
+      ? e.saves
+      : award === 'best_defender'
+        ? e.clubCleanSheets * 100 - e.clubGoalsAgainst
+        : e.goals + e.assists
+  return pool
+    .filter((e) => award === 'best_defender' || award === 'best_keeper' || e.goals + e.assists + e.saves > 0)
+    .sort((a, b) => score(b) - score(a) || a.player.localeCompare(b.player))
+    .slice(0, 20)
+    .map((e) => ({
+      player: e.player,
+      club: e.club,
+      position: e.position,
+      goals: e.goals,
+      assists: e.assists,
+      saves: e.saves,
+      clubCleanSheets: e.clubCleanSheets,
+      clubGoalsAgainst: e.clubGoalsAgainst,
+    }))
+}
+
+/** What the agent hands over for an award race: the candidates, best first. */
+export interface AwardRaceInput {
+  award: AwardKind
+  candidates: { player: string; club: string }[]
+}
+
+/**
+ * An award race from the agent's order. Checks each candidate is a real,
+ * eligible player on the club named, then adds what is fact: their goals,
+ * assists, saves and the club figures the award is read against.
+ */
+export async function buildAwardRace(input: AwardRaceInput): Promise<AwardRaceGraphic> {
+  if (!AWARD_KINDS.includes(input.award)) {
+    throw new GraphicInputError(`award must be one of: ${AWARD_KINDS.join(', ')}.`)
+  }
+  const count = input.candidates.length
+  if (count < AWARD_RACE_MIN || count > AWARD_RACE_MAX) {
+    throw new GraphicInputError(
+      `An award race shows ${AWARD_RACE_MIN} to ${AWARD_RACE_MAX} candidates; you gave ${count}.`
+    )
+  }
+
+  const [pool, teams, games, season] = await Promise.all([
+    awardPool(input.award),
+    getTeams(),
+    getAllGames(),
+    seasonLabel(),
+  ])
+  const findTeam = (club: string) =>
+    teams.find((t) =>
+      [t.slug, t.name, t.short_name ?? ''].some((v) => normalise(v) === normalise(club))
+    )
+
+  const entries = input.candidates.map((candidate) => {
+    const team = findTeam(candidate.club)
+    if (!team) throw new GraphicInputError(`No club called "${candidate.club}".`)
+    const entry = pool.find(
+      (e) => e.club.slug === team.slug && normalise(e.player) === normalise(candidate.player)
+    )
+    if (!entry) {
+      throw new GraphicInputError(
+        `"${candidate.player}" is not on ${team.name}'s roster. Use get_award_candidates for exact names.`
+      )
+    }
+    if (entry.ineligible) {
+      throw new GraphicInputError(
+        `${entry.player} ${entry.ineligible}. Choose from get_award_candidates for ${AWARD_LABELS[input.award]}.`
+      )
+    }
+    return entry
+  })
+  if (new Set(entries.map((e) => `${e.club.slug}|${normalise(e.player)}`)).size !== entries.length) {
+    throw new GraphicInputError('The same player is listed twice.')
+  }
+
+  const figures = (e: AwardPoolEntry) => {
+    if (input.award === 'best_keeper') {
+      return [
+        { label: 'Saves', value: e.saves },
+        { label: 'CS', value: e.clubCleanSheets },
+        { label: 'GA', value: e.clubGoalsAgainst },
+      ]
+    }
+    if (input.award === 'best_defender') {
+      return [
+        { label: 'CS', value: e.clubCleanSheets },
+        { label: 'GA', value: e.clubGoalsAgainst },
+        { label: 'G+A', value: e.goals + e.assists },
+      ]
+    }
+    return [
+      { label: 'Goals', value: e.goals },
+      { label: 'Assists', value: e.assists },
+      { label: 'G+A', value: e.goals + e.assists },
+    ]
+  }
+
+  return {
+    type: 'award_race',
+    season,
+    award: input.award,
+    afterWeek: lastCompletedWeek(games),
+    legend:
+      input.award === 'best_keeper'
+        ? "CS clean sheets · GA goals against (both are the club's)"
+        : input.award === 'best_defender'
+          ? "CS clean sheets · GA goals against (both are the club's) · G+A goals plus assists"
+          : null,
+    rows: entries.map((e, index) => ({
+      rank: index + 1,
+      player: e.player,
+      club: e.club,
+      stats: figures(e),
+    })),
+  }
 }

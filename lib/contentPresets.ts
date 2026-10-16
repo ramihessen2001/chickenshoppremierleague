@@ -18,6 +18,8 @@ export interface ContentPreset {
   brief: string
   /** Hint for the optional detail field. */
   detailHint: string
+  /** When the graphic comes in kinds the team must pick between (the four awards). */
+  choices?: { value: string; label: string }[]
 }
 
 export const CONTENT_PRESETS: ContentPreset[] = [
@@ -59,14 +61,33 @@ export const CONTENT_PRESETS: ContentPreset[] = [
       'Make the Power Rankings graphic: rank all eight clubs after the latest matchweek, with a one-line verdict on each.',
     detailHint: 'Anything to weigh? e.g. a club on a streak. Blank: judge on results and form.',
   },
+  {
+    kind: 'award_race',
+    label: 'Award Race',
+    brief:
+      'Make the Award Race graphic: the top candidates for the award, best first, judged on the season so far.',
+    detailHint: 'Anything to weigh? e.g. a player who has missed games. Blank: judge on the figures.',
+    choices: [
+      { value: 'mvp', label: 'MVP' },
+      { value: 'young_player', label: 'Young Player of the Year' },
+      { value: 'best_keeper', label: 'Best Keeper' },
+      { value: 'best_defender', label: 'Best Defender' },
+    ],
+  },
 ]
 
 /** The brief the agent works from: the preset's, plus the team's detail if any. */
-export function buildBrief(kind: string, details: string): string | null {
+export function buildBrief(kind: string, details: string, choice = ''): string | null {
   const preset = CONTENT_PRESETS.find((p) => p.kind === kind)
   if (!preset) return null
+  let brief = preset.brief
+  if (preset.choices) {
+    const picked = preset.choices.find((c) => c.value === choice)
+    if (!picked) return null
+    brief = `${brief} The award: ${picked.label} (award = ${picked.value}).`
+  }
   const extra = details.trim()
-  return extra ? `${preset.brief}\n\nFrom the media team: ${extra}` : preset.brief
+  return extra ? `${brief}\n\nFrom the media team: ${extra}` : brief
 }
 
 /** Display label for a stored kind; drafts made before the desk was graphics-only fall back. */

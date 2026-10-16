@@ -29,6 +29,8 @@ import {
 } from './supabaseData'
 import { supabaseAdmin } from './supabaseAdmin'
 import {
+  awardCandidates,
+  buildAwardRace,
   buildMatchday,
   buildPowerRankings,
   buildSlate,
@@ -37,7 +39,7 @@ import {
   buildTotw,
   GraphicInputError,
 } from './graphics/build'
-import { GRAPHIC_LABELS, GraphicSpec } from './graphics/spec'
+import { AWARD_KINDS, GRAPHIC_LABELS, GraphicSpec, YOUNG_PLAYER_MAX_AGE } from './graphics/spec'
 import { DEFAULT_STYLE_ID, STYLE_IDS, STYLES } from './graphics/styles'
 import { LEAGUE } from '@/config/league'
 import { Game } from '@/types/game'
@@ -52,7 +54,7 @@ const SYSTEM_PROMPT = `You make the graphics for the ${LEAGUE.name} (${LEAGUE.sh
 
 # Your job
 
-You make pictures, not captions. Each request is for one of six graphics: a Matchday Story, Team of the Week, League Table, Stat Leaders, Matchweek Slate or Power Rankings. Call attach_graphic to make it. Never write a caption, a headline or any social copy: the media team writes those themselves.
+You make pictures, not captions. Each request is for one of seven graphics: a Matchday Story, Team of the Week, League Table, Stat Leaders, Matchweek Slate, Power Rankings or an Award Race. Call attach_graphic to make it. Never write a caption, a headline or any social copy: the media team writes those themselves.
 
 When the graphic is attached, reply with just "Done." If something needs the media team's attention — the data isn't there yet, a game they asked for couldn't be found, they asked for several games' stories — reply with one or two plain sentences saying so, and nothing else. No voice, no emoji, no hashtags.
 
@@ -70,6 +72,7 @@ The feed graphics are 1080×1440 images; the matchday story is 1080×1920. A req
 
 - The table, stat leaders, slate and matchday story are filled in from the database automatically; you only choose the type (for a slate, optionally the week; for a matchday story, the game from get_games).
 - Power rankings are the one graphic that is your opinion. Rank all eight clubs, best first, judging results, points, goal difference and recent form (read the table and the latest box scores first), and give each a verdict of at most 90 characters. Write the verdicts in the voice of a breathless elite transfer journalist reporting a league played in a mosque's back field, completely deadpan: the irony is the gap between the gravity of the delivery and the size of the stakes. Verdicts are about the club and its situation, never about an individual player's ability, body, background or mistakes (many players are under 18 and their families follow these accounts). No profanity, nothing a parent would wince at. The tool adds each club's record, points and movement since the last approved rankings; do not repeat those numbers in the verdicts.
+- An Award Race is your judgment on four awards: MVP (the player with the most impact on the league so far), Young Player of the Year (the same, limited to young players), Best Keeper and Best Defender. Call get_award_candidates for the award, weigh what it shows, and put forward the top 5 (3 or 4 only if fewer are eligible), best first, by calling attach_graphic with type award_race, the award and the candidates. Judge on what the figures show: goals and assists for the first two; saves, and how few goals and how many clean sheets the keeper's club has, for Best Keeper; the club's clean sheets and goals against, plus any goals and assists, for Best Defender. If the figures are close or thin, say so in your reply. The tool works out the figures and refuses anyone ineligible. Never mention a player's age.
 - For Team of the Week, read that week's box scores first, then pick 1 FWD, 2 MID, 2 DEF and 1 GK, plus a Player of the Week from among the six. Prefer each player's registered position (get_club shows it). The tool checks every pick against the club's roster and works out the stat lines itself; if it reports a problem, fix the pick and call it again.
 - Graphics are drawn in a style. Use ${DEFAULT_STYLE_ID} unless the request names another style; pass it as attach_graphic's style. Never invent a style.
 ${STYLES.map((s) => `  - ${s.id}: ${s.name}. ${s.description}`).join('\n')}
@@ -258,6 +261,18 @@ const tools = [
   }),
 
   betaTool({
+    name: 'get_award_candidates',
+    description: `The players who can be put forward for an award race, with their season totals so far, best first by the award's obvious measure (at most 20). Only eligible players are listed: Young Player of the Year is limited to players of ${YOUNG_PLAYER_MAX_AGE} and under, Best Keeper to goalkeepers, Best Defender to defenders. Goals, assists and saves are the player's; clubCleanSheets and clubGoalsAgainst are their club's. Use the exact names it gives.`,
+    inputSchema: {
+      type: 'object',
+      properties: { award: { type: 'string', enum: AWARD_KINDS } },
+      required: ['award'],
+      additionalProperties: false,
+    },
+    run: async ({ award }) => JSON.stringify(await awardCandidates(award)),
+  }),
+
+  betaTool({
     name: 'get_recent_board_posts',
     description:
       "The latest commissioner's board posts on the site, newest first, so you know what has already been announced.",
@@ -275,7 +290,7 @@ const tools = [
   betaTool({
     name: 'get_past_approved_drafts',
     description:
-      'Graphics the media team approved before, newest first, each with the data it showed. The best guide to the house style, above all for power-rankings verdicts. Filter by kind (matchday, totw, table, stat_leaders, slate, power_rankings).',
+      'Graphics the media team approved before, newest first, each with the data it showed. The best guide to the house style, above all for power-rankings verdicts. Filter by kind (matchday, totw, table, stat_leaders, slate, power_rankings, award_race).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -309,11 +324,22 @@ function attachGraphicTool(onAttach: (spec: GraphicSpec, style: string) => void)
   return betaTool({
     name: 'attach_graphic',
     description:
-      "Attach one of the league's graphics to this draft. table, stat_leaders and slate are 1080x1440 posts built from the database (slate takes an optional week; without one it shows the next week with games to play). matchday is a 1080x1920 Instagram story for one game, built from the database: pass its gameId from get_games. power_rankings needs week and ranking: every club exactly once, best first, each with a verdict of at most 90 characters; records, points and movement are added for you. totw needs week, the six picks (1 FWD, 2 MID, 2 DEF, 1 GK) and playerOfTheWeek, who must be one of the picks; each pick is a player's exact name and their club (slug or name). Calling it again replaces the attached graphic.",
+      "Attach one of the league's graphics to this draft. award_race needs award and candidates: the top 3 to 5 players for that award, best first, each a player's exact name and their club; the figures are added for you and the tool checks every player is eligible. table, stat_leaders and slate are 1080x1440 posts built from the database (slate takes an optional week; without one it shows the next week with games to play). matchday is a 1080x1920 Instagram story for one game, built from the database: pass its gameId from get_games. power_rankings needs week and ranking: every club exactly once, best first, each with a verdict of at most 90 characters; records, points and movement are added for you. totw needs week, the six picks (1 FWD, 2 MID, 2 DEF, 1 GK) and playerOfTheWeek, who must be one of the picks; each pick is a player's exact name and their club (slug or name). Calling it again replaces the attached graphic.",
     inputSchema: {
       type: 'object',
       properties: {
-        type: { type: 'string', enum: ['totw', 'table', 'stat_leaders', 'slate', 'matchday', 'power_rankings'] },
+        type: { type: 'string', enum: ['totw', 'table', 'stat_leaders', 'slate', 'matchday', 'power_rankings', 'award_race'] },
+        award: { type: 'string', enum: AWARD_KINDS, description: 'For award_race: which award.' },
+        candidates: {
+          type: 'array',
+          description: 'For award_race: the top 3 to 5 candidates, best first.',
+          items: {
+            type: 'object',
+            properties: { player: { type: 'string' }, club: { type: 'string', description: 'Slug or name.' } },
+            required: ['player', 'club'],
+            additionalProperties: false,
+          },
+        },
         week: { type: 'integer', minimum: 1 },
         gameId: { type: 'string', description: 'For matchday: the game, from get_games.' },
         ranking: {
@@ -366,6 +392,9 @@ function attachGraphicTool(onAttach: (spec: GraphicSpec, style: string) => void)
         else if (input.type === 'matchday') {
           if (!input.gameId) return 'Error: matchday needs gameId.'
           spec = await buildMatchday(input.gameId)
+        } else if (input.type === 'award_race') {
+          if (!input.award || !input.candidates) return 'Error: award_race needs award and candidates.'
+          spec = await buildAwardRace({ award: input.award, candidates: input.candidates })
         } else if (input.type === 'power_rankings') {
           if (!input.week || !input.ranking) return 'Error: power_rankings needs week and ranking.'
           spec = await buildPowerRankings({ week: input.week, ranking: input.ranking })

@@ -2,10 +2,10 @@
  * Content desk drafts. Media team (or admin) only.
  *
  *   GET  -> { drafts }               newest first, discarded ones left out
- *   POST -> { kind, details? } -> { drafts }
+ *   POST -> { kind, details?, choice? } -> { drafts }
  *           makes one of the six graphics and saves it as a new draft. `kind`
  *           is one of CONTENT_PRESETS; `details` is an optional line (which
- *           week). Matchday Stories makes one draft per game of the matchweek,
+ *           week; `choice` picks the award for an Award Race). Matchday Stories makes one draft per game of the matchweek,
  *           straight from the schedule; the other five run the content agent.
  *           Nothing is published: the media team reviews it next.
  */
@@ -48,14 +48,14 @@ export async function POST(request: Request) {
   const denied = await requireMedia()
   if (denied) return denied
 
-  const body = await readJson<{ kind?: string; details?: string }>(request)
+  const body = await readJson<{ kind?: string; details?: string; choice?: string }>(request)
   const details = typeof body?.details === 'string' ? body.details.trim() : ''
   if (details.length > MAX_DETAILS_LENGTH) {
     return fail(`Keep the details under ${MAX_DETAILS_LENGTH} characters`)
   }
   const kind = body?.kind ?? ''
-  const brief = buildBrief(kind, details)
-  if (!brief) return fail('Choose which graphic to make')
+  const brief = buildBrief(kind, details, body?.choice ?? '')
+  if (!brief) return fail(kind === 'award_race' ? 'Choose which award' : 'Choose which graphic to make')
 
   // Matchday stories are all schedule data, no judgment: one per game of the
   // matchweek, with no agent involved.

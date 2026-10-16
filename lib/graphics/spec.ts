@@ -12,7 +12,14 @@
  * the server.
  */
 
-export type GraphicType = 'totw' | 'table' | 'stat_leaders' | 'slate' | 'matchday' | 'power_rankings'
+export type GraphicType =
+  | 'totw'
+  | 'table'
+  | 'stat_leaders'
+  | 'slate'
+  | 'matchday'
+  | 'power_rankings'
+  | 'award_race'
 export type Ground = 'black' | 'bone'
 
 export const GRAPHIC_TYPES: GraphicType[] = [
@@ -22,6 +29,7 @@ export const GRAPHIC_TYPES: GraphicType[] = [
   'slate',
   'matchday',
   'power_rankings',
+  'award_race',
 ]
 
 /** Pixel size of each graphic: the four feed posts are 3:4, the matchday story 9:16. */
@@ -32,6 +40,7 @@ export const GRAPHIC_SIZES: Record<GraphicType, { width: number; height: number 
   slate: { width: 1080, height: 1440 },
   matchday: { width: 1080, height: 1920 },
   power_rankings: { width: 1080, height: 1440 },
+  award_race: { width: 1080, height: 1440 },
 }
 export const GROUNDS: Ground[] = ['black', 'bone']
 
@@ -159,7 +168,58 @@ export interface PowerRankingsGraphic {
 /** A verdict has to fit two lines beside the crest. */
 export const POWER_RANKING_BLURB_MAX = 90
 
+/** The four awards the league runs a race for. */
+export type AwardKind = 'mvp' | 'young_player' | 'best_keeper' | 'best_defender'
+export const AWARD_KINDS: AwardKind[] = ['mvp', 'young_player', 'best_keeper', 'best_defender']
+
+export const AWARD_LABELS: Record<AwardKind, string> = {
+  mvp: 'MVP',
+  young_player: 'Young Player of the Year',
+  best_keeper: 'Best Keeper',
+  best_defender: 'Best Defender',
+}
+
+/** What the graphic's title bar says: the full award names do not fit one line. */
+export const AWARD_RACE_TITLES: Record<AwardKind, string> = {
+  mvp: 'MVP Race',
+  young_player: 'Young Player Race',
+  best_keeper: 'Best Keeper Race',
+  best_defender: 'Best Defender Race',
+}
+
+/**
+ * Young Player of the Year is open to players of this age and under, as
+ * registered. Change it here if the league moves the cutoff.
+ */
+export const YOUNG_PLAYER_MAX_AGE = 18
+
+/** Candidates a race shows: the top few, as many as the league has to show. */
+export const AWARD_RACE_MIN = 3
+export const AWARD_RACE_MAX = 5
+
+/**
+ * The race for one award: the top candidates in the order the content agent
+ * judged them, each with figures computed from the box scores. The order is
+ * the agent's opinion; every number is fact.
+ */
+export interface AwardRaceGraphic {
+  type: 'award_race'
+  season: string
+  award: AwardKind
+  afterWeek: number | null
+  /** What the figures mean, where the labels are short, e.g. "CS clean sheets (club)". */
+  legend: string | null
+  rows: {
+    rank: number
+    player: string
+    club: GraphicClub
+    /** Three figures, the same three labels on every row. */
+    stats: { label: string; value: number }[]
+  }[]
+}
+
 export type GraphicSpec =
+  | AwardRaceGraphic
   | PowerRankingsGraphic
   | TableGraphic
   | StatLeadersGraphic
@@ -174,4 +234,5 @@ export const GRAPHIC_LABELS: Record<GraphicType, string> = {
   slate: 'Matchweek Slate',
   matchday: 'Matchday Story',
   power_rankings: 'Power Rankings',
+  award_race: 'Award Race',
 }

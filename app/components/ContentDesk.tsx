@@ -13,7 +13,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { buttonPrimary, buttonSecondary, fieldClass, FormError, labelClass } from './Modal'
 import { CONTENT_PRESETS, presetLabel } from '@/lib/contentPresets'
-import { GRAPHIC_LABELS, GRAPHIC_SIZES, Ground } from '@/lib/graphics/spec'
+import { AWARD_LABELS, GRAPHIC_LABELS, GRAPHIC_SIZES, Ground } from '@/lib/graphics/spec'
 import { resolveStyle, selectableStyles } from '@/lib/graphics/styles'
 import { ContentDraft, ContentDraftStatus } from '@/types/contentDraft'
 
@@ -128,6 +128,7 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
 
   const [kind, setKind] = useState('')
   const [details, setDetails] = useState('')
+  const [choice, setChoice] = useState('')
   const [isWriting, setIsWriting] = useState(false)
   const [writeError, setWriteError] = useState<string | null>(null)
 
@@ -154,13 +155,17 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
       setWriteError('Choose which graphic to make')
       return
     }
+    if (chosen.choices && !choice) {
+      setWriteError('Choose which award')
+      return
+    }
     setIsWriting(true)
     setWriteError(null)
     try {
       const response = await fetch('/api/media/drafts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind, details }),
+        body: JSON.stringify({ kind, details, choice }),
       })
       if (response.status === 401) return onSignedOut()
       if (!response.ok) {
@@ -172,6 +177,7 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
       setView('draft')
       setDetails('')
       setKind('')
+      setChoice('')
     } catch {
       setWriteError('Lost the connection while the graphic was being made. Try again.')
     } finally {
@@ -221,6 +227,7 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
                 type="button"
                 onClick={() => {
                   setKind(preset.kind)
+                  setChoice('')
                   setWriteError(null)
                 }}
                 disabled={isWriting}
@@ -235,6 +242,35 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
               </button>
             ))}
           </div>
+
+          {chosen?.choices && (
+            <>
+              <p id="award-choice" className={`mt-6 ${labelClass}`}>
+                Which award
+              </p>
+              <div className="grid grid-cols-2 gap-2" role="group" aria-labelledby="award-choice">
+                {chosen.choices.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      setChoice(option.value)
+                      setWriteError(null)
+                    }}
+                    disabled={isWriting}
+                    aria-pressed={choice === option.value}
+                    className={`border px-3 py-3 text-left text-[14px] font-medium transition-colors disabled:opacity-50 ${
+                      choice === option.value
+                        ? 'border-hairline-strong bg-surface-inverse text-ink-inverse'
+                        : 'border-hairline-strong text-ink hover:bg-surface-hover'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
 
           <label htmlFor="desk-details" className={`mt-6 ${labelClass}`}>
             Details <span className="font-normal text-ink-tertiary">(optional)</span>
@@ -364,7 +400,10 @@ function DraftCard({
   return (
     <article className="border border-hairline">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-hairline px-5 py-3">
-        <p className="eyebrow">{presetLabel(draft.kind)}</p>
+        <p className="eyebrow">
+          {presetLabel(draft.kind)}
+          {draft.graphic?.type === 'award_race' && ` · ${AWARD_LABELS[draft.graphic.award]}`}
+        </p>
         <p className="font-util text-[12px] text-ink-tertiary">{formatWhen(draft.createdAt)}</p>
       </div>
 

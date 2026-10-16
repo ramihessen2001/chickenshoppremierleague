@@ -24,6 +24,9 @@ import { join } from 'node:path'
 import type { ReactNode } from 'react'
 import { ImageResponse } from 'next/og'
 import {
+  AWARD_LABELS,
+  AWARD_RACE_TITLES,
+  AwardRaceGraphic,
   GRAPHIC_SIZES,
   GraphicSpec,
   Ground,
@@ -1332,8 +1335,119 @@ function PowerRankings({ spec, t }: { spec: PowerRankingsGraphic; t: Theme }) {
   )
 }
 
+/**
+ * The race for one award: the top candidates, each with three figures. Rows
+ * are bars like the table's, the leader in the highlight colours.
+ */
+function AwardRace({ spec, t }: { spec: AwardRaceGraphic; t: Theme }) {
+  const labels = spec.rows[0]?.stats.map((s) => s.label) ?? []
+  const rowHeight = spec.rows.length > 4 ? 112 : 128
+  const STAT_W = 96
+  const GAP = 10
+  const statsWidth = labels.length * STAT_W + (labels.length - 1) * GAP
+  return (
+    <Frame t={t} season={spec.season} kicker={afterWeekLabel(spec.afterWeek)} title={AWARD_RACE_TITLES[spec.award]}>
+      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 28 }}>
+        <div style={{ display: 'flex', fontSize: 22, letterSpacing: 3, textTransform: 'uppercase', color: t.accent }}>
+          {`Top ${spec.rows.length} · ${AWARD_LABELS[spec.award]}`}
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-end',
+            marginTop: 22,
+            paddingBottom: 14,
+            borderBottom: `${t.heavyW}px solid ${t.heavy}`,
+            fontSize: 19,
+            letterSpacing: 2,
+            textTransform: 'uppercase',
+            color: t.ink2,
+          }}
+        >
+          <div style={{ width: 70, display: 'flex' }}>#</div>
+          <div style={{ flexGrow: 1, display: 'flex' }}>Player</div>
+          <div style={{ display: 'flex', width: statsWidth, gap: GAP }}>
+            {labels.map((label) => (
+              <div key={label} style={{ width: STAT_W, display: 'flex', justifyContent: 'center' }}>
+                {label}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {spec.rows.map((row, ri) => {
+          const lead = t.bars && t.style.highlightLeader && ri === 0
+          const quiet = t.bars ? (lead ? t.highlightInk : t.barInk2) : t.ink2
+          return (
+            <div
+              key={`${row.player}-${ri}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 18,
+                ...(t.bars
+                  ? { ...barSurface(t, lead), height: rowHeight - 10, marginTop: 10, padding: '0 14px 0 12px' }
+                  : { height: rowHeight, borderBottom: `${t.lightW}px solid ${t.rule}` }),
+              }}
+            >
+              <div style={{ width: 58, display: 'flex', justifyContent: 'center' }}>
+                {t.bars ? (
+                  <FigureBox t={t} value={row.rank} width={58} height={58} fontSize={36} inverse={lead} />
+                ) : (
+                  <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 52, lineHeight: 1 }}>
+                    {row.rank}
+                  </div>
+                )}
+              </div>
+              <Crest slug={row.club.slug} box={t.crest(68)} plate={t.plate} />
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+                <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 36, lineHeight: 1, textTransform: 'uppercase' }}>
+                  {row.player}
+                </div>
+                <div style={{ display: 'flex', fontSize: 19, letterSpacing: 1.5, textTransform: 'uppercase', color: quiet }}>
+                  {row.club.name}
+                </div>
+              </div>
+              <div style={{ display: 'flex', width: statsWidth, gap: GAP }}>
+                {row.stats.map((stat) =>
+                  t.bars ? (
+                    <FigureBox
+                      key={stat.label}
+                      t={t}
+                      value={stat.value}
+                      width={STAT_W}
+                      height={rowHeight - 38}
+                      fontSize={38}
+                    />
+                  ) : (
+                    <div
+                      key={stat.label}
+                      style={{ width: STAT_W, display: 'flex', justifyContent: 'center', fontFamily: DISPLAY, fontWeight: 700, fontSize: 38 }}
+                    >
+                      {stat.value}
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
+          )
+        })}
+
+        {spec.legend && (
+          <div style={{ display: 'flex', marginTop: 24, fontSize: 18, lineHeight: 1.5, letterSpacing: 1, textTransform: 'uppercase', color: t.ink2 }}>
+            {spec.legend}
+          </div>
+        )}
+      </div>
+    </Frame>
+  )
+}
+
 function Graphic({ spec, t }: { spec: GraphicSpec; t: Theme }) {
   switch (spec.type) {
+    case 'award_race':
+      return <AwardRace spec={spec} t={t} />
     case 'power_rankings':
       return <PowerRankings spec={spec} t={t} />
     case 'matchday':
