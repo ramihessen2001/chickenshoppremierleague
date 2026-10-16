@@ -589,7 +589,7 @@ function Masthead({
       <Crest slug="cspl" box={tab ? 124 : 100} />
       {tab ? (
         <div style={{ display: 'flex', flexGrow: 1, flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 42, lineHeight: 1, textTransform: 'uppercase' }}>
+          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 40, lineHeight: 1, textTransform: 'uppercase' }}>
             YM Chicken Shop Premier League
           </div>
           {t.style.showSeason && (
@@ -599,6 +599,8 @@ function Masthead({
       ) : (
         name
       )}
+      {/* The YM Soccer badge, at the right-hand end of the masthead. */}
+      {tab && <Crest slug="ymsoccer" box={104} />}
       {!tab && (
         <div style={{ display: 'flex', fontSize: 22, letterSpacing: 2, textTransform: 'uppercase', color: t.accent }}>{kicker}</div>
       )}
