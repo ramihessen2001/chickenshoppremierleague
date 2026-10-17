@@ -22,6 +22,7 @@ import { LiveNow } from './LiveNow'
 import { CommissionersBoard } from './CommissionersBoard'
 import { LiveStreamHero } from './LiveStreamHero'
 import { useAdmin } from '@/lib/adminContext'
+import { devSandboxActive } from '@/lib/devSandbox'
 import { useTeams } from '@/lib/teamsContext'
 import { LEAGUE } from '@/config/league'
 import {
@@ -174,6 +175,23 @@ function heroActions(state: {
   }
 }
 
+/**
+ * Local preview of the livestream view: under `next dev` only, opening the
+ * homepage with ?live=1 (a sample YouTube live stream) or ?live=<YouTube link>
+ * shows the stream as if the admin had gone live, in any phase. Production
+ * ignores the parameter entirely.
+ */
+// Any always-available video stands in for the stream: the player is what is
+// being previewed, not the content.
+const SAMPLE_LIVE_URL = 'https://www.youtube.com/watch?v=jNQXAC9IVRw'
+
+function simulatedLiveUrl(): string | null {
+  if (!devSandboxActive || typeof window === 'undefined') return null
+  const value = new URLSearchParams(window.location.search).get('live')
+  if (!value) return null
+  return value === '1' ? SAMPLE_LIVE_URL : value
+}
+
 const BUTTON_STYLES: Record<HeroAction['variant'], string> = {
   primary:
     'rounded-pill bg-surface-inverse px-5 py-2.5 text-[14px] font-medium text-ink-inverse transition-opacity hover:opacity-85',
@@ -299,7 +317,8 @@ export function HomePageClient() {
   const showsCommissionersBoard = phase === 'season' || phase === 'playoffs'
   // Read only in the phases where the board shows, so a link left set at the
   // end of the playoffs can never cover the registration form next season.
-  const liveStreamUrl = showsCommissionersBoard ? config?.live_stream_url || null : null
+  const liveStreamUrl =
+    simulatedLiveUrl() ?? (showsCommissionersBoard ? config?.live_stream_url || null : null)
 
   const actions = heroActions({
     phase,
@@ -317,7 +336,13 @@ export function HomePageClient() {
     <div>
       <LiveNow />
 
-      <section className="mx-auto max-w-6xl px-5 pt-20 pb-16 sm:px-8 sm:pt-28 sm:pb-20">
+      {/* The roomy top padding suits the headline; above a livestream it is
+          just a gap between the header and the stream, so it tightens. */}
+      <section
+        className={`mx-auto max-w-6xl px-5 sm:px-8 ${
+          liveStreamUrl ? 'pt-8 pb-2 sm:pt-12 sm:pb-4' : 'pt-20 pb-16 sm:pt-28 sm:pb-20'
+        }`}
+      >
         {/* While registration is open the form sits beside the headline, and
             once the season starts (through to the playoffs) the commissioner's
             board takes that slot instead, so the first thing on the page is

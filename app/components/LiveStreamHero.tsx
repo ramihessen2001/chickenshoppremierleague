@@ -6,15 +6,43 @@
  * Unlike LiveNow, which follows a single game's status, this has nothing to
  * end it automatically: it shows until the admin clears the link from the
  * admin bar.
+ *
+ * The stream's own title (from YouTube, via /api/live-title) leads the block,
+ * standing in for the homepage headline it replaces. Until it arrives, or if
+ * YouTube does not give one, the block simply starts at "Live now".
  */
 
+'use client'
+
+import { useEffect, useState } from 'react'
 import { youTubeEmbedUrl, youTubeVideoId, youTubeWatchUrl } from '@/lib/youtube'
 
 export function LiveStreamHero({ url }: { url: string }) {
   const videoId = youTubeVideoId(url)
+  const [title, setTitle] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!videoId) return
+    let cancelled = false
+    fetch(`/api/live-title?url=${encodeURIComponent(url)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!cancelled) setTitle(typeof data?.title === 'string' ? data.title : null)
+      })
+      .catch(() => {
+        if (!cancelled) setTitle(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [url, videoId])
 
   return (
     <div>
+      {title && (
+        <h1 className="mb-6 max-w-4xl text-[2.25rem] text-ink sm:text-[3.25rem]">{title}</h1>
+      )}
+
       <div className="flex items-center gap-2.5">
         <span className="relative flex h-2 w-2" aria-hidden="true">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-negative opacity-60" />
@@ -34,7 +62,7 @@ export function LiveStreamHero({ url }: { url: string }) {
             {/* 16:9, held by aspect-ratio so it scales on any width. */}
             <iframe
               src={youTubeEmbedUrl(videoId)}
-              title="League livestream"
+              title={title ?? 'League livestream'}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
               className="aspect-video w-full"

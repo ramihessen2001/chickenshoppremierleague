@@ -77,7 +77,10 @@ export function WeeklyGames({ games, weekNumber }: WeeklyGamesProps) {
             No fixtures scheduled for this week.
           </p>
         ) : (
-          <ul className="mt-8 grid gap-4 sm:grid-cols-2">
+          <ul className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* grid-cols-1 is minmax(0, 1fr): without it the one implicit
+                column sizes to its content, and the untruncated venue line
+                pushed the cards past a phone's width. */}
             {games.map((game) => (
               <li key={game.id}>
                 <FixtureCard
