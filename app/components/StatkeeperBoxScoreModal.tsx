@@ -46,6 +46,7 @@ interface StatRow {
 
 const STAT_TYPES: [StatkeeperStatType, string][] = [
   ['goal', 'Goal'],
+  ['own_goal', 'Own goal'],
   ['assist', 'Assist'],
   ['save', 'Save'],
   ['yellow_card', 'Yellow card'],
@@ -126,12 +127,17 @@ export function StatkeeperBoxScoreModal({
     let home = 0
     let away = 0
 
+    // A goal counts for the scorer's club; an own goal for the other one.
     for (const row of rows) {
-      if (row.type !== 'goal') continue
+      if (row.type !== 'goal' && row.type !== 'own_goal') continue
       const player = allPlayers.find((p) => p.id === row.playerId)
       if (!player) continue
-      if (player.teamId === game?.homeTeamId) home += row.count
-      else if (player.teamId === game?.awayTeamId) away += row.count
+      const forHome =
+        row.type === 'goal' ? player.teamId === game?.homeTeamId : player.teamId === game?.awayTeamId
+      const forAway =
+        row.type === 'goal' ? player.teamId === game?.awayTeamId : player.teamId === game?.homeTeamId
+      if (forHome) home += row.count
+      else if (forAway) away += row.count
     }
 
     return { homeScore: home, awayScore: away }

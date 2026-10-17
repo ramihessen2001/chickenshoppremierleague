@@ -18,6 +18,7 @@ import { composeResultAnnouncement, type AnnouncementScorer } from '@/lib/result
 
 export const ALL_STAT_TYPES = [
   'goal',
+  'own_goal',
   'assist',
   'save',
   'yellow_card',
@@ -249,18 +250,24 @@ async function postResultAnnouncement(input: {
     const away = teams.find((t) => t.id === awayTeamId)
     if (!home || !away) return
 
+    // A team's scorers are its own players' goals plus the other side's own
+    // goals, which are credited to it as "Name (OG)".
     const scorersFor = (teamId: string): AnnouncementScorer[] => {
-      const byPlayer = new Map<string, number>()
+      const byScorer = new Map<string, number>()
       for (const stat of input.statistics) {
-        if (stat.type !== 'goal') continue
-        if (input.teamByPlayer.get(stat.playerId!) !== teamId) continue
-        byPlayer.set(stat.playerId!, (byPlayer.get(stat.playerId!) ?? 0) + (stat.count ?? 1))
+        const playerTeam = input.teamByPlayer.get(stat.playerId!)
+        const isGoal = stat.type === 'goal' && playerTeam === teamId
+        const isOwnGoal = stat.type === 'own_goal' && playerTeam !== teamId
+        if (!isGoal && !isOwnGoal) continue
+        const key = `${stat.playerId!}|${isOwnGoal ? 'og' : 'goal'}`
+        byScorer.set(key, (byScorer.get(key) ?? 0) + (stat.count ?? 1))
       }
-      return [...byPlayer.entries()]
-        .map(([playerId, count]) => ({
-          name: input.nameByPlayer.get(playerId) ?? 'Unknown player',
-          count,
-        }))
+      return [...byScorer.entries()]
+        .map(([key, count]) => {
+          const [playerId, kind] = key.split('|')
+          const name = input.nameByPlayer.get(playerId) ?? 'Unknown player'
+          return { name: kind === 'og' ? `${name} (OG)` : name, count }
+        })
         .sort((a, b) => b.count - a.count)
     }
 

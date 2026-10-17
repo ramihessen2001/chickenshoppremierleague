@@ -21,6 +21,9 @@ interface GameStatisticsProps {
 /** Order matters: goals first, cards last. */
 const CATEGORIES = [
   { type: 'goal', title: 'Goals' },
+  // Listed under the club whose player scored it; the score line already
+  // credits it to the opponent.
+  { type: 'own_goal', title: 'Own goals' },
   { type: 'assist', title: 'Assists' },
   { type: 'save', title: 'Saves' },
   { type: 'yellow_card', title: 'Yellow cards' },

@@ -127,7 +127,9 @@ CREATE TABLE game_statistics (
   player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
   team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
   stat_type VARCHAR(20) NOT NULL
-    CHECK (stat_type IN ('goal', 'assist', 'save', 'yellow_card', 'red_card', 'blue_card')),
+    -- own_goal: recorded against the player who scored it, under their own
+    -- club; it counts towards the opponent's score, never as a goal of theirs.
+    CHECK (stat_type IN ('goal', 'own_goal', 'assist', 'save', 'yellow_card', 'red_card', 'blue_card')),
   count INTEGER DEFAULT 1 CHECK (count > 0),
   timestamp VARCHAR(10),                     -- optional in-game clock, e.g. "23:45"
   created_at TIMESTAMPTZ DEFAULT NOW()

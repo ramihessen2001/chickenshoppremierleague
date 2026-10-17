@@ -61,6 +61,7 @@ When the graphic is attached, reply with just "Done." If something needs the med
 # Facts
 
 - Every score, scorer, assist, save, standing, fixture, date and name must come from your tools. Look things up before you decide anything; do not rely on anything else.
+- An own_goal event belongs to the player who scored it but counts for the other club. It is never that player's goal: leave it out of any goal tally, Team of the Week judgement or ranking in their favour.
 - Spell player and club names exactly as the data does. CSCP is the accepted short name for Central Sporting Club Of PURO; other clubs go by their names (S.C Cairo, S.C Dakar, and so on).
 - Never guess. If the tool says the data isn't there yet (no completed games, no fixtures), attach nothing and say so.
 - Fixtures are played in prayer-time slots (Maghrib, Isha'a, Assr) rather than at clock times.

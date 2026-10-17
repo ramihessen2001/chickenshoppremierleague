@@ -4,6 +4,8 @@
 
 export type StatType =
   | 'goal'
+  /** Recorded against the scorer under their own club; counts for the opponent. */
+  | 'own_goal'
   | 'assist'
   | 'save'
   | 'yellow_card'
