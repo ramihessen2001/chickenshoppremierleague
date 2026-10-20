@@ -36,7 +36,10 @@ export function WeekSection({
   onEditGame,
   onAddGame,
 }: WeekSectionProps) {
-  const label = weekNumber === 0 ? 'Playoffs' : `Week ${weekNumber}`
+  // A week whose every game is waiting to be rescheduled has no dates yet, so
+  // it is titled TBD rather than by its number.
+  const awaitingReschedule = games.length > 0 && games.every(isAwaitingReschedule)
+  const label = weekNumber === 0 ? 'Playoffs' : awaitingReschedule ? 'TBD' : `Week ${weekNumber}`
 
   return (
     <section className="border-b border-hairline py-8 last:border-0">
@@ -48,12 +51,6 @@ export function WeekSection({
           {isCurrentWeek && (
             <span className="bg-ink px-2 py-0.5 font-util text-[10.5px] uppercase tracking-[0.1em] text-ink-inverse">
               Current
-            </span>
-          )}
-          {/* A week whose every game is waiting to be rescheduled has no dates yet. */}
-          {games.length > 0 && games.every(isAwaitingReschedule) && (
-            <span className="border border-hairline-strong px-2 py-0.5 font-util text-[10.5px] uppercase tracking-[0.1em] text-ink">
-              Dates TBD
             </span>
           )}
         </div>
@@ -168,7 +165,16 @@ function ScheduleRow({ game, onClick, onEditBoxScore, onEditGame }: ScheduleRowP
         aria-label={`${homeName} versus ${awayName}`}
       >
         <div className="grid items-center gap-x-6 gap-y-2 sm:grid-cols-[9.5rem_1fr_auto]">
-          <div className="font-util text-[12px] text-ink-secondary">{formatGameWhen(game)}</div>
+          {/* No date or slot for a game waiting to be rescheduled: it has none
+              yet. The empty cell stays on wide screens to keep the columns in
+              line, and is dropped where the row stacks, so it leaves no gap. */}
+          <div
+            className={`font-util text-[12px] text-ink-secondary ${
+              isAwaitingReschedule(game) ? 'hidden sm:block' : ''
+            }`}
+          >
+            {isAwaitingReschedule(game) ? null : formatGameWhen(game)}
+          </div>
 
           <div className="grid gap-1.5 sm:max-w-md">
             <Side slug={game.homeTeamId} name={homeName} score={game.homeScore} />
