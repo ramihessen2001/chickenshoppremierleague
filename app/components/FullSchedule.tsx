@@ -1,5 +1,6 @@
 /**
- * The whole season, week by week, with a playoff section when one exists.
+ * The whole season, week by week, then any games waiting to be rescheduled,
+ * then a playoff section when one exists.
  */
 
 'use client'
@@ -69,21 +70,22 @@ export function FullSchedule({
     setIsDetailsOpen(true)
   }
 
-  // Group by week, each week ordered by date then kickoff -- except games
-  // waiting to be rescheduled, which go to the bottom of their week: their
-  // stored dates no longer hold, so they must not sit between dated games.
+  // Regular-season games waiting to be rescheduled belong to no week yet: their
+  // stored date and week no longer hold, so they leave the weeks and are listed
+  // together after the last one. Rescheduling one (a new date and week, status
+  // back to scheduled) moves it into its new week. Playoff games stay in the
+  // playoff section either way.
+  const awaiting = games.filter((g) => g.weekNumber > 0 && isAwaitingReschedule(g))
+  const dated = games.filter((g) => !(g.weekNumber > 0 && isAwaitingReschedule(g)))
+
+  // Group by week, each week ordered by date then kickoff.
   const byWeek = new Map<number, Game[]>()
-  for (const game of games) {
+  for (const game of dated) {
     if (!byWeek.has(game.weekNumber)) byWeek.set(game.weekNumber, [])
     byWeek.get(game.weekNumber)!.push(game)
   }
   for (const weekGames of byWeek.values()) {
-    weekGames.sort(
-      (a, b) =>
-        Number(isAwaitingReschedule(a)) - Number(isAwaitingReschedule(b)) ||
-        a.date.localeCompare(b.date) ||
-        compareGameTimes(a.time, b.time)
-    )
+    weekGames.sort((a, b) => a.date.localeCompare(b.date) || compareGameTimes(a.time, b.time))
   }
 
   const playoffGames = byWeek.get(0) ?? []
@@ -126,6 +128,18 @@ export function FullSchedule({
             onAddGame={isAdmin ? () => handleAddGame(week) : undefined}
           />
         ))}
+
+        {awaiting.length > 0 && (
+          <WeekSection
+            title="To be rescheduled"
+            weekNumber={-1}
+            games={awaiting}
+            isCurrentWeek={false}
+            onGameClick={handleView}
+            onEditBoxScore={canRecordStats ? handleEditBoxScore : undefined}
+            onEditGame={isAdmin ? handleEditGame : undefined}
+          />
+        )}
 
         {playoffGames.length > 0 && (
           <WeekSection

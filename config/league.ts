@@ -65,7 +65,7 @@ export const LEAGUE = {
     ['League dates', 'September 28, 2026 – November 27, 2026'],
     [
       'Format',
-      '7 Week League Format\n2 Week Playoffs\nAll Teams are drafted on Sunday, August 30, 2026 at 6:00 PM',
+      '5 Week League Format\n2 Week Playoffs\nAll Teams are drafted on Sunday, August 30, 2026 at 6:00 PM',
     ],
     [
       'Matchdays',

@@ -18,6 +18,8 @@ import { formatGameWhen, gameStatusLabel, isAwaitingReschedule } from '@/lib/dat
 import { deleteGame, notifyDataUpdated } from '@/lib/supabaseData'
 
 interface WeekSectionProps {
+  /** A heading in place of "Week N" / "Playoffs", e.g. "To be rescheduled". */
+  title?: string
   weekNumber: number
   games: Game[]
   isCurrentWeek: boolean
@@ -28,6 +30,7 @@ interface WeekSectionProps {
 }
 
 export function WeekSection({
+  title,
   weekNumber,
   games,
   isCurrentWeek,
@@ -36,10 +39,7 @@ export function WeekSection({
   onEditGame,
   onAddGame,
 }: WeekSectionProps) {
-  // A week whose every game is waiting to be rescheduled has no dates yet, so
-  // it is titled TBD rather than by its number.
-  const awaitingReschedule = games.length > 0 && games.every(isAwaitingReschedule)
-  const label = weekNumber === 0 ? 'Playoffs' : awaitingReschedule ? 'TBD' : `Week ${weekNumber}`
+  const label = title ?? (weekNumber === 0 ? 'Playoffs' : `Week ${weekNumber}`)
 
   return (
     <section className="border-b border-hairline py-8 last:border-0">
