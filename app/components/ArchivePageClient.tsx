@@ -93,7 +93,7 @@ export function ArchivePageClient() {
     <>
       <PageHeader
         eyebrow={season.label}
-        title="Chicken Shop Premier League 2025 Winter"
+        title="Chicken Shop Premier League 2025"
         description="Final standings, results and stat leaders."
       />
 
