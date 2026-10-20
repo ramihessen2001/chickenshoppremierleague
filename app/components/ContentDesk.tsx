@@ -289,7 +289,13 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
           <div className="mt-5">
             <FormError>{writeError}</FormError>
             <button type="submit" disabled={isWriting || !chosen} className={`w-full ${buttonPrimary}`}>
-              {isWriting ? 'Making…' : kind === 'matchday' ? 'Make stories' : 'Make graphic'}
+              {isWriting
+                ? 'Making…'
+                : kind === 'matchday'
+                  ? 'Make stories'
+                  : kind === 'thumbnail'
+                    ? 'Make thumbnails'
+                    : 'Make graphic'}
             </button>
             {isWriting && (
               <p className="mt-3 text-[13px] text-ink-tertiary" role="status">

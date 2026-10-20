@@ -6,7 +6,8 @@
  *           makes one of the six graphics and saves it as a new draft. `kind`
  *           is one of CONTENT_PRESETS; `details` is an optional line (which
  *           week; `choice` picks the award for an Award Race). Matchday Stories makes one draft per game of the matchweek,
- *           straight from the schedule; the other five run the content agent.
+ *           and Matchday Thumbnails one per day of it, both straight from the
+ *           schedule; the others run the content agent.
  *           Nothing is published: the media team reviews it next.
  */
 
@@ -14,7 +15,7 @@ import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fail, readJson, requireMedia } from '@/lib/apiAuth'
-import { buildMatchdayWeek, GraphicInputError } from '@/lib/graphics/build'
+import { buildMatchdayWeek, buildThumbnailWeek, GraphicInputError } from '@/lib/graphics/build'
 import { DEFAULT_STYLE_ID } from '@/lib/graphics/styles'
 import { ContentAgentError, writeDraft } from '@/lib/contentAgent'
 import { buildBrief } from '@/lib/contentPresets'
@@ -60,6 +61,7 @@ export async function POST(request: Request) {
   // Matchday stories are all schedule data, no judgment: one per game of the
   // matchweek, with no agent involved.
   if (kind === 'matchday') return makeMatchdayStories(details)
+  if (kind === 'thumbnail') return makeThumbnails(details)
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return fail(
@@ -145,3 +147,48 @@ async function makeMatchdayStories(details: string) {
   return NextResponse.json({ drafts })
 }
 
+/**
+ * One YouTube thumbnail draft per matchday of the matchweek named in `details`
+ * (a number), else the current one. Schedule data only, like the stories.
+ */
+async function makeThumbnails(details: string) {
+  const named = details.match(/\d+/)
+  let built: Awaited<ReturnType<typeof buildThumbnailWeek>>
+  try {
+    built = await buildThumbnailWeek(named ? Number(named[0]) : undefined)
+  } catch (error) {
+    if (error instanceof GraphicInputError) return fail(error.message, 422)
+    throw error
+  }
+  if (built.thumbnails.length === 0) {
+    return fail(`Matchweek ${built.week} has games, but none has both clubs set yet.`, 422)
+  }
+
+  const days = built.thumbnails.length
+  const brief = `Matchday thumbnails for matchweek ${built.week}: ${days} ${days === 1 ? 'day' : 'days'}.`
+  // Newest first in the queue, so each day gets its own timestamp a second
+  // apart, the first day newest: the thumbnails read in date order.
+  const now = Date.now()
+  const note = built.skipped > 0 ? `${built.skipped} game(s) left out: their clubs are not set yet.` : ''
+  const { data, error } = await supabaseAdmin
+    .from('content_drafts')
+    .insert(
+      built.thumbnails.map((graphic, i) => ({
+        kind: 'thumbnail',
+        brief,
+        body: i === 0 ? note : '',
+        graphic,
+        style: DEFAULT_STYLE_ID,
+        created_at: new Date(now - i * 1000).toISOString(),
+      }))
+    )
+    .select()
+  if (error) {
+    console.error('Error saving thumbnail drafts:', error)
+    return fail('The thumbnails were made but could not be saved -- have migrations 027-029 been run?', 500)
+  }
+  const drafts = (data as ContentDraftRow[])
+    .map(toContentDraft)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  return NextResponse.json({ drafts })
+}

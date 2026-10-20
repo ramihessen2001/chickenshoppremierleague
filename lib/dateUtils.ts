@@ -93,3 +93,25 @@ export function compareGameTimes(a: string, b: string): number {
   return a.localeCompare(b)
 }
 
+/**
+ * A postponed game is one waiting to be rescheduled: its stored date and slot
+ * no longer hold, so the site says "Date TBD" wherever it would show them. The
+ * stored date is kept, so rescheduling is just a new date and the status back
+ * to scheduled.
+ */
+export function isAwaitingReschedule(game: { status: string }): boolean {
+  return game.status === 'postponed'
+}
+
+/** "Oct 23, 2026 · Maghrib", or "Date TBD" for a game awaiting rescheduling. */
+export function formatGameWhen(game: { date: string; time: string; status: string }): string {
+  if (isAwaitingReschedule(game)) return 'Date TBD'
+  return `${formatDate(game.date)} · ${formatTime(game.time)}`
+}
+
+/** The status shown beside an unplayed game; null for an ordinary scheduled one. */
+export function gameStatusLabel(status: string): string | null {
+  if (status === 'scheduled') return null
+  if (status === 'postponed') return 'To be rescheduled'
+  return status
+}

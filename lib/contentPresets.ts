@@ -30,6 +30,12 @@ export const CONTENT_PRESETS: ContentPreset[] = [
     detailHint: 'Which matchweek, e.g. 3? Blank: the current matchweek.',
   },
   {
+    kind: 'thumbnail',
+    label: 'Matchday Thumbnails',
+    brief: 'Make a YouTube thumbnail for every matchday of the matchweek: one per day, with that day\'s games.',
+    detailHint: 'Which matchweek, e.g. 3? Blank: the current matchweek.',
+  },
+  {
     kind: 'totw',
     label: 'Team of the Week',
     brief:

@@ -3,6 +3,8 @@
  *
  *   GET ?type=table|stat_leaders|slate&ground=black|bone[&week=N] -> PNG
  *   GET ?type=matchday&game=<game id>&ground=black|bone           -> PNG
+ *   GET ?type=thumbnail[&week=N][&day=0]                            -> PNG, one matchday's
+ *       YouTube thumbnail (day = which day of the week, from 0)
  *   Any of them also takes &style=<style id> (CSPL by default). Styles still under
  *   design (DRAFT_STYLES in lib/graphics/styles.ts) can be previewed here by id.
  *
@@ -13,6 +15,7 @@
 import { fail, requireMedia } from '@/lib/apiAuth'
 import {
   buildMatchday,
+  buildThumbnailWeek,
   buildSlate,
   buildStatLeaders,
   buildTable,
@@ -45,7 +48,13 @@ export async function GET(request: Request) {
       const game = params.get('game')
       if (!game) return fail('matchday needs a game id')
       spec = await buildMatchday(game)
-    } else return fail('type must be table, stat_leaders, slate or matchday')
+    } else if (type === 'thumbnail') {
+      const { thumbnails } = await buildThumbnailWeek(week)
+      const day = Number(params.get('day') ?? 0)
+      const pick = thumbnails[Number.isInteger(day) ? day : 0]
+      if (!pick) return fail(`That week has ${thumbnails.length} matchday(s); day counts from 0`, 422)
+      spec = pick
+    } else return fail('type must be table, stat_leaders, slate, matchday or thumbnail')
   } catch (error) {
     if (error instanceof GraphicInputError) return fail(error.message, 422)
     throw error

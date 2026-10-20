@@ -32,6 +32,7 @@ import {
   AwardRaceGraphic,
   GraphicClub,
   MatchdayGraphic,
+  ThumbnailGraphic,
   POWER_RANKING_BLURB_MAX,
   PowerRankingsGraphic,
   SlateGraphic,
@@ -264,6 +265,54 @@ export async function buildMatchdayWeek(
 }
 
 /**
+ * A YouTube thumbnail for every matchday of one matchweek -- one per date,
+ * each listing that day's games in the order they are played. The week is
+ * chosen as for the matchday stories: the one named, else the current
+ * matchweek, else the next with a game to play. Games without both clubs set
+ * are left out and counted in `skipped`; a day left with no games gets no
+ * thumbnail.
+ */
+export async function buildThumbnailWeek(
+  week?: number
+): Promise<{ week: number; thumbnails: ThumbnailGraphic[]; skipped: number }> {
+  const [games, config, clubs] = await Promise.all([getAllGames(), getLeagueConfig(), clubDirectory()])
+
+  const currentWeek = config?.current_week ?? 1
+  const playable = (g: Game) => g.status !== 'cancelled' && g.status !== 'postponed'
+  const hasGames = (w: number) => games.some((g) => g.weekNumber === w && playable(g))
+  const chosenWeek =
+    week ??
+    (hasGames(currentWeek)
+      ? currentWeek
+      : games
+          .filter((g) => g.weekNumber > currentWeek && g.status === 'scheduled')
+          .map((g) => g.weekNumber)
+          .sort((a, b) => a - b)[0]) ??
+    currentWeek
+
+  const fixtures = games
+    .filter((g) => g.weekNumber === chosenWeek && playable(g))
+    .sort((a, b) => a.date.localeCompare(b.date) || slotRank(a.time) - slotRank(b.time))
+  if (fixtures.length === 0) {
+    throw new GraphicInputError(`Matchweek ${chosenWeek} has no games to make thumbnails for.`)
+  }
+
+  const club = (slug: string) => clubs.get(slug) ?? { slug, name: 'TBD' }
+  const ready = fixtures.filter((g) => g.homeTeamId && g.awayTeamId)
+  const season = config?.season ?? LEAGUE.fallbackSeason
+  const thumbnails: ThumbnailGraphic[] = []
+  for (const game of ready) {
+    let day = thumbnails.find((t) => t.date === dayLabels(game.date).date)
+    if (!day) {
+      day = { type: 'thumbnail', season, week: chosenWeek, ...dayLabels(game.date), games: [] }
+      thumbnails.push(day)
+    }
+    day.games.push({ slot: game.time, home: club(game.homeTeamId), away: club(game.awayTeamId) })
+  }
+  return { week: chosenWeek, thumbnails, skipped: fixtures.length - ready.length }
+}
+
+/**
  * The fixtures for one week, grouped by day. With no week given, the next
  * week from the current one that still has a game to play.
  */
@@ -286,7 +335,9 @@ export async function buildSlate(week?: number): Promise<SlateGraphic> {
 
   // Chronological: by day, and within a day Maghrib before Isha'a.
   const fixtures = games
-    .filter((g) => g.weekNumber === chosenWeek && g.status !== 'cancelled')
+    // Postponed games are waiting for a new date, so they are not this
+    // weekend's fixtures.
+    .filter((g) => g.weekNumber === chosenWeek && g.status !== 'cancelled' && g.status !== 'postponed')
     .sort((a, b) => a.date.localeCompare(b.date) || slotRank(a.time) - slotRank(b.time))
   if (fixtures.length === 0) {
     throw new GraphicInputError(`Week ${chosenWeek} has no fixtures to show.`)

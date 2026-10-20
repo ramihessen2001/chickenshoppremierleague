@@ -16,7 +16,7 @@ import { Game } from '@/types/game'
 import { displayJersey } from '@/types/player'
 import { useTeams } from '@/lib/teamsContext'
 import { LEAGUE } from '@/config/league'
-import { formatDate, formatTime } from '@/lib/dateUtils'
+import { formatGameWhen, gameStatusLabel } from '@/lib/dateUtils'
 import { BoxScoreModal } from './BoxScoreModal'
 import { EditBoxScoreModal } from './EditBoxScoreModal'
 import { StatkeeperBoxScoreModal } from './StatkeeperBoxScoreModal'
@@ -140,16 +140,16 @@ function FixtureCard({ game, onOpen, onEdit }: FixtureCardProps) {
       >
         <div className="flex items-center justify-between gap-3">
           <p className="font-util text-[11px] uppercase tracking-[0.1em] text-ink-tertiary">
-            {formatDate(game.date)} · {formatTime(game.time)}
+            {formatGameWhen(game)}
           </p>
           {played ? (
             <span className="font-util text-[10.5px] uppercase tracking-[0.1em] text-ink-tertiary">
               Final
             </span>
           ) : (
-            game.status !== 'scheduled' && (
+            gameStatusLabel(game.status) && (
               <span className="font-util text-[10.5px] uppercase tracking-[0.1em] text-court">
-                {game.status}
+                {gameStatusLabel(game.status)}
               </span>
             )
           )}

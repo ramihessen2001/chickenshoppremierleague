@@ -17,7 +17,7 @@ import { SeasonScheduler } from './SeasonScheduler'
 import { useAdmin } from '@/lib/adminContext'
 import { useStatkeeper } from '@/lib/statkeeperContext'
 import { getGameById } from '@/lib/supabaseData'
-import { compareGameTimes } from '@/lib/dateUtils'
+import { compareGameTimes, isAwaitingReschedule } from '@/lib/dateUtils'
 
 interface FullScheduleProps {
   games: Game[]
@@ -69,14 +69,21 @@ export function FullSchedule({
     setIsDetailsOpen(true)
   }
 
-  // Group by week, each week ordered by date then kickoff.
+  // Group by week, each week ordered by date then kickoff -- except games
+  // waiting to be rescheduled, which go to the bottom of their week: their
+  // stored dates no longer hold, so they must not sit between dated games.
   const byWeek = new Map<number, Game[]>()
   for (const game of games) {
     if (!byWeek.has(game.weekNumber)) byWeek.set(game.weekNumber, [])
     byWeek.get(game.weekNumber)!.push(game)
   }
   for (const weekGames of byWeek.values()) {
-    weekGames.sort((a, b) => a.date.localeCompare(b.date) || compareGameTimes(a.time, b.time))
+    weekGames.sort(
+      (a, b) =>
+        Number(isAwaitingReschedule(a)) - Number(isAwaitingReschedule(b)) ||
+        a.date.localeCompare(b.date) ||
+        compareGameTimes(a.time, b.time)
+    )
   }
 
   const playoffGames = byWeek.get(0) ?? []

@@ -11,7 +11,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { Game } from '@/types/game'
 import { useTeams } from '@/lib/teamsContext'
-import { formatDate, formatTime, compareGameTimes } from '@/lib/dateUtils'
+import { compareGameTimes, formatDate, formatTime, isAwaitingReschedule } from '@/lib/dateUtils'
 import { BoxScoreModal } from './BoxScoreModal'
 
 interface TeamScheduleProps {
@@ -120,7 +120,7 @@ export function TeamSchedule({ teamId, games }: TeamScheduleProps) {
     return (
       <div className="border-b border-hairline last:border-0">
         <p className="pt-3 font-util text-[10.5px] uppercase tracking-[0.1em] text-ink-tertiary">
-          {formatDate(game.date)}
+          {isAwaitingReschedule(game) ? 'Date TBD · To be rescheduled' : formatDate(game.date)}
         </p>
         {result ? (
           <button

@@ -14,7 +14,7 @@ import { Game } from '@/types/game'
 import { displayJersey } from '@/types/player'
 import { useTeams } from '@/lib/teamsContext'
 import { LEAGUE } from '@/config/league'
-import { formatDate, formatTime } from '@/lib/dateUtils'
+import { formatGameWhen, gameStatusLabel, isAwaitingReschedule } from '@/lib/dateUtils'
 import { deleteGame, notifyDataUpdated } from '@/lib/supabaseData'
 
 interface WeekSectionProps {
@@ -48,6 +48,12 @@ export function WeekSection({
           {isCurrentWeek && (
             <span className="bg-ink px-2 py-0.5 font-util text-[10.5px] uppercase tracking-[0.1em] text-ink-inverse">
               Current
+            </span>
+          )}
+          {/* A week whose every game is waiting to be rescheduled has no dates yet. */}
+          {games.length > 0 && games.every(isAwaitingReschedule) && (
+            <span className="border border-hairline-strong px-2 py-0.5 font-util text-[10.5px] uppercase tracking-[0.1em] text-ink">
+              Dates TBD
             </span>
           )}
         </div>
@@ -162,11 +168,7 @@ function ScheduleRow({ game, onClick, onEditBoxScore, onEditGame }: ScheduleRowP
         aria-label={`${homeName} versus ${awayName}`}
       >
         <div className="grid items-center gap-x-6 gap-y-2 sm:grid-cols-[9.5rem_1fr_auto]">
-          <div className="font-util text-[12px] text-ink-secondary">
-            {formatDate(game.date)}
-            <span className="mx-1.5">·</span>
-            {formatTime(game.time)}
-          </div>
+          <div className="font-util text-[12px] text-ink-secondary">{formatGameWhen(game)}</div>
 
           <div className="grid gap-1.5 sm:max-w-md">
             <Side slug={game.homeTeamId} name={homeName} score={game.homeScore} />
@@ -178,9 +180,9 @@ function ScheduleRow({ game, onClick, onEditBoxScore, onEditGame }: ScheduleRowP
             {played ? (
               <span className="uppercase tracking-[0.1em]">Final</span>
             ) : (
-              game.status !== 'scheduled' && (
+              gameStatusLabel(game.status) && (
                 <span className="font-semibold uppercase tracking-wider text-accent-ink">
-                  {game.status}
+                  {gameStatusLabel(game.status)}
                 </span>
               )
             )}

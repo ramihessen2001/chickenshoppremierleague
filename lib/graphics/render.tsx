@@ -36,6 +36,8 @@ import {
   StatLeadersGraphic,
   TableGraphic,
   TotwGraphic,
+  ThumbnailGraphic,
+  GraphicClub,
 } from './spec'
 import { Sponsor, SPONSORS, sponsorOf } from './sponsors'
 import { GraphicStyle, groundFor, resolveStyle, StylePalette } from './styles'
@@ -422,11 +424,25 @@ const sponsorRatio = (sponsor: Sponsor) => assetImage('sponsors', sponsor.file)?
  * row with a gap between each), and the gaps are equal, so the row is centred
  * between the margins whatever shape the logos are.
  */
-function SponsorStrip({ t }: { t: Theme }) {
+function SponsorStrip({
+  t,
+  width = 936,
+  barHeight = 92,
+  logoHeight = 62,
+  marginBottom = 22,
+}: {
+  t: Theme
+  /** The bar's full width; the defaults are the 1080-wide posts'. */
+  width?: number
+  barHeight?: number
+  /** The tallest a logo may be drawn. */
+  logoHeight?: number
+  marginBottom?: number
+}) {
   const ratios = SPONSORS.map(sponsorRatio)
-  const room = 936 - 2 * 28 - 7 * 26 // the bar's padding and the smallest gaps
+  const room = width - 2 * 28 - 7 * 26 // the bar's padding and the smallest gaps
   const rowWidth = (area: number) =>
-    ratios.reduce((sum, ratio) => sum + sponsorSize(ratio, area, 62, room).width, 0)
+    ratios.reduce((sum, ratio) => sum + sponsorSize(ratio, area, logoHeight, room).width, 0)
   let area = 12000
   while (area > 1000 && rowWidth(area) > room) area -= 100
   return (
@@ -435,14 +451,14 @@ function SponsorStrip({ t }: { t: Theme }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        height: 92,
-        marginBottom: 22,
+        height: barHeight,
+        marginBottom,
         padding: '0 28px',
         ...barSurface(t),
       }}
     >
       {SPONSORS.map((sponsor, i) => {
-        const { width, height } = sponsorSize(ratios[i], area, 62, room)
+        const { width, height } = sponsorSize(ratios[i], area, logoHeight, room)
         return <SponsorLogo key={sponsor.slug} sponsor={sponsor} width={width} height={height} />
       })}
     </div>
@@ -1444,8 +1460,123 @@ function AwardRace({ spec, t }: { spec: AwardRaceGraphic; t: Theme }) {
   )
 }
 
+/**
+ * The 1280x720 YouTube thumbnail for a matchday's livestream: the league and
+ * the day across the top, one centred bar per game, and all eight sponsors on
+ * a white bar along the bottom. Thumbnails are seen small,
+ * in a grid of videos, so everything is drawn large and the bars, crests and
+ * names grow or shrink with how many games the day holds.
+ */
+function Thumbnail({ spec, t }: { spec: ThumbnailGraphic; t: Theme }) {
+  const { width, height } = GRAPHIC_SIZES.thumbnail
+  const count = Math.max(spec.games.length, 1)
+  const gap = 16
+  // 720 less the padding, the header, the sponsor bar and the gaps between.
+  const sponsorBar = 78
+  const room = height - 2 * 40 - 112 - 22 - sponsorBar - 18
+  const barHeight = Math.min(200, Math.floor((room - gap * (count - 1)) / count))
+  const crest = Math.round(barHeight * 0.62)
+  const nameSize = barHeight >= 200 ? 46 : barHeight >= 150 ? 38 : 30
+  const kicker = spec.week > 0 ? `Matchweek ${pad(spec.week)}` : 'Playoffs'
+
+  // Each name takes an equal share either side of the "v", so the chip stays
+  // on the bar's centre line; the text inside is capped in width, so a long
+  // name ("S.C Istanbul Black") wraps to two lines instead of running to the
+  // bar's edge and making the matchup look off-centre.
+  const nameWidth = 290
+  const name = (club: GraphicClub, align: 'left' | 'right') => (
+    <div style={{ display: 'flex', flex: 1, justifyContent: align === 'right' ? 'flex-end' : 'flex-start' }}>
+      <div
+        style={{
+          display: 'flex',
+          maxWidth: nameWidth,
+          justifyContent: align === 'right' ? 'flex-end' : 'flex-start',
+          fontFamily: DISPLAY,
+          fontWeight: 700,
+          fontSize: nameSize,
+          lineHeight: 1,
+          textTransform: 'uppercase',
+          textAlign: align,
+        }}
+      >
+        {club.name}
+      </div>
+    </div>
+  )
+
+  return (
+    <div
+      style={{
+        width,
+        height,
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative',
+        padding: '40px 48px',
+        ...groundStyle(t),
+        color: t.ink,
+        fontFamily: UTIL,
+      }}
+    >
+      <AccentBar t={t} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 24, height: 112 }}>
+        <Crest slug="cspl" box={104} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flexGrow: 1 }}>
+          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 34, lineHeight: 1, textTransform: 'uppercase' }}>
+            YM Chicken Shop Premier League
+          </div>
+          <div style={{ display: 'flex', fontSize: 24, letterSpacing: 2.5, textTransform: 'uppercase', color: t.accent }}>
+            {kicker}
+          </div>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: 6,
+            padding: '14px 24px 10px',
+            ...barSurface(t),
+          }}
+        >
+          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 46, lineHeight: 1, textTransform: 'uppercase' }}>
+            {spec.weekday}
+          </div>
+          <div style={{ display: 'flex', fontSize: 20, letterSpacing: 2, textTransform: 'uppercase', color: t.barInk2 }}>
+            {spec.date}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap, flex: 1, marginTop: 22 }}>
+        {spec.games.map((game, i) => (
+          <div
+            key={`${game.home.slug}-${game.away.slug}-${i}`}
+            // Both names take an equal share either side, so the "v" sits on the
+            // bar's centre line and every matchup is centred.
+            style={{ display: 'flex', alignItems: 'center', height: barHeight, padding: '0 32px', gap: 22, ...barSurface(t) }}
+          >
+            {name(game.home, 'right')}
+            <Crest slug={game.home.slug} box={t.crest(crest)} plate={t.plate} />
+            <VChip t={t} width={70} height={58} fontSize={34} />
+            <Crest slug={game.away.slug} box={t.crest(crest)} plate={t.plate} />
+            {name(game.away, 'left')}
+          </div>
+        ))}
+      </div>
+
+      {/* All eight sponsors on one white bar, nothing behind any single logo. */}
+      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18 }}>
+        <SponsorStrip t={t} width={width - 2 * 48} barHeight={sponsorBar} logoHeight={52} marginBottom={0} />
+      </div>
+    </div>
+  )
+}
+
 function Graphic({ spec, t }: { spec: GraphicSpec; t: Theme }) {
   switch (spec.type) {
+    case 'thumbnail':
+      return <Thumbnail spec={spec} t={t} />
     case 'award_race':
       return <AwardRace spec={spec} t={t} />
     case 'power_rankings':

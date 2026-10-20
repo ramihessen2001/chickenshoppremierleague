@@ -8,7 +8,8 @@
  * media team approved this picture, not whatever the table says today.
  *
  * Mirrors the four 1080x1440 Instagram templates designed on the canvas, plus
- * a 1080x1920 matchday story per game. Pure types, shared by the desk UI and
+ * a 1080x1920 matchday story per game and a 1280x720 YouTube thumbnail per
+ * matchday. Pure types, shared by the desk UI and
  * the server.
  */
 
@@ -20,6 +21,7 @@ export type GraphicType =
   | 'matchday'
   | 'power_rankings'
   | 'award_race'
+  | 'thumbnail'
 export type Ground = 'black' | 'bone'
 
 export const GRAPHIC_TYPES: GraphicType[] = [
@@ -30,6 +32,7 @@ export const GRAPHIC_TYPES: GraphicType[] = [
   'matchday',
   'power_rankings',
   'award_race',
+  'thumbnail',
 ]
 
 /** Pixel size of each graphic: the four feed posts are 3:4, the matchday story 9:16. */
@@ -41,6 +44,8 @@ export const GRAPHIC_SIZES: Record<GraphicType, { width: number; height: number 
   matchday: { width: 1080, height: 1920 },
   power_rankings: { width: 1080, height: 1440 },
   award_race: { width: 1080, height: 1440 },
+  // YouTube's thumbnail size (16:9), for the matchday livestreams.
+  thumbnail: { width: 1280, height: 720 },
 }
 export const GROUNDS: Ground[] = ['black', 'bone']
 
@@ -226,6 +231,27 @@ export type GraphicSpec =
   | SlateGraphic
   | TotwGraphic
   | MatchdayGraphic
+  | ThumbnailGraphic
+
+/**
+ * A 1280x720 YouTube thumbnail for one matchday's livestream: every game
+ * played that day, in the order they are played.
+ */
+export interface ThumbnailGraphic {
+  type: 'thumbnail'
+  season: string
+  week: number
+  /** "Friday" */
+  weekday: string
+  /** "16 October" */
+  date: string
+  games: {
+    /** The prayer-time slot, e.g. "Maghrib". */
+    slot: string
+    home: GraphicClub
+    away: GraphicClub
+  }[]
+}
 
 export const GRAPHIC_LABELS: Record<GraphicType, string> = {
   totw: 'Team of the Week',
@@ -235,4 +261,5 @@ export const GRAPHIC_LABELS: Record<GraphicType, string> = {
   matchday: 'Matchday Story',
   power_rankings: 'Power Rankings',
   award_race: 'Award Race',
+  thumbnail: 'Matchday Thumbnail',
 }

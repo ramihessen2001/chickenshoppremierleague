@@ -18,7 +18,7 @@ import { StatkeeperBoxScoreModal } from './StatkeeperBoxScoreModal'
 import { BoxScoreModal } from './BoxScoreModal'
 import { Game } from '@/types/game'
 import { getPlayoffGames, getGameById } from '@/lib/supabaseData'
-import { formatDate, formatTime } from '@/lib/dateUtils'
+import { formatDate, formatGameWhen } from '@/lib/dateUtils'
 
 /** Rounds in the order they are played. */
 const ROUND_ORDER = ['quarterfinal', 'semifinal', 'final'] as const
@@ -182,7 +182,7 @@ export function PlayoffBracket() {
                         >
                           <div className="flex items-center justify-between gap-3">
                             <p className="tabular text-[12px] text-ink-tertiary">
-                              {formatDate(game.date)} · {formatTime(game.time)}
+                              {formatGameWhen(game)}
                             </p>
                             {played && (
                               <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-tertiary">

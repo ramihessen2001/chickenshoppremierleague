@@ -11,7 +11,7 @@ import { GameStatistic } from '@/types/statistic'
 import { displayJersey } from '@/types/player'
 import { useTeams } from '@/lib/teamsContext'
 import { StatCategory } from './StatCategory'
-import { formatDate, formatTime } from '@/lib/dateUtils'
+import { formatGameWhen } from '@/lib/dateUtils'
 import { LEAGUE } from '@/config/league'
 
 interface GameStatisticsProps {
@@ -65,7 +65,7 @@ export function GameStatistics({ game }: GameStatisticsProps) {
       </div>
 
       <p className="tabular mt-6 text-center text-[13px] text-ink-tertiary">
-        {formatDate(game.date)} · {formatTime(game.time)}
+        {formatGameWhen(game)}
         {game.location ? ` · ${game.location}` : ''}
       </p>
 
