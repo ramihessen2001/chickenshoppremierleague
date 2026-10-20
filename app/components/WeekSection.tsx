@@ -14,7 +14,7 @@ import { Game } from '@/types/game'
 import { displayJersey } from '@/types/player'
 import { useTeams } from '@/lib/teamsContext'
 import { LEAGUE } from '@/config/league'
-import { formatGameWhen, gameStatusLabel, isAwaitingReschedule } from '@/lib/dateUtils'
+import { formatGameWhen, gameStatusLabel } from '@/lib/dateUtils'
 import { deleteGame, notifyDataUpdated } from '@/lib/supabaseData'
 
 interface WeekSectionProps {
@@ -165,29 +165,21 @@ function ScheduleRow({ game, onClick, onEditBoxScore, onEditGame }: ScheduleRowP
         aria-label={`${homeName} versus ${awayName}`}
       >
         <div className="grid items-center gap-x-6 gap-y-2 sm:grid-cols-[9.5rem_1fr_auto]">
-          {/* No date or slot for a game waiting to be rescheduled: it has none
-              yet. The empty cell stays on wide screens to keep the columns in
-              line, and is dropped where the row stacks, so it leaves no gap. */}
-          <div
-            className={`font-util text-[12px] text-ink-secondary ${
-              isAwaitingReschedule(game) ? 'hidden sm:block' : ''
-            }`}
-          >
-            {isAwaitingReschedule(game) ? null : formatGameWhen(game)}
-          </div>
+          {/* "Date TBD" for a game waiting to be rescheduled (see formatGameWhen). */}
+          <div className="font-util text-[12px] text-ink-secondary">{formatGameWhen(game)}</div>
 
           <div className="grid gap-1.5 sm:max-w-md">
             <Side slug={game.homeTeamId} name={homeName} score={game.homeScore} />
             <Side slug={game.awayTeamId} name={awayName} score={game.awayScore} />
           </div>
 
-          <div className="flex items-center gap-3 font-util text-[11px] text-ink-tertiary">
+          <div className="flex min-w-0 items-center gap-3 font-util text-[11px] text-ink-tertiary">
             {game.location && <span className="truncate">{game.location}</span>}
             {played ? (
               <span className="uppercase tracking-[0.1em]">Final</span>
             ) : (
               gameStatusLabel(game.status) && (
-                <span className="font-semibold uppercase tracking-wider text-accent-ink">
+                <span className="shrink-0 whitespace-nowrap font-semibold uppercase tracking-wider text-accent-ink">
                   {gameStatusLabel(game.status)}
                 </span>
               )
