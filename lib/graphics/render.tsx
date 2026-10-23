@@ -1011,6 +1011,14 @@ const SPOTS: { x: number; y: number }[] = [
   { x: 468, y: 560 }, // GK
 ]
 
+/**
+ * A font size for text that has to stay on one line: the size of the first
+ * [maxLength, size] step the text fits, else `smallest`.
+ */
+function fitName(text: string, steps: [number, number][], smallest: number): number {
+  return steps.find(([maxLength]) => text.length <= maxLength)?.[1] ?? smallest
+}
+
 function Totw({ spec, t }: { spec: TotwGraphic; t: Theme }) {
   const line = { position: 'absolute', border: `${t.lightW + 1}px solid ${t.rule}` } as const
   const potw = spec.playerOfTheWeek
@@ -1033,9 +1041,9 @@ function Totw({ spec, t }: { spec: TotwGraphic; t: Theme }) {
             key={`${pick.player}-${i}`}
             style={{
               position: 'absolute',
-              left: SPOTS[i].x - 160,
+              left: SPOTS[i].x - 170,
               top: y(SPOTS[i].y),
-              width: 320,
+              width: 340,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -1057,11 +1065,13 @@ function Totw({ spec, t }: { spec: TotwGraphic; t: Theme }) {
                   display: 'flex',
                   fontFamily: DISPLAY,
                   fontWeight: 700,
-                  fontSize: 34,
+                  // A long name shrinks to stay on one line: a second line would make the
+                  // card taller and run it into the crest of the player below.
+                  fontSize: fitName(pick.player, [[13, 34], [16, 30], [19, 26]], 22),
+                  whiteSpace: 'nowrap',
                   lineHeight: 1,
                   textTransform: 'uppercase',
                   textAlign: 'center',
-                  maxWidth: 300,
                 }}
               >
                 {pick.player}
@@ -1070,7 +1080,8 @@ function Totw({ spec, t }: { spec: TotwGraphic; t: Theme }) {
                 style={{
                   display: 'flex',
                   gap: 10,
-                  fontSize: 20,
+                  fontSize: fitName(`${pick.club.name} ${pick.statLine}`, [[22, 20], [26, 17]], 15),
+                  whiteSpace: 'nowrap',
                   letterSpacing: 1.5,
                   textTransform: 'uppercase',
                   color: t.bars ? t.barInk2 : t.ink2,
@@ -1093,7 +1104,7 @@ function Totw({ spec, t }: { spec: TotwGraphic; t: Theme }) {
           <Crest slug={potw.club.slug} box={t.crest(104)} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', fontSize: 20, letterSpacing: 2.4, textTransform: 'uppercase', color: t.accent }}>Player of the Week</div>
-            <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 56, lineHeight: 0.95, textTransform: 'uppercase', maxWidth: 520 }}>
+            <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: fitName(potw.player, [[13, 56], [16, 50], [20, 44]], 38), whiteSpace: 'nowrap', lineHeight: 0.95, textTransform: 'uppercase' }}>
               {potw.player}
             </div>
             <div style={{ display: 'flex', fontSize: 20, letterSpacing: 1.5, textTransform: 'uppercase', color: t.ink2 }}>
