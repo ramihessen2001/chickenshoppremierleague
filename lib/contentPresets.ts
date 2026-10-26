@@ -24,6 +24,13 @@ export interface ContentPreset {
 
 export const CONTENT_PRESETS: ContentPreset[] = [
   {
+    kind: 'week_in_cspl',
+    label: 'This Week in CSPL',
+    brief:
+      "Make This Week in CSPL for Instagram: a cover listing the stories, the weekend's results, the league table, a template slide for each of the weekend's best storylines, and last the following week's slate.",
+    detailHint: 'Which matchweek, e.g. 3? Blank: the latest matchweek with results.',
+  },
+  {
     kind: 'matchday',
     label: 'Matchday Stories',
     brief: 'Make a matchday story for every game of the matchweek.',

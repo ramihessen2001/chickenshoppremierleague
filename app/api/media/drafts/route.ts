@@ -3,7 +3,7 @@
  *
  *   GET  -> { drafts }               newest first, discarded ones left out
  *   POST -> { kind, details?, choice? } -> { drafts }
- *           makes one of the six graphics and saves it as a new draft. `kind`
+ *           makes one of the graphics and saves it as a new draft. `kind`
  *           is one of CONTENT_PRESETS; `details` is an optional line (which
  *           week; `choice` picks the award for an Award Race). Matchday Stories makes one draft per game of the matchweek,
  *           and Matchday Thumbnails one per day of it, both straight from the
@@ -15,9 +15,18 @@ import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fail, readJson, requireMedia } from '@/lib/apiAuth'
-import { buildMatchdayWeek, buildThumbnailWeek, GraphicInputError } from '@/lib/graphics/build'
+import {
+  buildMatchdayWeek,
+  buildResults,
+  buildSlate,
+  buildTable,
+  buildThumbnailWeek,
+  buildWeekCover,
+  GraphicInputError,
+} from '@/lib/graphics/build'
+import type { GraphicSpec } from '@/lib/graphics/spec'
 import { DEFAULT_STYLE_ID } from '@/lib/graphics/styles'
-import { ContentAgentError, writeDraft } from '@/lib/contentAgent'
+import { ContentAgentError, writeDraft, writeWeekStories } from '@/lib/contentAgent'
 import { buildBrief } from '@/lib/contentPresets'
 import { ContentDraftRow, toContentDraft } from '@/types/contentDraft'
 
@@ -62,6 +71,7 @@ export async function POST(request: Request) {
   // matchweek, with no agent involved.
   if (kind === 'matchday') return makeMatchdayStories(details)
   if (kind === 'thumbnail') return makeThumbnails(details)
+  if (kind === 'week_in_cspl') return makeWeekInCspl(details)
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return fail(
@@ -74,18 +84,8 @@ export async function POST(request: Request) {
   try {
     written = await writeDraft(brief, kind)
   } catch (error) {
-    if (error instanceof ContentAgentError) return fail(error.message, 422)
-    if (error instanceof Anthropic.AuthenticationError) {
-      console.error('Content agent: invalid Anthropic API key')
-      return fail('The content agent is misconfigured: the Anthropic API key was rejected.', 503)
-    }
-    if (error instanceof Anthropic.RateLimitError) {
-      return fail('The content agent is busy. Try again in a minute.', 429)
-    }
-    if (error instanceof Anthropic.APIError) {
-      console.error(`Content agent API error ${error.status}:`, error.message)
-      return fail('The content agent could not finish this draft. Try again.', 502)
-    }
+    const response = agentFailure(error)
+    if (response) return response
     throw error
   }
 
@@ -186,6 +186,105 @@ async function makeThumbnails(details: string) {
   if (error) {
     console.error('Error saving thumbnail drafts:', error)
     return fail('The thumbnails were made but could not be saved -- have migrations 027-029 been run?', 500)
+  }
+  const drafts = (data as ContentDraftRow[])
+    .map(toContentDraft)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  return NextResponse.json({ drafts })
+}
+
+/** The response for a failed agent run, or null when the error is not one we explain. */
+function agentFailure(error: unknown) {
+  if (error instanceof ContentAgentError) return fail(error.message, 422)
+  if (error instanceof Anthropic.AuthenticationError) {
+    console.error('Content agent: invalid Anthropic API key')
+    return fail('The content agent is misconfigured: the Anthropic API key was rejected.', 503)
+  }
+  if (error instanceof Anthropic.RateLimitError) {
+    return fail('The content agent is busy. Try again in a minute.', 429)
+  }
+  if (error instanceof Anthropic.APIError) {
+    console.error(`Content agent API error ${error.status}:`, error.message)
+    return fail('The content agent could not finish this draft. Try again.', 502)
+  }
+  return null
+}
+
+/**
+ * "This Week in CSPL": the cover, the weekend's results, the table, a
+ * template slide for each of the weekend's best storylines, and last the
+ * following week's slate. Results and table
+ * come straight from the database; the agent chooses and writes the stories
+ * (one run). Nothing is saved unless the whole carousel was made, so it is
+ * never half a post.
+ */
+async function makeWeekInCspl(details: string) {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return fail(
+      'The content agent is not set up yet: ANTHROPIC_API_KEY is missing from the environment.',
+      503
+    )
+  }
+  const named = details.match(/\d+/)
+
+  let results
+  let table
+  try {
+    ;[results, table] = await Promise.all([
+      buildResults(named ? Number(named[0]) : undefined),
+      buildTable(),
+    ])
+  } catch (error) {
+    if (error instanceof GraphicInputError) return fail(error.message, 422)
+    throw error
+  }
+
+  const week = results.week
+  let planned: Awaited<ReturnType<typeof writeWeekStories>>
+  try {
+    planned = await writeWeekStories(week)
+  } catch (error) {
+    const response = agentFailure(error)
+    if (response) return response
+    throw error
+  }
+
+  // The last slide is the following week's slate. Near the end of the season
+  // there may be no next week with fixtures; the carousel then simply ends on the stories.
+  let slate: GraphicSpec | null = null
+  try {
+    slate = await buildSlate(week + 1)
+  } catch (error) {
+    if (!(error instanceof GraphicInputError)) throw error
+  }
+
+  const cover = buildWeekCover(week, results.season, planned.stories, slate !== null)
+  const slides: GraphicSpec[] = [cover, results, table, ...planned.stories, ...(slate ? [slate] : [])]
+  const labels = [
+    'This Week in CSPL',
+    'Weekend Results',
+    'League Table',
+    ...planned.stories.map((st) => st.label),
+    ...(slate ? ["Next Week's Slate"] : []),
+  ]
+  // Newest first in the queue: each slide a second apart, the cover newest.
+  const now = Date.now()
+  const { data, error } = await supabaseAdmin
+    .from('content_drafts')
+    .insert(
+      slides.map((graphic, i) => ({
+        kind: 'week_in_cspl',
+        brief: `This Week in CSPL, matchweek ${week}: slide ${i + 1} of ${slides.length}, ${labels[i]}.`,
+        body: i === 0 ? planned.note : '',
+        graphic,
+        style: DEFAULT_STYLE_ID,
+        created_at: new Date(now - i * 1000).toISOString(),
+      }))
+    )
+    .select()
+  if (error) {
+    console.error('Error saving This Week in CSPL drafts:', error)
+    return fail('The slides were made but could not be saved -- have migrations 027-029 been run?', 500)
   }
   const drafts = (data as ContentDraftRow[])
     .map(toContentDraft)

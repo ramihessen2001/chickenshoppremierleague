@@ -22,6 +22,9 @@ export type GraphicType =
   | 'power_rankings'
   | 'award_race'
   | 'thumbnail'
+  | 'results'
+  | 'week_cover'
+  | 'story'
 export type Ground = 'black' | 'bone'
 
 export const GRAPHIC_TYPES: GraphicType[] = [
@@ -33,6 +36,9 @@ export const GRAPHIC_TYPES: GraphicType[] = [
   'power_rankings',
   'award_race',
   'thumbnail',
+  'results',
+  'week_cover',
+  'story',
 ]
 
 /** Pixel size of each graphic: the four feed posts are 3:4, the matchday story 9:16. */
@@ -46,6 +52,9 @@ export const GRAPHIC_SIZES: Record<GraphicType, { width: number; height: number 
   award_race: { width: 1080, height: 1440 },
   // YouTube's thumbnail size (16:9), for the matchday livestreams.
   thumbnail: { width: 1280, height: 720 },
+  results: { width: 1080, height: 1440 },
+  week_cover: { width: 1080, height: 1440 },
+  story: { width: 1080, height: 1440 },
 }
 export const GROUNDS: Ground[] = ['black', 'bone']
 
@@ -223,7 +232,78 @@ export interface AwardRaceGraphic {
   }[]
 }
 
+/**
+ * A matchweek's results: every game that was played, with its score and man
+ * of the match. All fact; the agent has no part in it.
+ */
+export interface ResultsGraphic {
+  type: 'results'
+  season: string
+  week: number
+  days: {
+    weekday: string
+    date: string
+    games: {
+      slot: string
+      home: GraphicClub
+      away: GraphicClub
+      homeScore: number
+      awayScore: number
+      /** Man of the match, when one was named. */
+      motm: string | null
+    }[]
+  }[]
+}
+
+/** Limits that keep a story slide's text on the page. */
+export const STORY_LIMITS = { label: 20, headline: 56, body: 150, mediaHint: 60, stats: 3, statLabel: 10, statValue: 8 }
+export const STORY_COUNT_MIN = 2
+export const STORY_COUNT_MAX = 6
+
+/**
+ * One storyline of the weekend, as a template slide. The text is the agent's
+ * (it chose the story and wrote the headline); the clubs, scoreline and
+ * figures come from the database. The media panel is left empty on purpose:
+ * the media team lays their own photo or video over it.
+ */
+export interface StoryGraphic {
+  type: 'story'
+  season: string
+  week: number
+  /** This story's place in the series, from 1. */
+  index: number
+  count: number
+  /** The kind of story, shown as the slide's title: "Hat-trick hero". */
+  label: string
+  headline: string
+  body: string
+  /** What to put in the media panel: "Video: the 11-2 goals". Null for a plain panel. */
+  mediaHint: string | null
+  club: GraphicClub | null
+  /** A game's scoreline, worked out from the database. */
+  game: { home: GraphicClub; away: GraphicClub; homeScore: number; awayScore: number } | null
+  stats: { label: string; value: string }[]
+}
+
+/**
+ * The first slide of "This Week in CSPL": the slides that follow it, in order.
+ */
+export interface WeekCoverGraphic {
+  type: 'week_cover'
+  season: string
+  week: number
+  items: {
+    /** The slide's position in the carousel; the cover is 1. */
+    slide: number
+    label: string
+    headline: string | null
+  }[]
+}
+
 export type GraphicSpec =
+  | StoryGraphic
+  | WeekCoverGraphic
+  | ResultsGraphic
   | AwardRaceGraphic
   | PowerRankingsGraphic
   | TableGraphic
@@ -262,4 +342,7 @@ export const GRAPHIC_LABELS: Record<GraphicType, string> = {
   power_rankings: 'Power Rankings',
   award_race: 'Award Race',
   thumbnail: 'Matchday Thumbnail',
+  results: 'Weekend Results',
+  week_cover: 'This Week in CSPL',
+  story: 'Story',
 }

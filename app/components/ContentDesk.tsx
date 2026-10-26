@@ -295,7 +295,9 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
                   ? 'Make stories'
                   : kind === 'thumbnail'
                     ? 'Make thumbnails'
-                    : 'Make graphic'}
+                    : kind === 'week_in_cspl'
+                      ? 'Make the series'
+                      : 'Make graphic'}
             </button>
             {isWriting && (
               <p className="mt-3 text-[13px] text-ink-tertiary" role="status">
@@ -409,6 +411,9 @@ function DraftCard({
         <p className="eyebrow">
           {presetLabel(draft.kind)}
           {draft.graphic?.type === 'award_race' && ` · ${AWARD_LABELS[draft.graphic.award]}`}
+          {draft.kind === 'week_in_cspl' &&
+            draft.graphic &&
+            ` · ${draft.graphic.type === 'story' ? draft.graphic.label : GRAPHIC_LABELS[draft.graphic.type]}`}
         </p>
         <p className="font-util text-[12px] text-ink-tertiary">{formatWhen(draft.createdAt)}</p>
       </div>

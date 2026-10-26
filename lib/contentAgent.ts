@@ -35,11 +35,22 @@ import {
   buildPowerRankings,
   buildSlate,
   buildStatLeaders,
+  buildStory,
   buildTable,
   buildTotw,
   GraphicInputError,
+  numberStories,
 } from './graphics/build'
-import { AWARD_KINDS, GRAPHIC_LABELS, GraphicSpec, YOUNG_PLAYER_MAX_AGE } from './graphics/spec'
+import {
+  AWARD_KINDS,
+  GRAPHIC_LABELS,
+  GraphicSpec,
+  STORY_COUNT_MAX,
+  STORY_COUNT_MIN,
+  STORY_LIMITS,
+  StoryGraphic,
+  YOUNG_PLAYER_MAX_AGE,
+} from './graphics/spec'
 import { DEFAULT_STYLE_ID, STYLE_IDS, STYLES } from './graphics/styles'
 import { LEAGUE } from '@/config/league'
 import { Game } from '@/types/game'
@@ -77,6 +88,18 @@ The feed graphics are 1080×1440 images; the matchday story is 1080×1920. A req
 - For Team of the Week, read that week's box scores first, then pick 1 FWD, 2 MID, 2 DEF and 1 GK, plus a Player of the Week from among the six. Prefer each player's registered position (get_club shows it). The tool checks every pick against the club's roster and works out the stat lines itself; if it reports a problem, fix the pick and call it again.
 - Graphics are drawn in a style. Use ${DEFAULT_STYLE_ID} unless the request names another style; pass it as attach_graphic's style. Never invent a style.
 ${STYLES.map((s) => `  - ${s.id}: ${s.name}. ${s.description}`).join('\n')}
+
+# Weekly stories
+
+For "This Week in CSPL" you choose the best storylines of one matchweek and write a template slide for each, by calling submit_stories once, best story first. Read get_games for the week, the box scores of the games that matter, get_standings and get_stat_leaders before you decide. A good story is something people will talk about: the biggest win, a draw or an upset, a hat-trick or a standout scorer, a goalkeeper's big night, a club's climb or slide in the table, a race that tightened. Mix them: not four stories about one game. Give each story:
+- label: a short tag, at most ${STORY_LIMITS.label} characters, shown as the slide's big title ("Hat-trick hero", "Goal fest", "Top of the table").
+- headline: at most ${STORY_LIMITS.headline} characters, plain and punchy.
+- body: at most ${STORY_LIMITS.body} characters, one or two factual sentences.
+- mediaHint: at most ${STORY_LIMITS.mediaHint} characters, what the media team should lay over the slide's empty panel ("Video: Rizgar's four goals", "Photo: Dakar celebrating"); leave it out when the story needs no picture or video.
+- club: the club the story is about, so its crest is shown, when the story is about one club and not one game.
+- gameId: from get_games, when the story is about one game, so its scoreline is shown.
+- stats: up to ${STORY_LIMITS.stats} {label, value} figures, such as {label: "Goals", value: "4"}: numbers you read from the tools, never worked out in your head.
+Everything comes from the tools: scores, names, counts. Submit ${STORY_COUNT_MIN} to ${STORY_COUNT_MAX} stories; if the weekend gave you fewer than three real ones, submit fewer rather than pad. No quotes, no ages, no jokes at a player's expense; a heavy defeat is the winner's story, not a club's embarrassment. The tool checks every length and name and sends back what to fix. Call submit_stories instead of attach_graphic, and reply "Done." when it has saved.
 
 Past approved graphics are the clearest guide to what the media team likes; check them for power rankings, where the verdicts are yours.`
 
@@ -420,6 +443,61 @@ function attachGraphicTool(onAttach: (spec: GraphicSpec, style: string) => void)
   })
 }
 
+/**
+ * The tool for the weekly stories: the agent hands over its storylines and
+ * each is checked and built (lengths, clubs, the game's real scoreline). It
+ * saves nothing itself -- the stories wait in the closure for the route.
+ */
+function submitStoriesTool(week: number, onSubmit: (stories: StoryGraphic[]) => void) {
+  return betaTool({
+    name: 'submit_stories',
+    description: `Submit the weekend's storylines, best first (${STORY_COUNT_MIN} to ${STORY_COUNT_MAX}). Each becomes a template slide. Calling it again replaces the earlier list.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        stories: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              label: { type: 'string', description: `The slide's title, at most ${STORY_LIMITS.label} characters.` },
+              headline: { type: 'string', description: `At most ${STORY_LIMITS.headline} characters.` },
+              body: { type: 'string', description: `At most ${STORY_LIMITS.body} characters.` },
+              mediaHint: { type: 'string', description: `What to add in the media panel, at most ${STORY_LIMITS.mediaHint} characters.` },
+              club: { type: 'string', description: 'Slug or name of the club the story is about.' },
+              gameId: { type: 'string', description: 'A completed game from get_games; its scoreline is added.' },
+              stats: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: { label: { type: 'string' }, value: { type: 'string' } },
+                  required: ['label', 'value'],
+                  additionalProperties: false,
+                },
+              },
+            },
+            required: ['label', 'headline', 'body'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['stories'],
+      additionalProperties: false,
+    },
+    run: async (input) => {
+      try {
+        const built = await Promise.all(input.stories.map((story) => buildStory(story, week)))
+        const numbered = numberStories(built)
+        onSubmit(numbered)
+        return `Saved ${numbered.length} stories.`
+      } catch (error) {
+        if (error instanceof GraphicInputError) return `Error: ${error.message}`
+        throw error
+      }
+    },
+  })
+}
+
 export class ContentAgentError extends Error {}
 
 export interface WrittenDraft {
@@ -500,4 +578,63 @@ export async function writeDraft(brief: string, kind: string): Promise<WrittenDr
   }
   // "Done." is the expected reply; anything else is a note for the media team.
   return { text: text === 'Done.' ? '' : text, graphic: attached, style }
+}
+
+/**
+ * Chooses the best storylines of one matchweek and returns them as numbered
+ * story slides. Throws a ContentAgentError, with a message fit to show the
+ * media team, when the agent declines or finds no stories.
+ */
+export async function writeWeekStories(week: number): Promise<{ stories: StoryGraphic[]; note: string }> {
+  const client = new Anthropic()
+  let submitted: StoryGraphic[] | null = null
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'America/New_York',
+  })
+
+  const message = await client.beta.messages.toolRunner({
+    model: MODEL,
+    max_tokens: 16000,
+    output_config: { effort: 'medium' },
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    cache_control: { type: 'ephemeral' },
+    system: SYSTEM_PROMPT,
+    tools: [
+      ...tools,
+      submitStoriesTool(week, (stories) => {
+        submitted = stories
+      }),
+    ],
+    // More reading than a single graphic: every game of the week, then the best box scores.
+    max_iterations: 30,
+    messages: [
+      {
+        role: 'user',
+        content: `Today is ${today}. Choose the best storylines of matchweek ${week} for "This Week in CSPL" and submit them with submit_stories.`,
+      },
+    ],
+  })
+
+  if (message.stop_reason === 'refusal') {
+    throw new ContentAgentError('The agent declined this request. Try again.')
+  }
+  const text = message.content
+    .filter((block): block is Anthropic.Beta.BetaTextBlock => block.type === 'text')
+    .map((block) => block.text)
+    .join('\n')
+    .trim()
+  if (message.stop_reason === 'max_tokens') {
+    throw new ContentAgentError('The stories ran too long and were cut off. Try again.')
+  }
+  // Assigned inside the tool's callback, which the compiler cannot follow.
+  const stories = submitted as StoryGraphic[] | null
+  if (!stories) {
+    throw new ContentAgentError(text || 'The agent could not find stories to tell. Try again.')
+  }
+  return { stories, note: text === 'Done.' ? '' : text }
 }

@@ -35,6 +35,12 @@ import {
   ThumbnailGraphic,
   POWER_RANKING_BLURB_MAX,
   PowerRankingsGraphic,
+  ResultsGraphic,
+  STORY_COUNT_MAX,
+  STORY_COUNT_MIN,
+  STORY_LIMITS,
+  StoryGraphic,
+  WeekCoverGraphic,
   SlateGraphic,
   StatLeadersGraphic,
   TableGraphic,
@@ -198,6 +204,50 @@ export async function buildMatchday(gameId: string): Promise<MatchdayGraphic> {
     home: side(game.homeTeamId),
     away: side(game.awayTeamId),
   }
+}
+
+/**
+ * A matchweek's results: every completed game with its score and man of the
+ * match, by day. With no week given, the last week with a completed game.
+ */
+export async function buildResults(week?: number): Promise<ResultsGraphic> {
+  const [games, clubs, season] = await Promise.all([getAllGames(), clubDirectory(), seasonLabel()])
+  const chosenWeek = week ?? lastCompletedWeek(games)
+  if (chosenWeek === null) {
+    throw new GraphicInputError('No game has been completed yet, so there are no results to show.')
+  }
+
+  const played = games
+    .filter(
+      (g) =>
+        g.weekNumber === chosenWeek &&
+        g.status === 'completed' &&
+        g.homeScore !== null &&
+        g.awayScore !== null
+    )
+    .sort((a, b) => a.date.localeCompare(b.date) || slotRank(a.time) - slotRank(b.time))
+  if (played.length === 0) {
+    throw new GraphicInputError(`Matchweek ${chosenWeek} has no completed games to show.`)
+  }
+
+  const days: ResultsGraphic['days'] = []
+  for (const game of played) {
+    const { weekday, date } = dayLabels(game.date)
+    let day = days.find((d) => d.date === date)
+    if (!day) {
+      day = { weekday, date, games: [] }
+      days.push(day)
+    }
+    day.games.push({
+      slot: game.time,
+      home: clubs.get(game.homeTeamId) ?? { slug: game.homeTeamId, name: 'TBD' },
+      away: clubs.get(game.awayTeamId) ?? { slug: game.awayTeamId, name: 'TBD' },
+      homeScore: game.homeScore as number,
+      awayScore: game.awayScore as number,
+      motm: game.playerOfGame?.name ?? null,
+    })
+  }
+  return { type: 'results', season, week: chosenWeek, days }
 }
 
 /** Earlier slots first within a day. */
@@ -804,4 +854,116 @@ export async function buildAwardRace(input: AwardRaceInput): Promise<AwardRaceGr
       stats: figures(e),
     })),
   }
+}
+
+// ---------------------------------------------------------------------------
+// "This Week in CSPL": the cover and the story slides
+// ---------------------------------------------------------------------------
+
+/** What the agent hands over for one storyline. */
+export interface StoryInput {
+  label: string
+  headline: string
+  body: string
+  mediaHint?: string
+  /** A club (slug or name) the story is about, for its crest. */
+  club?: string
+  /** A game the story is about (from get_games): its scoreline is added for you. */
+  gameId?: string
+  stats?: { label: string; value: string }[]
+}
+
+/**
+ * A story slide from the agent's input: checks the text fits and every name is
+ * real, and adds what is fact -- the club's crest and the game's scoreline.
+ * `index` and `count` are filled in once the whole list is known.
+ */
+export async function buildStory(
+  input: StoryInput,
+  week: number
+): Promise<Omit<StoryGraphic, 'index' | 'count'>> {
+  const L = STORY_LIMITS
+  const tooLong = (field: string, value: string, max: number) => {
+    if (value.length > max) {
+      throw new GraphicInputError(`The ${field} "${value}" is ${value.length} characters; keep it to ${max} or fewer.`)
+    }
+  }
+  const label = input.label.trim()
+  const headline = input.headline.trim()
+  const body = input.body.trim()
+  if (!label || !headline) throw new GraphicInputError('Every story needs a label and a headline.')
+  tooLong('label', label, L.label)
+  tooLong('headline', headline, L.headline)
+  tooLong('body', body, L.body)
+  const mediaHint = input.mediaHint?.trim() || null
+  if (mediaHint) tooLong('media hint', mediaHint, L.mediaHint)
+
+  const stats = (input.stats ?? []).map((s) => ({ label: s.label.trim(), value: String(s.value).trim() }))
+  if (stats.length > L.stats) throw new GraphicInputError(`A story shows at most ${L.stats} figures.`)
+  for (const s of stats) {
+    tooLong('figure label', s.label, L.statLabel)
+    tooLong('figure value', s.value, L.statValue)
+  }
+
+  const [teams, games, clubs, season] = await Promise.all([
+    getTeams(),
+    input.gameId ? getAllGames() : Promise.resolve([] as Game[]),
+    clubDirectory(),
+    seasonLabel(),
+  ])
+
+  let club: GraphicClub | null = null
+  if (input.club) {
+    const team = teams.find((t) =>
+      [t.slug, t.name, t.short_name ?? ''].some((v) => normalise(v) === normalise(input.club as string))
+    )
+    if (!team) throw new GraphicInputError(`No club called "${input.club}".`)
+    club = { slug: team.slug, name: team.short_name || team.name }
+  }
+
+  let game: StoryGraphic['game'] = null
+  if (input.gameId) {
+    const found = games.find((g) => g.id === input.gameId)
+    if (!found) throw new GraphicInputError(`No game with id ${input.gameId}.`)
+    if (found.status !== 'completed' || found.homeScore === null || found.awayScore === null) {
+      throw new GraphicInputError('That game has not been completed, so it has no score to show.')
+    }
+    game = {
+      home: clubs.get(found.homeTeamId) ?? { slug: found.homeTeamId, name: 'TBD' },
+      away: clubs.get(found.awayTeamId) ?? { slug: found.awayTeamId, name: 'TBD' },
+      homeScore: found.homeScore,
+      awayScore: found.awayScore,
+    }
+  }
+
+  return { type: 'story', season, week, label, headline, body, mediaHint, club, game, stats }
+}
+
+/** Numbers a validated list of stories and checks there are enough, and not too many. */
+export function numberStories(stories: Omit<StoryGraphic, 'index' | 'count'>[]): StoryGraphic[] {
+  if (stories.length < STORY_COUNT_MIN || stories.length > STORY_COUNT_MAX) {
+    throw new GraphicInputError(
+      `A week has ${STORY_COUNT_MIN} to ${STORY_COUNT_MAX} stories; you gave ${stories.length}.`
+    )
+  }
+  return stories.map((story, i) => ({ ...story, index: i + 1, count: stories.length }))
+}
+
+/**
+ * The cover: every slide after it, in order -- the results, the table, each
+ * story with its headline, and (when there is one) next week's slate last.
+ */
+export function buildWeekCover(
+  week: number,
+  season: string,
+  stories: StoryGraphic[],
+  hasSlate: boolean
+): WeekCoverGraphic {
+  const items: WeekCoverGraphic['items'] = [
+    { slide: 2, label: 'Weekend Results', headline: null },
+    { slide: 3, label: 'League Table', headline: null },
+    ...stories.map((story, i) => ({ slide: i + 4, label: story.label, headline: story.headline })),
+  ]
+  if (hasSlate) items.push({ slide: stories.length + 4, label: "Next Week's Slate", headline: null })
+  return { type: 'week_cover', season, week, items }
 }

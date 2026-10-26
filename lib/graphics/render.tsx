@@ -32,6 +32,9 @@ import {
   Ground,
   MatchdayGraphic,
   PowerRankingsGraphic,
+  ResultsGraphic,
+  StoryGraphic,
+  WeekCoverGraphic,
   SlateGraphic,
   StatLeadersGraphic,
   TableGraphic,
@@ -1584,8 +1587,328 @@ function Thumbnail({ spec, t }: { spec: ThumbnailGraphic; t: Theme }) {
   )
 }
 
+/**
+ * A matchweek's results: each game's score in the middle of its row, the clubs
+ * either side, and the man of the match along the bottom. Rows are laid out
+ * like the slate's, so the two read as a pair.
+ */
+function Results({ spec, t }: { spec: ResultsGraphic; t: Theme }) {
+  const gameCount = spec.days.reduce((n, d) => n + d.games.length, 0)
+  const rowHeight =
+    gameCount <= 4
+      ? t.bars
+        ? t.compact
+          ? 150
+          : 168
+        : 188
+      : Math.max(88, Math.floor((t.compact ? 600 : 720) / gameCount))
+  const crest = rowHeight >= 150 ? 72 : rowHeight >= 110 ? 62 : 52
+  // With rows this short there is no room for the man of the match under the score.
+  const showMotm = rowHeight >= 140
+
+  const side = (club: ResultsGraphic['days'][number]['games'][number]['home'], align: 'left' | 'right') => {
+    const name = (
+      <div
+        style={{
+          display: 'flex',
+          fontFamily: DISPLAY,
+          fontWeight: 700,
+          fontSize: fitName(club.name, [[10, 38], [14, 32]], 28),
+          lineHeight: 1,
+          textTransform: 'uppercase',
+          textAlign: align,
+          maxWidth: 230,
+        }}
+      >
+        {club.name}
+      </div>
+    )
+    const mark = <Crest slug={club.slug} box={t.crest(crest)} plate={t.plate} />
+    return (
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 18,
+          justifyContent: align === 'right' ? 'flex-end' : 'flex-start',
+        }}
+      >
+        {align === 'right' ? name : mark}
+        {align === 'right' ? mark : name}
+      </div>
+    )
+  }
+
+  return (
+    <Frame t={t} season={spec.season} kicker={`Matchweek ${pad(spec.week)}`} title="Weekend Results">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 40, marginTop: 40 }}>
+        {spec.days.map((day) => (
+          <div key={day.date} style={{ display: 'flex', flexDirection: 'column' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-end',
+                justifyContent: 'space-between',
+                paddingBottom: 14,
+                borderBottom: `${t.heavyW}px solid ${t.heavy}`,
+              }}
+            >
+              <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 40, lineHeight: 1, textTransform: 'uppercase' }}>
+                {day.weekday}
+              </div>
+              <div style={{ fontSize: 22, letterSpacing: 2, textTransform: 'uppercase', color: t.ink2 }}>{day.date}</div>
+            </div>
+            {day.games.map((game, gi) => (
+              <div
+                key={gi}
+                style={{
+                  display: 'flex',
+                  position: 'relative',
+                  alignItems: 'center',
+                  ...(t.bars
+                    ? { ...barSurface(t), height: rowHeight - 14, marginTop: 14, padding: '0 20px' }
+                    : {
+                        height: rowHeight,
+                        borderBottom: gi < day.games.length - 1 ? `${t.lightW}px solid ${t.rule}` : 'none',
+                      }),
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 10,
+                    left: 22,
+                    display: 'flex',
+                    fontSize: 17,
+                    letterSpacing: 2,
+                    textTransform: 'uppercase',
+                    color: t.bars ? t.barInk2 : t.accent,
+                  }}
+                >
+                  {game.slot}
+                </div>
+                {side(game.home, 'right')}
+                <div style={{ width: 190, display: 'flex', justifyContent: 'center' }}>
+                  {t.bars ? (
+                    <FigureBox t={t} value={`${game.homeScore} – ${game.awayScore}`} width={160} height={70} fontSize={44} />
+                  ) : (
+                    <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 52 }}>
+                      {`${game.homeScore} – ${game.awayScore}`}
+                    </div>
+                  )}
+                </div>
+                {side(game.away, 'left')}
+                {showMotm && game.motm && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: 9,
+                      left: 0,
+                      right: 0,
+                      display: 'flex',
+                      justifyContent: 'center',
+                      fontSize: 16,
+                      letterSpacing: 2,
+                      textTransform: 'uppercase',
+                      color: t.bars ? t.barInk2 : t.ink2,
+                    }}
+                  >
+                    {`Man of the match · ${game.motm}`}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </Frame>
+  )
+}
+
+/**
+ * The first slide of "This Week in CSPL": the slides after it, in order, as
+ * numbered bars -- the results, the table, then each story's headline.
+ */
+function WeekCover({ spec, t }: { spec: WeekCoverGraphic; t: Theme }) {
+  const rowHeight = Math.min(104, Math.floor((t.compact ? 640 : 740) / Math.max(spec.items.length, 1)))
+  return (
+    <Frame t={t} season={spec.season} kicker={`Matchweek ${pad(spec.week)}`} title="This Week in CSPL">
+      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 28 }}>
+        {spec.items.map((item) => (
+          <div
+            key={item.slide}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 22,
+              ...(t.bars
+                ? { ...barSurface(t), height: rowHeight - 10, marginTop: 10, padding: '0 20px 0 14px' }
+                : { height: rowHeight, borderBottom: `${t.lightW}px solid ${t.rule}` }),
+            }}
+          >
+            {t.bars ? (
+              <FigureBox t={t} value={item.slide} width={58} height={Math.min(58, rowHeight - 28)} fontSize={34} />
+            ) : (
+              <div style={{ display: 'flex', width: 58, fontFamily: DISPLAY, fontWeight: 700, fontSize: 40 }}>{item.slide}</div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 0 }}>
+              {item.headline ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', fontSize: 17, letterSpacing: 2, textTransform: 'uppercase', color: t.bars ? t.barInk2 : t.accent }}>
+                    {item.label}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      fontFamily: DISPLAY,
+                      fontWeight: 700,
+                      fontSize: fitName(item.headline, [[34, 34], [44, 30]], 26),
+                      whiteSpace: 'nowrap',
+                      lineHeight: 1,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {item.headline}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 36, lineHeight: 1, textTransform: 'uppercase' }}>
+                  {item.label}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  )
+}
+
+/**
+ * One storyline as a template: a panel kept empty for the media team's photo or
+ * video, the headline and a line of text under it, and -- when the story has
+ * them -- a scoreline and up to three figures along the bottom.
+ */
+function StorySlide({ spec, t }: { spec: StoryGraphic; t: Theme }) {
+  const hasGame = spec.game !== null
+  const hasStats = spec.stats.length > 0
+  // The panel gives up height to whatever else the story carries.
+  const panelHeight = Math.max(240, 540 - (hasGame ? 116 : 0) - (hasStats ? 92 : 0))
+  const game = spec.game
+  return (
+    <Frame t={t} season={spec.season} kicker={`Story ${spec.index} of ${spec.count}`} title={spec.label}>
+      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 26 }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            height: panelHeight,
+            borderRadius: t.radius + 4,
+            background: 'rgba(255, 255, 255, 0.10)',
+            border: '2px solid rgba(255, 255, 255, 0.35)',
+            color: t.ink2,
+          }}
+        >
+          <div style={{ display: 'flex', fontSize: 19, letterSpacing: 3, textTransform: 'uppercase' }}>Add photo or video</div>
+          {spec.mediaHint && (
+            <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 30, textTransform: 'uppercase', color: t.ink, maxWidth: 820, textAlign: 'center' }}>
+              {spec.mediaHint}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginTop: 24 }}>
+          {spec.club && !game && <Crest slug={spec.club.slug} box={t.crest(92)} />}
+          <div
+            style={{
+              display: 'flex',
+              flex: 1,
+              fontFamily: DISPLAY,
+              fontWeight: 700,
+              fontSize: fitName(spec.headline, [[26, 60], [38, 52]], 44),
+              lineHeight: 1.02,
+              textTransform: 'uppercase',
+            }}
+          >
+            {spec.headline}
+          </div>
+        </div>
+
+        {spec.body && (
+          <div style={{ display: 'flex', marginTop: 16, fontSize: 25, lineHeight: 1.4, color: t.ink2 }}>{spec.body}</div>
+        )}
+
+        {game && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              height: 96,
+              marginTop: 20,
+              padding: '0 20px',
+              ...barSurface(t),
+            }}
+          >
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 14 }}>
+              <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: fitName(game.home.name, [[12, 32]], 26), textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                {game.home.name}
+              </div>
+              <Crest slug={game.home.slug} box={t.crest(62)} plate={t.plate} />
+            </div>
+            <div style={{ width: 170, display: 'flex', justifyContent: 'center' }}>
+              <FigureBox t={t} value={`${game.homeScore} – ${game.awayScore}`} width={140} height={62} fontSize={38} />
+            </div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 14 }}>
+              <Crest slug={game.away.slug} box={t.crest(62)} plate={t.plate} />
+              <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: fitName(game.away.name, [[12, 32]], 26), textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                {game.away.name}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {hasStats && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: 16 }}>
+            {spec.stats.map((stat) => (
+              <div
+                key={stat.label}
+                style={{
+                  flex: 1,
+                  maxWidth: 300,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 4,
+                  height: 76,
+                  ...barSurface(t),
+                }}
+              >
+                <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 36, lineHeight: 1 }}>{stat.value}</div>
+                <div style={{ display: 'flex', fontSize: 15, letterSpacing: 2, textTransform: 'uppercase', color: t.bars ? t.barInk2 : t.ink2 }}>
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Frame>
+  )
+}
+
 function Graphic({ spec, t }: { spec: GraphicSpec; t: Theme }) {
   switch (spec.type) {
+    case 'week_cover':
+      return <WeekCover spec={spec} t={t} />
+    case 'story':
+      return <StorySlide spec={spec} t={t} />
+    case 'results':
+      return <Results spec={spec} t={t} />
     case 'thumbnail':
       return <Thumbnail spec={spec} t={t} />
     case 'award_race':
