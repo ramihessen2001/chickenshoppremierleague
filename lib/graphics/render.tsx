@@ -1813,16 +1813,19 @@ function WeekCover({ spec, t }: { spec: WeekCoverGraphic; t: Theme }) {
 /** The media team's videos are 1920 x 1080, so the panel they go over is exactly 16:9. */
 const VIDEO_RATIO = 16 / 9
 const PANEL_MAX_WIDTH = 936
-/** Below this width the figures, then the scoreline, are dropped to give a video a useful window. */
-const PANEL_MIN_WIDTH = 600
+/** The window is never drawn narrower than this; the extras give way before it does. */
+const PANEL_MIN_WIDTH = 440
+/** Above this width, the window is roomy and the scoreline and figures keep their full size. */
+const PANEL_ROOMY_WIDTH = 600
 
 /**
- * The panel's size, and which extras fit under it. The panel is always 16:9, as
- * large as the rest of the slide leaves room for: the headline and text take
- * what they need (estimated from their length), then the scoreline and figures,
- * and the panel takes the height that remains. When a story carries a lot, the
- * figures and then the scoreline are dropped before the panel shrinks below a
- * useful size.
+ * The panel's size, and how the rest of the slide is set around it. The panel
+ * is always 16:9, as large as the rest leaves room for: the headline and text
+ * take what they need (estimated from their length), then the scoreline and the
+ * figures, and the panel takes the height that remains. The figures are kept
+ * wherever they can be: when the slide is full the scoreline and figures are
+ * set more compactly first, and only if the window would still be tiny is the
+ * scoreline dropped, then the figures.
  */
 function storyLayout(spec: StoryGraphic) {
   const headFont = fitName(spec.headline, [[26, 60], [38, 52]], 44)
@@ -1835,17 +1838,21 @@ function storyLayout(spec: StoryGraphic) {
   const bodyLines = spec.body ? Math.ceil(spec.body.length / Math.floor(PANEL_MAX_WIDTH / (bodyFont * 0.64))) : 0
   const bodyHeight = bodyLines > 0 ? 16 + Math.ceil(bodyLines * bodyFont * 1.4) : 0
 
-  let showGame = spec.game !== null
-  let showStats = spec.stats.length > 0
-  const widthFor = (game: boolean, stats: boolean) => {
-    // 788 is the height from the panel's top to the sponsor bar's, less a margin for estimates that run short.
-    const room = 750 - (24 + headHeight) - bodyHeight - (game ? 116 : 0) - (stats ? 92 : 0)
+  const widthFor = (game: boolean, stats: boolean, compact: boolean) => {
+    // 750 is the height from the panel's top to the sponsor bar's, less a margin for estimates that run short.
+    const room =
+      750 - (24 + headHeight) - bodyHeight - (game ? (compact ? 92 : 116) : 0) - (stats ? (compact ? 74 : 92) : 0)
     return Math.min(PANEL_MAX_WIDTH, Math.floor(room * VIDEO_RATIO))
   }
-  if (widthFor(showGame, showStats) < PANEL_MIN_WIDTH) showStats = false
-  if (widthFor(showGame, showStats) < PANEL_MIN_WIDTH) showGame = false
-  const width = Math.max(480, widthFor(showGame, showStats))
-  return { panelWidth: width, panelHeight: Math.round(width / VIDEO_RATIO), showGame, showStats }
+
+  let showGame = spec.game !== null
+  let showStats = spec.stats.length > 0
+  let compact = false
+  if (widthFor(showGame, showStats, false) < PANEL_ROOMY_WIDTH && (showGame || showStats)) compact = true
+  if (widthFor(showGame, showStats, compact) < PANEL_MIN_WIDTH) showGame = false
+  if (widthFor(showGame, showStats, compact) < PANEL_MIN_WIDTH) showStats = false
+  const width = Math.max(PANEL_MIN_WIDTH, widthFor(showGame, showStats, compact))
+  return { panelWidth: width, panelHeight: Math.round(width / VIDEO_RATIO), showGame, showStats, compact }
 }
 
 /**
@@ -1859,7 +1866,7 @@ function tidyFigure(stat: { label: string; value: string }) {
 }
 
 function StorySlide({ spec, t }: { spec: StoryGraphic; t: Theme }) {
-  const { panelWidth, panelHeight, showGame, showStats } = storyLayout(spec)
+  const { panelWidth, panelHeight, showGame, showStats, compact } = storyLayout(spec)
   const hasStats = showStats
   const game = showGame ? spec.game : null
   return (
@@ -1934,24 +1941,24 @@ function StorySlide({ spec, t }: { spec: StoryGraphic; t: Theme }) {
             style={{
               display: 'flex',
               alignItems: 'center',
-              height: 96,
-              marginTop: 20,
+              height: compact ? 78 : 96,
+              marginTop: compact ? 14 : 20,
               padding: '0 20px',
               ...barSurface(t),
             }}
           >
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 14 }}>
-              <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: fitName(game.home.name, [[12, 32]], 26), textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+              <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: fitName(game.home.name, [[12, compact ? 28 : 32]], compact ? 24 : 26), textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                 {game.home.name}
               </div>
-              <Crest slug={game.home.slug} box={t.crest(62)} plate={t.plate} />
+              <Crest slug={game.home.slug} box={t.crest(compact ? 50 : 62)} plate={t.plate} />
             </div>
-            <div style={{ width: 170, display: 'flex', justifyContent: 'center' }}>
-              <FigureBox t={t} value={`${game.homeScore} – ${game.awayScore}`} width={140} height={62} fontSize={38} />
+            <div style={{ width: compact ? 150 : 170, display: 'flex', justifyContent: 'center' }}>
+              <FigureBox t={t} value={`${game.homeScore} – ${game.awayScore}`} width={compact ? 126 : 140} height={compact ? 50 : 62} fontSize={compact ? 32 : 38} />
             </div>
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 14 }}>
-              <Crest slug={game.away.slug} box={t.crest(62)} plate={t.plate} />
-              <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: fitName(game.away.name, [[12, 32]], 26), textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+              <Crest slug={game.away.slug} box={t.crest(compact ? 50 : 62)} plate={t.plate} />
+              <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: fitName(game.away.name, [[12, compact ? 28 : 32]], compact ? 24 : 26), textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                 {game.away.name}
               </div>
             </div>
@@ -1959,7 +1966,7 @@ function StorySlide({ spec, t }: { spec: StoryGraphic; t: Theme }) {
         )}
 
         {hasStats && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: compact ? 12 : 16 }}>
             {spec.stats.map(tidyFigure).map((stat) => (
               <div
                 key={stat.label}
@@ -1970,13 +1977,13 @@ function StorySlide({ spec, t }: { spec: StoryGraphic; t: Theme }) {
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 4,
-                  height: 76,
+                  gap: compact ? 2 : 4,
+                  height: compact ? 62 : 76,
                   ...barSurface(t),
                 }}
               >
-                <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 36, lineHeight: 1 }}>{stat.value}</div>
-                <div style={{ display: 'flex', fontSize: 15, letterSpacing: 2, textTransform: 'uppercase', color: t.bars ? t.barInk2 : t.ink2 }}>
+                <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: compact ? 30 : 36, lineHeight: 1 }}>{stat.value}</div>
+                <div style={{ display: 'flex', fontSize: compact ? 14 : 15, letterSpacing: 2, textTransform: 'uppercase', color: t.bars ? t.barInk2 : t.ink2 }}>
                   {stat.label}
                 </div>
               </div>
