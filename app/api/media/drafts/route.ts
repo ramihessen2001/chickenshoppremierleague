@@ -24,10 +24,11 @@ import {
   buildThumbnailWeek,
   buildWeekCover,
   GraphicInputError,
+  numberStories,
 } from '@/lib/graphics/build'
-import type { GraphicSpec } from '@/lib/graphics/spec'
+import { STORY_COUNT_MAX, type GraphicSpec } from '@/lib/graphics/spec'
 import { DEFAULT_STYLE_ID } from '@/lib/graphics/styles'
-import { ContentAgentError, writeDraft, writeStoryFromMedia, writeWeekStories } from '@/lib/contentAgent'
+import { ContentAgentError, writeDictatedStory, writeDraft } from '@/lib/contentAgent'
 import { buildBrief } from '@/lib/contentPresets'
 import { ContentDraftRow, toContentDraft } from '@/types/contentDraft'
 
@@ -77,7 +78,7 @@ export async function POST(request: Request) {
   // matchweek, with no agent involved.
   if (kind === 'matchday') return makeMatchdayStories(details)
   if (kind === 'thumbnail') return makeThumbnails(details)
-  if (kind === 'week_in_cspl') return makeWeekInCspl(details)
+  if (kind === 'week_in_cspl') return makeWeekInCspl(details, body?.items ?? [])
   if (kind === 'story_media') return makeStoriesFromMedia(body?.items ?? [])
 
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -217,21 +218,51 @@ function agentFailure(error: unknown) {
   return null
 }
 
+type StoryItem = { mediaUrl?: string; note?: string; isVideo?: boolean }
+
+const MAX_NOTE_LENGTH = 600
+
 /**
- * "This Week in CSPL": the cover, the weekend's results, the table, a
- * template slide for each of the weekend's best storylines, and last the
- * following week's slate. Results and table
- * come straight from the database; the agent chooses and writes the stories
- * (one run). Nothing is saved unless the whole carousel was made, so it is
- * never half a post.
+ * The media team's stories, checked: each needs a description, a picture (when
+ * `requireMedia`) must be one the desk uploaded to our own storage, so the
+ * agent and the renderer are never pointed at a stranger's URL. Returns the
+ * cleaned list, or the response to send back.
  */
-async function makeWeekInCspl(details: string) {
+function cleanStoryItems(items: StoryItem[], max: number, requireMedia: boolean) {
+  if (items.length === 0) return fail(requireMedia ? 'Choose a photo or video first' : 'Describe at least one story')
+  if (items.length > max) return fail(`Send ${max} stories or fewer at a time`)
+  const allowedPrefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/league-images/content/`
+  const clean: { note: string; media: { url: string; isVideo: boolean } | null }[] = []
+  for (const item of items) {
+    const note = (item.note ?? '').trim()
+    if (note.length < 3) return fail(requireMedia ? 'Say what each picture shows' : 'Describe each story')
+    if (note.length > MAX_NOTE_LENGTH) return fail(`Keep each description under ${MAX_NOTE_LENGTH} characters`)
+    const url = item.mediaUrl ?? ''
+    if (!url && requireMedia) return fail('Choose a photo or video first')
+    if (url && !url.startsWith(allowedPrefix)) return fail('A picture was not uploaded through the desk')
+    clean.push({ note, media: url ? { url, isVideo: item.isVideo === true } : null })
+  }
+  return clean
+}
+
+/**
+ * "This Week in CSPL": the cover, the weekend's results, the table, one slide
+ * for each story the media team describes, and last the following week's slate.
+ * The stories are the team's: the agent never chooses or changes one. For each
+ * it writes the title and headline, and uses the league's data only to give the
+ * story context. Results,
+ * table and slate come straight from the database. Nothing is saved unless the
+ * whole carousel was made, so it is never half a post.
+ */
+async function makeWeekInCspl(details: string, items: StoryItem[]) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return fail(
       'The content agent is not set up yet: ANTHROPIC_API_KEY is missing from the environment.',
       503
     )
   }
+  const cleaned = cleanStoryItems(items, STORY_COUNT_MAX, false)
+  if (cleaned instanceof NextResponse) return cleaned
   const named = details.match(/\d+/)
 
   let results
@@ -247,14 +278,16 @@ async function makeWeekInCspl(details: string) {
   }
 
   const week = results.week
-  let planned: Awaited<ReturnType<typeof writeWeekStories>>
+  let written: Awaited<ReturnType<typeof writeDictatedStory>>[]
   try {
-    planned = await writeWeekStories(week)
+    written = await Promise.all(cleaned.map((item) => writeDictatedStory(item.note, week, item.media)))
   } catch (error) {
     const response = agentFailure(error)
     if (response) return response
     throw error
   }
+  const stories = numberStories(written.map((w) => w.story), 1)
+  const notes = written.map((w, i) => (w.note ? `Story ${i + 1}: ${w.note}` : '')).filter(Boolean).join('\n')
 
   // The last slide is the following week's slate. Near the end of the season
   // there may be no next week with fixtures; the carousel then simply ends on the stories.
@@ -265,13 +298,13 @@ async function makeWeekInCspl(details: string) {
     if (!(error instanceof GraphicInputError)) throw error
   }
 
-  const cover = buildWeekCover(week, results.season, planned.stories, slate !== null)
-  const slides: GraphicSpec[] = [cover, results, table, ...planned.stories, ...(slate ? [slate] : [])]
+  const cover = buildWeekCover(week, results.season, stories, slate !== null)
+  const slides: GraphicSpec[] = [cover, results, table, ...stories, ...(slate ? [slate] : [])]
   const labels = [
     'This Week in CSPL',
     'Weekend Results',
     'League Table',
-    ...planned.stories.map((st) => st.label),
+    ...stories.map((st) => st.label),
     ...(slate ? ["Next Week's Slate"] : []),
   ]
   // Newest first in the queue: each slide a second apart, the cover newest.
@@ -282,7 +315,7 @@ async function makeWeekInCspl(details: string) {
       slides.map((graphic, i) => ({
         kind: 'week_in_cspl',
         brief: `This Week in CSPL, matchweek ${week}: slide ${i + 1} of ${slides.length}, ${labels[i]}.`,
-        body: i === 0 ? planned.note : '',
+        body: i === 0 ? notes : '',
         graphic,
         style: DEFAULT_STYLE_ID,
         created_at: new Date(now - i * 1000).toISOString(),
@@ -300,36 +333,22 @@ async function makeWeekInCspl(details: string) {
 }
 
 const MAX_MEDIA_STORIES = 4
-const MAX_NOTE_LENGTH = 300
 
 /**
- * One story slide per picture the media team sent: the agent is shown the
- * picture and the team's note, writes the story from the data, and a photo goes
- * into the slide's panel. A video's slide keeps an empty panel for the team to
- * place the video over; only a frame of it is shown to the agent. Pictures must be ones the desk uploaded to our
- * own storage, so the agent and the renderer are never pointed at a stranger's URL.
+ * One story slide per picture the media team sent, each from the team's own
+ * description, with the league's data for context. A photo goes into the
+ * slide's panel; a video's slide keeps an empty panel for the team to place the
+ * video over.
  */
-async function makeStoriesFromMedia(items: { mediaUrl?: string; note?: string; isVideo?: boolean }[]) {
+async function makeStoriesFromMedia(items: StoryItem[]) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return fail(
       'The content agent is not set up yet: ANTHROPIC_API_KEY is missing from the environment.',
       503
     )
   }
-  if (items.length === 0) return fail('Choose a photo or video first')
-  if (items.length > MAX_MEDIA_STORIES) return fail(`Send ${MAX_MEDIA_STORIES} pictures or fewer at a time`)
-
-  const allowedPrefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/league-images/content/`
-  const clean = items.map((item) => ({
-    mediaUrl: item.mediaUrl ?? '',
-    note: (item.note ?? '').trim(),
-    isVideo: item.isVideo === true,
-  }))
-  for (const item of clean) {
-    if (!item.mediaUrl.startsWith(allowedPrefix)) return fail('A picture was not uploaded through the desk')
-    if (item.note.length < 3) return fail('Say what each picture shows')
-    if (item.note.length > MAX_NOTE_LENGTH) return fail(`Keep each note under ${MAX_NOTE_LENGTH} characters`)
-  }
+  const cleaned = cleanStoryItems(items, MAX_MEDIA_STORIES, true)
+  if (cleaned instanceof NextResponse) return cleaned
 
   let week: number
   try {
@@ -339,9 +358,9 @@ async function makeStoriesFromMedia(items: { mediaUrl?: string; note?: string; i
     throw error
   }
 
-  let made: Awaited<ReturnType<typeof writeStoryFromMedia>>[]
+  let made: Awaited<ReturnType<typeof writeDictatedStory>>[]
   try {
-    made = await Promise.all(clean.map((item) => writeStoryFromMedia(item.mediaUrl, item.note, week, item.isVideo)))
+    made = await Promise.all(cleaned.map((item) => writeDictatedStory(item.note, week, item.media)))
   } catch (error) {
     const response = agentFailure(error)
     if (response) return response
@@ -355,7 +374,7 @@ async function makeStoriesFromMedia(items: { mediaUrl?: string; note?: string; i
     .insert(
       made.map((result, i) => ({
         kind: 'story_media',
-        brief: `Story from media: ${clean[i].note}`,
+        brief: `Story from media: ${cleaned[i].note}`,
         body: result.note,
         graphic: result.story,
         style: DEFAULT_STYLE_ID,

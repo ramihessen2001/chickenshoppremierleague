@@ -20,8 +20,12 @@ export interface ContentPreset {
   detailHint: string
   /** When the graphic comes in kinds the team must pick between (the four awards). */
   choices?: { value: string; label: string }[]
-  /** The team supplies their own photos or videos instead of a line of detail. */
-  media?: boolean
+  /**
+   * The team dictates the stories themselves, one entry each (with a photo or
+   * video, which this requires when `requireMedia`), instead of the agent
+   * choosing any.
+   */
+  stories?: { requireMedia: boolean }
 }
 
 export const CONTENT_PRESETS: ContentPreset[] = [
@@ -30,14 +34,15 @@ export const CONTENT_PRESETS: ContentPreset[] = [
     label: 'Story from Media',
     brief: "Make a story slide around the media team's own photo or video.",
     detailHint: '',
-    media: true,
+    stories: { requireMedia: true },
   },
   {
     kind: 'week_in_cspl',
     label: 'This Week in CSPL',
     brief:
-      "Make This Week in CSPL for Instagram: a cover listing the stories, the weekend's results, the league table, a template slide for each of the weekend's best storylines, and last the following week's slate.",
+      "Make This Week in CSPL for Instagram: a cover listing the stories, the weekend's results, the league table, a slide for each story the media team dictates, and last the following week's slate.",
     detailHint: 'Which matchweek, e.g. 3? Blank: the latest matchweek with results.',
+    stories: { requireMedia: false },
   },
   {
     kind: 'matchday',

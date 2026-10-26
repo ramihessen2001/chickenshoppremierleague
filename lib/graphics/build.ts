@@ -940,12 +940,13 @@ export async function buildStory(
   return { type: 'story', season, week, label, headline, body, mediaHint, mediaUrl, club, game, stats }
 }
 
-/** Numbers a validated list of stories and checks there are enough, and not too many. */
-export function numberStories(stories: Omit<StoryGraphic, 'index' | 'count'>[]): StoryGraphic[] {
-  if (stories.length < STORY_COUNT_MIN || stories.length > STORY_COUNT_MAX) {
-    throw new GraphicInputError(
-      `A week has ${STORY_COUNT_MIN} to ${STORY_COUNT_MAX} stories; you gave ${stories.length}.`
-    )
+/** Numbers a list of stories, checking there are enough and not too many. */
+export function numberStories(
+  stories: Omit<StoryGraphic, 'index' | 'count'>[],
+  min = STORY_COUNT_MIN
+): StoryGraphic[] {
+  if (stories.length < min || stories.length > STORY_COUNT_MAX) {
+    throw new GraphicInputError(`A week has ${min} to ${STORY_COUNT_MAX} stories; you gave ${stories.length}.`)
   }
   return stories.map((story, i) => ({ ...story, index: i + 1, count: stories.length }))
 }

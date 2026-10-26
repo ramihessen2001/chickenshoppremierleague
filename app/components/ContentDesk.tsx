@@ -12,7 +12,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { buttonPrimary, buttonSecondary, fieldClass, FormError, labelClass } from './Modal'
-import { MediaItem, MediaStoryUploader } from './MediaStoryUploader'
+import { newStoryEntry, StoryBuilder, StoryEntry } from './StoryBuilder'
 import { CONTENT_PRESETS, presetLabel } from '@/lib/contentPresets'
 import { AWARD_LABELS, GRAPHIC_LABELS, GRAPHIC_SIZES, Ground } from '@/lib/graphics/spec'
 import { resolveStyle, selectableStyles } from '@/lib/graphics/styles'
@@ -130,7 +130,7 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
   const [kind, setKind] = useState('')
   const [details, setDetails] = useState('')
   const [choice, setChoice] = useState('')
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
+  const [storyEntries, setStoryEntries] = useState<StoryEntry[]>([])
   const [isWriting, setIsWriting] = useState(false)
   const [writeError, setWriteError] = useState<string | null>(null)
 
@@ -161,21 +161,25 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
       setWriteError('Choose which award')
       return
     }
-    if (chosen.media) {
-      if (mediaItems.length === 0) {
-        setWriteError('Choose a photo or video first')
+    if (chosen.stories) {
+      if (storyEntries.length === 0) {
+        setWriteError('Add at least one story')
         return
       }
-      if (mediaItems.some((item) => item.uploading)) {
+      if (storyEntries.some((entry) => entry.media?.uploading)) {
         setWriteError('Wait for the uploads to finish')
         return
       }
-      if (mediaItems.some((item) => !item.url)) {
-        setWriteError('Remove any picture that failed to upload')
+      if (storyEntries.some((entry) => entry.media && !entry.media.url)) {
+        setWriteError('Remove any photo or video that failed to upload')
         return
       }
-      if (mediaItems.some((item) => item.note.trim().length < 3)) {
-        setWriteError('Say what each picture shows')
+      if (storyEntries.some((entry) => entry.note.trim().length < 3)) {
+        setWriteError('Describe each story')
+        return
+      }
+      if (chosen.stories.requireMedia && storyEntries.some((entry) => !entry.media)) {
+        setWriteError('Give each story a photo or video')
         return
       }
     }
@@ -186,10 +190,15 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(
-          chosen.media
+          chosen.stories
             ? {
                 kind,
-                items: mediaItems.map((item) => ({ mediaUrl: item.url, note: item.note.trim(), isVideo: item.fromVideo })),
+                details,
+                items: storyEntries.map((entry) => ({
+                  note: entry.note.trim(),
+                  mediaUrl: entry.media?.url ?? undefined,
+                  isVideo: entry.media?.fromVideo ?? false,
+                })),
               }
             : { kind, details, choice }
         ),
@@ -205,7 +214,7 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
       setDetails('')
       setKind('')
       setChoice('')
-      setMediaItems([])
+      setStoryEntries([])
     } catch {
       setWriteError('Lost the connection while the graphic was being made. Try again.')
     } finally {
@@ -257,6 +266,8 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
                   setKind(preset.kind)
                   setChoice('')
                   setWriteError(null)
+                  // A story post starts with one empty story to write in.
+                  if (preset.stories) setStoryEntries((current) => (current.length > 0 ? current : [newStoryEntry()]))
                 }}
                 disabled={isWriting}
                 aria-pressed={kind === preset.kind}
@@ -300,12 +311,19 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
             </>
           )}
 
-          {chosen?.media ? (
-            <MediaStoryUploader items={mediaItems} onChange={setMediaItems} disabled={isWriting} />
-          ) : (
+          {chosen?.stories && (
+            <StoryBuilder
+              entries={storyEntries}
+              onChange={setStoryEntries}
+              disabled={isWriting}
+              requireMedia={chosen.stories.requireMedia}
+            />
+          )}
+          {(!chosen || chosen.detailHint) && (
             <>
               <label htmlFor="desk-details" className={`mt-6 ${labelClass}`}>
-                Details <span className="font-normal text-ink-tertiary">(optional)</span>
+                {chosen?.stories ? 'Matchweek' : 'Details'}{' '}
+                <span className="font-normal text-ink-tertiary">(optional)</span>
               </label>
               <input
                 id="desk-details"
@@ -330,9 +348,9 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
                   : kind === 'thumbnail'
                     ? 'Make thumbnails'
                     : kind === 'week_in_cspl'
-                      ? 'Make the series'
+                      ? 'Make the post'
                       : kind === 'story_media'
-                        ? mediaItems.length > 1
+                        ? storyEntries.length > 1
                           ? 'Make stories'
                           : 'Make story'
                         : 'Make graphic'}

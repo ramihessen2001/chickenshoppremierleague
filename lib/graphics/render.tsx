@@ -1810,12 +1810,44 @@ function WeekCover({ spec, t }: { spec: WeekCoverGraphic; t: Theme }) {
  * video, the headline and a line of text under it, and -- when the story has
  * them -- a scoreline and up to three figures along the bottom.
  */
+/** The media team's videos are 1920 x 1080, so the panel they go over is exactly 16:9. */
+const VIDEO_RATIO = 16 / 9
+const PANEL_MAX_WIDTH = 936
+const PANEL_MIN_WIDTH = 480
+
+/**
+ * The panel's size, and which extras fit under it. The panel is always 16:9, as
+ * large as the rest of the slide leaves room for: the headline and text take
+ * what they need (estimated from their length), then the scoreline and figures,
+ * and the panel takes the height that remains. When a story carries a lot, the
+ * figures and then the scoreline are dropped before the panel shrinks below a
+ * useful size.
+ */
+function storyLayout(spec: StoryGraphic) {
+  const headFont = fitName(spec.headline, [[26, 60], [38, 52]], 44)
+  const headWidth = PANEL_MAX_WIDTH - (spec.club && !spec.game ? 114 : 0)
+  const headLines = Math.max(1, Math.ceil(spec.headline.length / Math.floor(headWidth / (headFont * 0.5))))
+  const headHeight = Math.ceil(headLines * headFont * 1.02)
+  const bodyFont = fitName(spec.body, [[110, 26], [170, 23]], 21)
+  const bodyLines = spec.body ? Math.ceil(spec.body.length / Math.floor(PANEL_MAX_WIDTH / (bodyFont * 0.6))) : 0
+  const bodyHeight = bodyLines > 0 ? 16 + Math.ceil(bodyLines * bodyFont * 1.4) : 0
+
+  let showGame = spec.game !== null
+  let showStats = spec.stats.length > 0
+  const widthFor = (game: boolean, stats: boolean) => {
+    const room = 788 - (24 + headHeight) - bodyHeight - (game ? 116 : 0) - (stats ? 92 : 0)
+    return Math.min(PANEL_MAX_WIDTH, Math.floor(room * VIDEO_RATIO))
+  }
+  if (widthFor(showGame, showStats) < PANEL_MIN_WIDTH) showStats = false
+  if (widthFor(showGame, showStats) < PANEL_MIN_WIDTH) showGame = false
+  const width = Math.max(PANEL_MIN_WIDTH, widthFor(showGame, showStats))
+  return { panelWidth: width, panelHeight: Math.round(width / VIDEO_RATIO), showGame, showStats }
+}
+
 function StorySlide({ spec, t }: { spec: StoryGraphic; t: Theme }) {
-  const hasGame = spec.game !== null
-  const hasStats = spec.stats.length > 0
-  // The panel gives up height to whatever else the story carries.
-  const panelHeight = Math.max(240, 540 - (hasGame ? 116 : 0) - (hasStats ? 92 : 0))
-  const game = spec.game
+  const { panelWidth, panelHeight, showGame, showStats } = storyLayout(spec)
+  const hasStats = showStats
+  const game = showGame ? spec.game : null
   return (
     <Frame
       t={t}
@@ -1826,9 +1858,9 @@ function StorySlide({ spec, t }: { spec: StoryGraphic; t: Theme }) {
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: 26 }}>
         {spec.mediaUrl ? (
           // The media team's own picture, filling the panel; cropped to fit, never stretched.
-          <div style={{ display: 'flex', height: panelHeight, borderRadius: t.radius + 4, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignSelf: 'center', width: panelWidth, height: panelHeight, borderRadius: t.radius + 4, overflow: 'hidden' }}>
             {/* eslint-disable-next-line @next/next/no-img-element -- next/og draws plain <img> */}
-            <img src={spec.mediaUrl} width={936} height={panelHeight} style={{ width: 936, height: panelHeight, objectFit: 'cover' }} alt="" />
+            <img src={spec.mediaUrl} width={panelWidth} height={panelHeight} style={{ width: panelWidth, height: panelHeight, objectFit: 'cover' }} alt="" />
           </div>
         ) : (
           <div
@@ -1838,6 +1870,8 @@ function StorySlide({ spec, t }: { spec: StoryGraphic; t: Theme }) {
               alignItems: 'center',
               justifyContent: 'center',
               gap: 10,
+              alignSelf: 'center',
+              width: panelWidth,
               height: panelHeight,
               borderRadius: t.radius + 4,
               background: 'rgba(255, 255, 255, 0.10)',
@@ -1847,10 +1881,14 @@ function StorySlide({ spec, t }: { spec: StoryGraphic; t: Theme }) {
           >
             <div style={{ display: 'flex', fontSize: 19, letterSpacing: 3, textTransform: 'uppercase' }}>Add photo or video</div>
             {spec.mediaHint && (
-              <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 30, textTransform: 'uppercase', color: t.ink, maxWidth: 820, textAlign: 'center' }}>
+              <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 30, textTransform: 'uppercase', color: t.ink, maxWidth: panelWidth - 100, textAlign: 'center' }}>
                 {spec.mediaHint}
               </div>
             )}
+            {/* The window is exactly the shape of the team's videos, and says so. */}
+            <div style={{ display: 'flex', fontSize: 16, letterSpacing: 2, textTransform: 'uppercase' }}>
+              {`16:9 · 1920 × 1080 · ${panelWidth} × ${panelHeight} here`}
+            </div>
           </div>
         )}
 
@@ -1872,7 +1910,9 @@ function StorySlide({ spec, t }: { spec: StoryGraphic; t: Theme }) {
         </div>
 
         {spec.body && (
-          <div style={{ display: 'flex', marginTop: 16, fontSize: 25, lineHeight: 1.4, color: t.ink2 }}>{spec.body}</div>
+          <div style={{ display: 'flex', marginTop: 16, fontSize: fitName(spec.body, [[110, 26], [170, 23]], 21), lineHeight: 1.4, color: t.ink2 }}>
+            {spec.body}
+          </div>
         )}
 
         {game && (
