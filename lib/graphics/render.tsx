@@ -1813,7 +1813,8 @@ function WeekCover({ spec, t }: { spec: WeekCoverGraphic; t: Theme }) {
 /** The media team's videos are 1920 x 1080, so the panel they go over is exactly 16:9. */
 const VIDEO_RATIO = 16 / 9
 const PANEL_MAX_WIDTH = 936
-const PANEL_MIN_WIDTH = 480
+/** Below this width the figures, then the scoreline, are dropped to give a video a useful window. */
+const PANEL_MIN_WIDTH = 600
 
 /**
  * The panel's size, and which extras fit under it. The panel is always 16:9, as
@@ -1826,22 +1827,35 @@ const PANEL_MIN_WIDTH = 480
 function storyLayout(spec: StoryGraphic) {
   const headFont = fitName(spec.headline, [[26, 60], [38, 52]], 44)
   const headWidth = PANEL_MAX_WIDTH - (spec.club && !spec.game ? 114 : 0)
-  const headLines = Math.max(1, Math.ceil(spec.headline.length / Math.floor(headWidth / (headFont * 0.5))))
+  // Uppercase Plex Condensed Bold runs about 0.58em a letter, and a line breaks at a space,
+  // so allow a little more than that.
+  const headLines = Math.max(1, Math.ceil(spec.headline.length / Math.floor(headWidth / (headFont * 0.62))))
   const headHeight = Math.ceil(headLines * headFont * 1.02)
   const bodyFont = fitName(spec.body, [[110, 26], [170, 23]], 21)
-  const bodyLines = spec.body ? Math.ceil(spec.body.length / Math.floor(PANEL_MAX_WIDTH / (bodyFont * 0.6))) : 0
+  const bodyLines = spec.body ? Math.ceil(spec.body.length / Math.floor(PANEL_MAX_WIDTH / (bodyFont * 0.64))) : 0
   const bodyHeight = bodyLines > 0 ? 16 + Math.ceil(bodyLines * bodyFont * 1.4) : 0
 
   let showGame = spec.game !== null
   let showStats = spec.stats.length > 0
   const widthFor = (game: boolean, stats: boolean) => {
-    const room = 788 - (24 + headHeight) - bodyHeight - (game ? 116 : 0) - (stats ? 92 : 0)
+    // 788 is the height from the panel's top to the sponsor bar's, less a margin for estimates that run short.
+    const room = 750 - (24 + headHeight) - bodyHeight - (game ? 116 : 0) - (stats ? 92 : 0)
     return Math.min(PANEL_MAX_WIDTH, Math.floor(room * VIDEO_RATIO))
   }
   if (widthFor(showGame, showStats) < PANEL_MIN_WIDTH) showStats = false
   if (widthFor(showGame, showStats) < PANEL_MIN_WIDTH) showGame = false
-  const width = Math.max(PANEL_MIN_WIDTH, widthFor(showGame, showStats))
+  const width = Math.max(480, widthFor(showGame, showStats))
   return { panelWidth: width, panelHeight: Math.round(width / VIDEO_RATIO), showGame, showStats }
+}
+
+/**
+ * A figure as it should read in its box: the number big, what it measures
+ * small. A figure written "4 goals" with "Rashid" as its label becomes "4" over
+ * "Rashid goals". This tidies slides made before the agent was held to that.
+ */
+function tidyFigure(stat: { label: string; value: string }) {
+  const split = stat.value.match(/^([+\-−]?\d[\d.,:/–-]*%?)\s+(.+)$/)
+  return split ? { value: split[1], label: `${stat.label} ${split[2]}`.trim() } : stat
 }
 
 function StorySlide({ spec, t }: { spec: StoryGraphic; t: Theme }) {
@@ -1946,7 +1960,7 @@ function StorySlide({ spec, t }: { spec: StoryGraphic; t: Theme }) {
 
         {hasStats && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: 16 }}>
-            {spec.stats.map((stat) => (
+            {spec.stats.map(tidyFigure).map((stat) => (
               <div
                 key={stat.label}
                 style={{

@@ -860,6 +860,9 @@ export async function buildAwardRace(input: AwardRaceInput): Promise<AwardRaceGr
 // "This Week in CSPL": the cover and the story slides
 // ---------------------------------------------------------------------------
 
+/** A figure's value: a number, a signed number, a score or a percentage. */
+export const FIGURE_VALUE = /^[+\-−]?\d[\d.,:/–-]*%?$/
+
 /** What the agent hands over for one storyline. */
 export interface StoryInput {
   label: string
@@ -904,6 +907,12 @@ export async function buildStory(
   for (const s of stats) {
     tooLong('figure label', s.label, L.statLabel)
     tooLong('figure value', s.value, L.statValue)
+    // A figure is a number or a score, big in its box; what it measures goes in the label.
+    if (!FIGURE_VALUE.test(s.value)) {
+      throw new GraphicInputError(
+        `The figure value "${s.value}" must be just the number or score, like "4", "+9" or "2-1". Put what it measures, and whose, in the label, like "Rashid goals".`
+      )
+    }
   }
 
   const [teams, games, clubs, season] = await Promise.all([

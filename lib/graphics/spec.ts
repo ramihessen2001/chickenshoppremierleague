@@ -256,7 +256,7 @@ export interface ResultsGraphic {
 }
 
 /** Limits that keep a story slide's text on the page. */
-export const STORY_LIMITS = { label: 20, headline: 56, body: 150, mediaHint: 60, stats: 3, statLabel: 10, statValue: 8 }
+export const STORY_LIMITS = { label: 20, headline: 56, body: 150, mediaHint: 60, stats: 3, statLabel: 14, statValue: 8 }
 export const STORY_COUNT_MIN = 2
 export const STORY_COUNT_MAX = 6
 

@@ -526,7 +526,7 @@ const STORY_WRITER_PROMPT = `You make one Instagram slide for the ${LEAGUE.name}
 - body: one or two sentences, at most ${STORY_LIMITS.body} characters, using the description and what the data confirms.
 - club: when the story is about one club, its slug, so its crest is shown.
 - gameId: when the story is about one game, from get_games, so its scoreline is shown. Only a completed game.
-- stats: up to ${STORY_LIMITS.stats} {label, value} figures that the description states or the tools return, never worked out in your head.
+- stats: up to ${STORY_LIMITS.stats} {label, value} figures that the description states or the tools return, never worked out in your head. The value is only the figure ("4", "+9", "2-1"), never with words; the label says what it measures and whose, at most ${STORY_LIMITS.statLabel} characters ("Rashid goals", "Saves"). Anything that is not a number belongs in the body, not a figure.
 
 If the data disagrees with the description, the slide follows the description; say so in one sentence in your reply. If the story cannot be found in the data, write the slide from the description alone. Everything comes from the description or the tools: no invented names, scores or numbers, no quotes they did not give you. A picture is only context: never identify anyone in it from their face. No players' ages, no jokes at a player's expense; a heavy defeat is the winner's story, not a club's embarrassment. When the story is submitted, reply "Done.", or add one plain sentence if something needs the team's attention.`
 
@@ -576,9 +576,13 @@ export async function writeDictatedStory(
             gameId: { type: 'string', description: 'A completed game from get_games; its scoreline is added.' },
             stats: {
               type: 'array',
+              description: `Up to ${STORY_LIMITS.stats} figures. The value is only the number or score ("4", "+9", "2-1"); the label says what it measures and whose, at most ${STORY_LIMITS.statLabel} characters ("Rashid goals").`,
               items: {
                 type: 'object',
-                properties: { label: { type: 'string' }, value: { type: 'string' } },
+                properties: {
+                  label: { type: 'string', description: `What it measures, and whose: "Rashid goals", "Saves".` },
+                  value: { type: 'string', description: 'Just the figure: "4", "+9", "2-1". No words.' },
+                },
                 required: ['label', 'value'],
                 additionalProperties: false,
               },
