@@ -880,7 +880,8 @@ export interface StoryInput {
  */
 export async function buildStory(
   input: StoryInput,
-  week: number
+  week: number,
+  mediaUrl: string | null = null
 ): Promise<Omit<StoryGraphic, 'index' | 'count'>> {
   const L = STORY_LIMITS
   const tooLong = (field: string, value: string, max: number) => {
@@ -936,7 +937,7 @@ export async function buildStory(
     }
   }
 
-  return { type: 'story', season, week, label, headline, body, mediaHint, club, game, stats }
+  return { type: 'story', season, week, label, headline, body, mediaHint, mediaUrl, club, game, stats }
 }
 
 /** Numbers a validated list of stories and checks there are enough, and not too many. */
@@ -966,4 +967,11 @@ export function buildWeekCover(
   ]
   if (hasSlate) items.push({ slide: stories.length + 4, label: "Next Week's Slate", headline: null })
   return { type: 'week_cover', season, week, items }
+}
+
+/** The matchweek a story from the media team's own photo is about: the latest with a completed game. */
+export async function latestResultsWeek(): Promise<number> {
+  const week = lastCompletedWeek(await getAllGames())
+  if (week === null) throw new GraphicInputError('No game has been completed yet, so there is nothing to tell a story about.')
+  return week
 }

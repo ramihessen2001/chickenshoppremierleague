@@ -12,6 +12,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { buttonPrimary, buttonSecondary, fieldClass, FormError, labelClass } from './Modal'
+import { MediaItem, MediaStoryUploader } from './MediaStoryUploader'
 import { CONTENT_PRESETS, presetLabel } from '@/lib/contentPresets'
 import { AWARD_LABELS, GRAPHIC_LABELS, GRAPHIC_SIZES, Ground } from '@/lib/graphics/spec'
 import { resolveStyle, selectableStyles } from '@/lib/graphics/styles'
@@ -129,6 +130,7 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
   const [kind, setKind] = useState('')
   const [details, setDetails] = useState('')
   const [choice, setChoice] = useState('')
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
   const [isWriting, setIsWriting] = useState(false)
   const [writeError, setWriteError] = useState<string | null>(null)
 
@@ -159,13 +161,38 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
       setWriteError('Choose which award')
       return
     }
+    if (chosen.media) {
+      if (mediaItems.length === 0) {
+        setWriteError('Choose a photo or video first')
+        return
+      }
+      if (mediaItems.some((item) => item.uploading)) {
+        setWriteError('Wait for the uploads to finish')
+        return
+      }
+      if (mediaItems.some((item) => !item.url)) {
+        setWriteError('Remove any picture that failed to upload')
+        return
+      }
+      if (mediaItems.some((item) => item.note.trim().length < 3)) {
+        setWriteError('Say what each picture shows')
+        return
+      }
+    }
     setIsWriting(true)
     setWriteError(null)
     try {
       const response = await fetch('/api/media/drafts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind, details, choice }),
+        body: JSON.stringify(
+          chosen.media
+            ? {
+                kind,
+                items: mediaItems.map((item) => ({ mediaUrl: item.url, note: item.note.trim(), isVideo: item.fromVideo })),
+              }
+            : { kind, details, choice }
+        ),
       })
       if (response.status === 401) return onSignedOut()
       if (!response.ok) {
@@ -178,6 +205,7 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
       setDetails('')
       setKind('')
       setChoice('')
+      setMediaItems([])
     } catch {
       setWriteError('Lost the connection while the graphic was being made. Try again.')
     } finally {
@@ -272,19 +300,25 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
             </>
           )}
 
-          <label htmlFor="desk-details" className={`mt-6 ${labelClass}`}>
-            Details <span className="font-normal text-ink-tertiary">(optional)</span>
-          </label>
-          <input
-            id="desk-details"
-            type="text"
-            maxLength={300}
-            value={details}
-            onChange={(e) => setDetails(e.target.value)}
-            disabled={isWriting || !chosen}
-            placeholder={chosen?.detailHint ?? 'Choose a graphic first'}
-            className={fieldClass}
-          />
+          {chosen?.media ? (
+            <MediaStoryUploader items={mediaItems} onChange={setMediaItems} disabled={isWriting} />
+          ) : (
+            <>
+              <label htmlFor="desk-details" className={`mt-6 ${labelClass}`}>
+                Details <span className="font-normal text-ink-tertiary">(optional)</span>
+              </label>
+              <input
+                id="desk-details"
+                type="text"
+                maxLength={300}
+                value={details}
+                onChange={(e) => setDetails(e.target.value)}
+                disabled={isWriting || !chosen}
+                placeholder={chosen?.detailHint ?? 'Choose a graphic first'}
+                className={fieldClass}
+              />
+            </>
+          )}
 
           <div className="mt-5">
             <FormError>{writeError}</FormError>
@@ -297,7 +331,11 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
                     ? 'Make thumbnails'
                     : kind === 'week_in_cspl'
                       ? 'Make the series'
-                      : 'Make graphic'}
+                      : kind === 'story_media'
+                        ? mediaItems.length > 1
+                          ? 'Make stories'
+                          : 'Make story'
+                        : 'Make graphic'}
             </button>
             {isWriting && (
               <p className="mt-3 text-[13px] text-ink-tertiary" role="status">
@@ -411,7 +449,7 @@ function DraftCard({
         <p className="eyebrow">
           {presetLabel(draft.kind)}
           {draft.graphic?.type === 'award_race' && ` · ${AWARD_LABELS[draft.graphic.award]}`}
-          {draft.kind === 'week_in_cspl' &&
+          {(draft.kind === 'week_in_cspl' || draft.kind === 'story_media') &&
             draft.graphic &&
             ` · ${draft.graphic.type === 'story' ? draft.graphic.label : GRAPHIC_LABELS[draft.graphic.type]}`}
         </p>

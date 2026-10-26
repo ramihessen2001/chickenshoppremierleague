@@ -101,6 +101,10 @@ For "This Week in CSPL" you choose the best storylines of one matchweek and writ
 - stats: up to ${STORY_LIMITS.stats} {label, value} figures, such as {label: "Goals", value: "4"}: numbers you read from the tools, never worked out in your head.
 Everything comes from the tools: scores, names, counts. Submit ${STORY_COUNT_MIN} to ${STORY_COUNT_MAX} stories; if the weekend gave you fewer than three real ones, submit fewer rather than pad. No quotes, no ages, no jokes at a player's expense; a heavy defeat is the winner's story, not a club's embarrassment. The tool checks every length and name and sends back what to fix. Call submit_stories instead of attach_graphic, and reply "Done." when it has saved.
 
+# Stories from the media team's pictures
+
+Sometimes the media team sends a photo (a frame from a video counts) with a one-line note saying what it shows, and asks for a story slide made around it. Make one with submit_story. The note is your only source for what the picture shows: never identify anyone from their face, and claim nothing about the picture that the note does not say. Use the tools to find the facts behind the note (the game, the score, who scored, the table) and write the label, headline, body, club or gameId and figures as for any story. A photo goes into the slide's panel on its own; for a video only one frame reaches you, and the media team places the video themselves. Either way, do not describe the media and do not write a mediaHint. If what the note describes cannot be found in the data, submit the story from the note alone, with no gameId and no figures, and say so in your reply.
+
 Past approved graphics are the clearest guide to what the media team likes; check them for power rankings, where the verdicts are yours.`
 
 /**
@@ -444,6 +448,43 @@ function attachGraphicTool(onAttach: (spec: GraphicSpec, style: string) => void)
 }
 
 /**
+ * One story's fields as the agent hands them over. The media hint only makes
+ * sense on a template slide, so the story built around the team's own picture
+ * leaves it out.
+ */
+function storyInputSchema(withMediaHint: boolean) {
+  return {
+    type: 'object' as const,
+    properties: {
+      label: { type: 'string' as const, description: `The slide's title, at most ${STORY_LIMITS.label} characters.` },
+      headline: { type: 'string' as const, description: `At most ${STORY_LIMITS.headline} characters.` },
+      body: { type: 'string' as const, description: `At most ${STORY_LIMITS.body} characters.` },
+      ...(withMediaHint
+        ? {
+            mediaHint: {
+              type: 'string' as const,
+              description: `What to add in the media panel, at most ${STORY_LIMITS.mediaHint} characters.`,
+            },
+          }
+        : {}),
+      club: { type: 'string' as const, description: 'Slug or name of the club the story is about.' },
+      gameId: { type: 'string' as const, description: 'A completed game from get_games; its scoreline is added.' },
+      stats: {
+        type: 'array' as const,
+        items: {
+          type: 'object' as const,
+          properties: { label: { type: 'string' as const }, value: { type: 'string' as const } },
+          required: ['label', 'value'],
+          additionalProperties: false as const,
+        },
+      },
+    },
+    required: ['label', 'headline', 'body'],
+    additionalProperties: false as const,
+  }
+}
+
+/**
  * The tool for the weekly stories: the agent hands over its storylines and
  * each is checked and built (lengths, clubs, the game's real scoreline). It
  * saves nothing itself -- the stories wait in the closure for the route.
@@ -457,28 +498,7 @@ function submitStoriesTool(week: number, onSubmit: (stories: StoryGraphic[]) => 
       properties: {
         stories: {
           type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              label: { type: 'string', description: `The slide's title, at most ${STORY_LIMITS.label} characters.` },
-              headline: { type: 'string', description: `At most ${STORY_LIMITS.headline} characters.` },
-              body: { type: 'string', description: `At most ${STORY_LIMITS.body} characters.` },
-              mediaHint: { type: 'string', description: `What to add in the media panel, at most ${STORY_LIMITS.mediaHint} characters.` },
-              club: { type: 'string', description: 'Slug or name of the club the story is about.' },
-              gameId: { type: 'string', description: 'A completed game from get_games; its scoreline is added.' },
-              stats: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: { label: { type: 'string' }, value: { type: 'string' } },
-                  required: ['label', 'value'],
-                  additionalProperties: false,
-                },
-              },
-            },
-            required: ['label', 'headline', 'body'],
-            additionalProperties: false,
-          },
+          items: storyInputSchema(true),
         },
       },
       required: ['stories'],
@@ -637,4 +657,97 @@ export async function writeWeekStories(week: number): Promise<{ stories: StoryGr
     throw new ContentAgentError(text || 'The agent could not find stories to tell. Try again.')
   }
   return { stories, note: text === 'Done.' ? '' : text }
+}
+
+/**
+ * One story slide around the media team's own picture. The agent is shown the
+ * picture and the team's note, checks the facts in the data and writes the
+ * story; the picture itself goes into the slide's panel. Throws a
+ * ContentAgentError, with a message fit to show the media team, when the agent
+ * declines or does not produce a story.
+ */
+export async function writeStoryFromMedia(
+  mediaUrl: string,
+  note: string,
+  week: number,
+  isVideo = false
+): Promise<{ story: StoryGraphic; note: string }> {
+  const client = new Anthropic()
+  let submitted: StoryGraphic | null = null
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'America/New_York',
+  })
+
+  const message = await client.beta.messages.toolRunner({
+    model: MODEL,
+    max_tokens: 16000,
+    output_config: { effort: 'medium' },
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    cache_control: { type: 'ephemeral' },
+    system: SYSTEM_PROMPT,
+    tools: [
+      ...tools,
+      betaTool({
+        name: 'submit_story',
+        description:
+          "Submit the one story slide for the media team's picture. The picture is put in the slide's panel for you.",
+        inputSchema: storyInputSchema(false),
+        run: async (input) => {
+          try {
+            // A photo goes into the panel. A video stays out of the slide: the panel is left
+            // empty, with a hint saying what to lay over it, and the frame only informs the agent.
+            const built = await buildStory(input, week, isVideo ? null : mediaUrl)
+            const hint = `Video: ${note}`
+            submitted = {
+              ...built,
+              mediaHint: isVideo ? (hint.length > STORY_LIMITS.mediaHint ? `${hint.slice(0, STORY_LIMITS.mediaHint - 1)}…` : hint) : null,
+              index: 1,
+              count: 1,
+            }
+            return 'Saved the story.'
+          } catch (error) {
+            if (error instanceof GraphicInputError) return `Error: ${error.message}`
+            throw error
+          }
+        },
+      }),
+    ],
+    max_iterations: 20,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'url', url: mediaUrl } },
+          {
+            type: 'text',
+            text: `Today is ${today}. The latest matchweek with results is ${week}.\n\n${
+              isVideo
+                ? "This is one frame from a video. It will not appear in the slide: the media team lays the video over the slide's empty panel themselves."
+                : 'This picture goes into the slide\'s panel.'
+            }\nNote from the media team about it: ${JSON.stringify(note)}\n\nMake one story slide around it with submit_story.`,
+          },
+        ],
+      },
+    ],
+  })
+
+  if (message.stop_reason === 'refusal') {
+    throw new ContentAgentError('The agent declined this picture. Try another.')
+  }
+  const text = message.content
+    .filter((block): block is Anthropic.Beta.BetaTextBlock => block.type === 'text')
+    .map((block) => block.text)
+    .join('\n')
+    .trim()
+  if (message.stop_reason === 'max_tokens') {
+    throw new ContentAgentError('The story ran too long and was cut off. Try again.')
+  }
+  const story = submitted as StoryGraphic | null
+  if (!story) throw new ContentAgentError(text || 'The agent could not make a story from this. Try again.')
+  return { story, note: text === 'Done.' ? '' : text }
 }

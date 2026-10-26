@@ -20,9 +20,18 @@ export interface ContentPreset {
   detailHint: string
   /** When the graphic comes in kinds the team must pick between (the four awards). */
   choices?: { value: string; label: string }[]
+  /** The team supplies their own photos or videos instead of a line of detail. */
+  media?: boolean
 }
 
 export const CONTENT_PRESETS: ContentPreset[] = [
+  {
+    kind: 'story_media',
+    label: 'Story from Media',
+    brief: "Make a story slide around the media team's own photo or video.",
+    detailHint: '',
+    media: true,
+  },
   {
     kind: 'week_in_cspl',
     label: 'This Week in CSPL',

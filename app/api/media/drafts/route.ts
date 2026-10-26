@@ -2,7 +2,7 @@
  * Content desk drafts. Media team (or admin) only.
  *
  *   GET  -> { drafts }               newest first, discarded ones left out
- *   POST -> { kind, details?, choice? } -> { drafts }
+ *   POST -> { kind, details?, choice?, items? } -> { drafts }
  *           makes one of the graphics and saves it as a new draft. `kind`
  *           is one of CONTENT_PRESETS; `details` is an optional line (which
  *           week; `choice` picks the award for an Award Race). Matchday Stories makes one draft per game of the matchweek,
@@ -17,6 +17,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fail, readJson, requireMedia } from '@/lib/apiAuth'
 import {
   buildMatchdayWeek,
+  latestResultsWeek,
   buildResults,
   buildSlate,
   buildTable,
@@ -26,7 +27,7 @@ import {
 } from '@/lib/graphics/build'
 import type { GraphicSpec } from '@/lib/graphics/spec'
 import { DEFAULT_STYLE_ID } from '@/lib/graphics/styles'
-import { ContentAgentError, writeDraft, writeWeekStories } from '@/lib/contentAgent'
+import { ContentAgentError, writeDraft, writeStoryFromMedia, writeWeekStories } from '@/lib/contentAgent'
 import { buildBrief } from '@/lib/contentPresets'
 import { ContentDraftRow, toContentDraft } from '@/types/contentDraft'
 
@@ -58,7 +59,12 @@ export async function POST(request: Request) {
   const denied = await requireMedia()
   if (denied) return denied
 
-  const body = await readJson<{ kind?: string; details?: string; choice?: string }>(request)
+  const body = await readJson<{
+    kind?: string
+    details?: string
+    choice?: string
+    items?: { mediaUrl?: string; note?: string; isVideo?: boolean }[]
+  }>(request)
   const details = typeof body?.details === 'string' ? body.details.trim() : ''
   if (details.length > MAX_DETAILS_LENGTH) {
     return fail(`Keep the details under ${MAX_DETAILS_LENGTH} characters`)
@@ -72,6 +78,7 @@ export async function POST(request: Request) {
   if (kind === 'matchday') return makeMatchdayStories(details)
   if (kind === 'thumbnail') return makeThumbnails(details)
   if (kind === 'week_in_cspl') return makeWeekInCspl(details)
+  if (kind === 'story_media') return makeStoriesFromMedia(body?.items ?? [])
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return fail(
@@ -285,6 +292,80 @@ async function makeWeekInCspl(details: string) {
   if (error) {
     console.error('Error saving This Week in CSPL drafts:', error)
     return fail('The slides were made but could not be saved -- have migrations 027-029 been run?', 500)
+  }
+  const drafts = (data as ContentDraftRow[])
+    .map(toContentDraft)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  return NextResponse.json({ drafts })
+}
+
+const MAX_MEDIA_STORIES = 4
+const MAX_NOTE_LENGTH = 300
+
+/**
+ * One story slide per picture the media team sent: the agent is shown the
+ * picture and the team's note, writes the story from the data, and a photo goes
+ * into the slide's panel. A video's slide keeps an empty panel for the team to
+ * place the video over; only a frame of it is shown to the agent. Pictures must be ones the desk uploaded to our
+ * own storage, so the agent and the renderer are never pointed at a stranger's URL.
+ */
+async function makeStoriesFromMedia(items: { mediaUrl?: string; note?: string; isVideo?: boolean }[]) {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return fail(
+      'The content agent is not set up yet: ANTHROPIC_API_KEY is missing from the environment.',
+      503
+    )
+  }
+  if (items.length === 0) return fail('Choose a photo or video first')
+  if (items.length > MAX_MEDIA_STORIES) return fail(`Send ${MAX_MEDIA_STORIES} pictures or fewer at a time`)
+
+  const allowedPrefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/league-images/content/`
+  const clean = items.map((item) => ({
+    mediaUrl: item.mediaUrl ?? '',
+    note: (item.note ?? '').trim(),
+    isVideo: item.isVideo === true,
+  }))
+  for (const item of clean) {
+    if (!item.mediaUrl.startsWith(allowedPrefix)) return fail('A picture was not uploaded through the desk')
+    if (item.note.length < 3) return fail('Say what each picture shows')
+    if (item.note.length > MAX_NOTE_LENGTH) return fail(`Keep each note under ${MAX_NOTE_LENGTH} characters`)
+  }
+
+  let week: number
+  try {
+    week = await latestResultsWeek()
+  } catch (error) {
+    if (error instanceof GraphicInputError) return fail(error.message, 422)
+    throw error
+  }
+
+  let made: Awaited<ReturnType<typeof writeStoryFromMedia>>[]
+  try {
+    made = await Promise.all(clean.map((item) => writeStoryFromMedia(item.mediaUrl, item.note, week, item.isVideo)))
+  } catch (error) {
+    const response = agentFailure(error)
+    if (response) return response
+    throw error
+  }
+
+  // Newest first in the queue: each story a second apart, the first picture newest.
+  const now = Date.now()
+  const { data, error } = await supabaseAdmin
+    .from('content_drafts')
+    .insert(
+      made.map((result, i) => ({
+        kind: 'story_media',
+        brief: `Story from media: ${clean[i].note}`,
+        body: result.note,
+        graphic: result.story,
+        style: DEFAULT_STYLE_ID,
+        created_at: new Date(now - i * 1000).toISOString(),
+      }))
+    )
+    .select()
+  if (error) {
+    console.error('Error saving media story drafts:', error)
+    return fail('The stories were made but could not be saved -- have migrations 027-029 been run?', 500)
   }
   const drafts = (data as ContentDraftRow[])
     .map(toContentDraft)

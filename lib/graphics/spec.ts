@@ -279,6 +279,11 @@ export interface StoryGraphic {
   body: string
   /** What to put in the media panel: "Video: the 11-2 goals". Null for a plain panel. */
   mediaHint: string | null
+  /**
+   * The media team's own photo (or a frame from their video), already in the
+   * panel. Null for a template slide, whose panel is left empty to fill later.
+   */
+  mediaUrl: string | null
   club: GraphicClub | null
   /** A game's scoreline, worked out from the database. */
   game: { home: GraphicClub; away: GraphicClub; homeScore: number; awayScore: number } | null

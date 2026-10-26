@@ -883,12 +883,32 @@ function StatLeaders({ spec, t }: { spec: StatLeadersGraphic; t: Theme }) {
   )
 }
 
+/**
+ * How tall each game's row can be on a graphic that stacks days of games (the
+ * slate and the results). The room is fixed, and every day takes a header and a
+ * gap, so a Friday-Saturday-Sunday week with six games has far less per row
+ * than a two-day week with four. `tier` says how much to shrink the row's
+ * contents to suit: 0 is the roomy layout, 2 the tightest.
+ */
+function dayLayout(t: Theme, days: number, games: number, roomiest: number) {
+  const dense = games > 4 || days > 2
+  const header = dense ? 46 : 64
+  const gap = dense ? 22 : 44
+  const top = dense ? 28 : 48
+  const available = (t.compact ? 800 : 892) - top - days * header - Math.max(0, days - 1) * gap
+  const rowHeight = Math.max(60, Math.min(roomiest, Math.floor(available / Math.max(games, 1))))
+  const tier = rowHeight >= 140 ? 0 : rowHeight >= 92 ? 1 : 2
+  return { rowHeight, tier, gap, top, headerFont: dense ? 32 : 40, headerPad: dense ? 8 : 14, rowGap: tier === 0 ? 14 : tier === 1 ? 10 : 8 }
+}
+
 function Slate({ spec, t }: { spec: SlateGraphic; t: Theme }) {
   const gameCount = spec.days.reduce((n, d) => n + d.games.length, 0)
   // Bars carry a gap between them, and a banner title stands taller, so bar
-  // rows are a little shorter to fit the same four games.
-  const rowHeight = gameCount <= 4 ? (t.bars ? (t.compact ? (t.style.header === 'tab' ? 144 : 150) : 168) : 188) : Math.max(120, Math.floor(820 / gameCount))
-  const crest = rowHeight >= 160 ? 92 : 72
+  // rows are a little shorter to fit the same four games; more games or a
+  // third day (Friday to Sunday) shrink them further.
+  const L = dayLayout(t, spec.days.length, gameCount, t.bars ? (t.compact ? (t.style.header === 'tab' ? 144 : 150) : 168) : 188)
+  const { rowHeight, tier } = L
+  const crest = tier === 0 ? (rowHeight >= 160 ? 92 : 72) : tier === 1 ? 60 : 44
 
   // Both sides face the "v": the home crest sits right of its name, the away
   // crest left of its name.
@@ -899,7 +919,7 @@ function Slate({ spec, t }: { spec: SlateGraphic; t: Theme }) {
           style={{
             fontFamily: DISPLAY,
             fontWeight: 700,
-            fontSize: 34,
+            fontSize: tier === 0 ? 34 : tier === 1 ? 30 : 26,
             lineHeight: 1,
             textTransform: 'uppercase',
             textAlign: align,
@@ -908,8 +928,8 @@ function Slate({ spec, t }: { spec: SlateGraphic; t: Theme }) {
         >
           {club.name}
         </div>
-        {club.standing && (
-          <div style={{ fontSize: 19, letterSpacing: 1.5, textTransform: 'uppercase', color: t.bars ? t.barInk2 : t.ink2 }}>
+        {club.standing && tier < 2 && (
+          <div style={{ fontSize: tier === 0 ? 19 : 16, letterSpacing: 1.5, textTransform: 'uppercase', color: t.bars ? t.barInk2 : t.ink2 }}>
             {club.standing}
           </div>
         )}
@@ -921,7 +941,7 @@ function Slate({ spec, t }: { spec: SlateGraphic; t: Theme }) {
           flex: 1,
           display: 'flex',
           alignItems: 'center',
-          gap: 20,
+          gap: tier === 2 ? 14 : 20,
           justifyContent: align === 'right' ? 'flex-end' : 'flex-start',
         }}
       >
@@ -939,7 +959,7 @@ function Slate({ spec, t }: { spec: SlateGraphic; t: Theme }) {
       title={`Matchweek ${pad(spec.week)}`}
       footerRight={spec.venue.includes('ICNEF') ? 'ICNEF · 2333 St Johns Bluff Rd S' : spec.venue}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 44, marginTop: 48 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: L.gap, marginTop: L.top }}>
         {spec.days.map((day) => (
           <div key={day.date} style={{ display: 'flex', flexDirection: 'column' }}>
             <div
@@ -947,14 +967,14 @@ function Slate({ spec, t }: { spec: SlateGraphic; t: Theme }) {
                 display: 'flex',
                 alignItems: 'flex-end',
                 justifyContent: 'space-between',
-                paddingBottom: 14,
+                paddingBottom: L.headerPad,
                 borderBottom: `${t.heavyW}px solid ${t.heavy}`,
               }}
             >
-              <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 40, lineHeight: 1, textTransform: 'uppercase' }}>
+              <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: L.headerFont, lineHeight: 1, textTransform: 'uppercase' }}>
                 {day.weekday}
               </div>
-              <div style={{ fontSize: 22, letterSpacing: 2, textTransform: 'uppercase', color: t.ink2 }}>{day.date}</div>
+              <div style={{ fontSize: tier === 0 ? 22 : 19, letterSpacing: 2, textTransform: 'uppercase', color: t.ink2 }}>{day.date}</div>
             </div>
             {day.games.map((game, gi) => (
               <div
@@ -964,7 +984,7 @@ function Slate({ spec, t }: { spec: SlateGraphic; t: Theme }) {
                   position: 'relative',
                   alignItems: 'center',
                   ...(t.bars
-                    ? { ...barSurface(t), height: rowHeight - 14, marginTop: 14, padding: '0 20px' }
+                    ? { ...barSurface(t), height: rowHeight - L.rowGap, marginTop: L.rowGap, padding: '0 20px' }
                     : {
                         height: rowHeight,
                         borderBottom: gi < day.games.length - 1 ? `${t.lightW}px solid ${t.rule}` : 'none',
@@ -975,10 +995,10 @@ function Slate({ spec, t }: { spec: SlateGraphic; t: Theme }) {
                 <div
                   style={{
                     position: 'absolute',
-                    top: 10,
+                    top: tier === 0 ? 10 : 6,
                     left: 22,
                     display: 'flex',
-                    fontSize: 17,
+                    fontSize: tier === 0 ? 17 : 14,
                     letterSpacing: 2,
                     textTransform: 'uppercase',
                     color: t.bars ? t.barInk2 : t.accent,
@@ -988,8 +1008,8 @@ function Slate({ spec, t }: { spec: SlateGraphic; t: Theme }) {
                 </div>
                 {team(game.home, 'right')}
                 {t.bars ? (
-                  <div style={{ width: 80, display: 'flex', justifyContent: 'center' }}>
-                    <VChip t={t} width={56} height={46} fontSize={30} />
+                  <div style={{ width: tier === 0 ? 80 : 68, display: 'flex', justifyContent: 'center' }}>
+                    <VChip t={t} width={tier === 0 ? 56 : 48} height={tier === 0 ? 46 : tier === 1 ? 38 : 32} fontSize={tier === 0 ? 30 : tier === 1 ? 26 : 22} />
                   </div>
                 ) : (
                   <div style={{ width: 56, display: 'flex', justifyContent: 'center', fontSize: 24, color: t.ink2 }}>v</div>
@@ -1594,17 +1614,11 @@ function Thumbnail({ spec, t }: { spec: ThumbnailGraphic; t: Theme }) {
  */
 function Results({ spec, t }: { spec: ResultsGraphic; t: Theme }) {
   const gameCount = spec.days.reduce((n, d) => n + d.games.length, 0)
-  const rowHeight =
-    gameCount <= 4
-      ? t.bars
-        ? t.compact
-          ? 150
-          : 168
-        : 188
-      : Math.max(88, Math.floor((t.compact ? 600 : 720) / gameCount))
-  const crest = rowHeight >= 150 ? 72 : rowHeight >= 110 ? 62 : 52
+  const L = dayLayout(t, spec.days.length, gameCount, t.bars ? (t.compact ? 150 : 168) : 188)
+  const { rowHeight, tier } = L
+  const crest = tier === 0 ? 72 : tier === 1 ? 58 : 44
   // With rows this short there is no room for the man of the match under the score.
-  const showMotm = rowHeight >= 140
+  const showMotm = tier === 0
 
   const side = (club: ResultsGraphic['days'][number]['games'][number]['home'], align: 'left' | 'right') => {
     const name = (
@@ -1613,7 +1627,7 @@ function Results({ spec, t }: { spec: ResultsGraphic; t: Theme }) {
           display: 'flex',
           fontFamily: DISPLAY,
           fontWeight: 700,
-          fontSize: fitName(club.name, [[10, 38], [14, 32]], 28),
+          fontSize: fitName(club.name, [[10, tier === 0 ? 38 : tier === 1 ? 32 : 28], [14, tier === 0 ? 32 : 28]], tier === 0 ? 28 : 24),
           lineHeight: 1,
           textTransform: 'uppercase',
           textAlign: align,
@@ -1630,7 +1644,7 @@ function Results({ spec, t }: { spec: ResultsGraphic; t: Theme }) {
           flex: 1,
           display: 'flex',
           alignItems: 'center',
-          gap: 18,
+          gap: tier === 2 ? 12 : 18,
           justifyContent: align === 'right' ? 'flex-end' : 'flex-start',
         }}
       >
@@ -1642,7 +1656,7 @@ function Results({ spec, t }: { spec: ResultsGraphic; t: Theme }) {
 
   return (
     <Frame t={t} season={spec.season} kicker={`Matchweek ${pad(spec.week)}`} title="Weekend Results">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 40, marginTop: 40 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: L.gap, marginTop: L.top }}>
         {spec.days.map((day) => (
           <div key={day.date} style={{ display: 'flex', flexDirection: 'column' }}>
             <div
@@ -1650,14 +1664,14 @@ function Results({ spec, t }: { spec: ResultsGraphic; t: Theme }) {
                 display: 'flex',
                 alignItems: 'flex-end',
                 justifyContent: 'space-between',
-                paddingBottom: 14,
+                paddingBottom: L.headerPad,
                 borderBottom: `${t.heavyW}px solid ${t.heavy}`,
               }}
             >
-              <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 40, lineHeight: 1, textTransform: 'uppercase' }}>
+              <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: L.headerFont, lineHeight: 1, textTransform: 'uppercase' }}>
                 {day.weekday}
               </div>
-              <div style={{ fontSize: 22, letterSpacing: 2, textTransform: 'uppercase', color: t.ink2 }}>{day.date}</div>
+              <div style={{ fontSize: tier === 0 ? 22 : 19, letterSpacing: 2, textTransform: 'uppercase', color: t.ink2 }}>{day.date}</div>
             </div>
             {day.games.map((game, gi) => (
               <div
@@ -1667,7 +1681,7 @@ function Results({ spec, t }: { spec: ResultsGraphic; t: Theme }) {
                   position: 'relative',
                   alignItems: 'center',
                   ...(t.bars
-                    ? { ...barSurface(t), height: rowHeight - 14, marginTop: 14, padding: '0 20px' }
+                    ? { ...barSurface(t), height: rowHeight - L.rowGap, marginTop: L.rowGap, padding: '0 20px' }
                     : {
                         height: rowHeight,
                         borderBottom: gi < day.games.length - 1 ? `${t.lightW}px solid ${t.rule}` : 'none',
@@ -1677,10 +1691,10 @@ function Results({ spec, t }: { spec: ResultsGraphic; t: Theme }) {
                 <div
                   style={{
                     position: 'absolute',
-                    top: 10,
+                    top: tier === 0 ? 10 : 6,
                     left: 22,
                     display: 'flex',
-                    fontSize: 17,
+                    fontSize: tier === 0 ? 17 : 14,
                     letterSpacing: 2,
                     textTransform: 'uppercase',
                     color: t.bars ? t.barInk2 : t.accent,
@@ -1689,9 +1703,15 @@ function Results({ spec, t }: { spec: ResultsGraphic; t: Theme }) {
                   {game.slot}
                 </div>
                 {side(game.home, 'right')}
-                <div style={{ width: 190, display: 'flex', justifyContent: 'center' }}>
+                <div style={{ width: tier === 0 ? 190 : 170, display: 'flex', justifyContent: 'center' }}>
                   {t.bars ? (
-                    <FigureBox t={t} value={`${game.homeScore} – ${game.awayScore}`} width={160} height={70} fontSize={44} />
+                    <FigureBox
+                      t={t}
+                      value={`${game.homeScore} – ${game.awayScore}`}
+                      width={tier === 0 ? 160 : 140}
+                      height={tier === 0 ? 70 : tier === 1 ? 58 : 46}
+                      fontSize={tier === 0 ? 44 : tier === 1 ? 36 : 30}
+                    />
                   ) : (
                     <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 52 }}>
                       {`${game.homeScore} – ${game.awayScore}`}
@@ -1797,29 +1817,42 @@ function StorySlide({ spec, t }: { spec: StoryGraphic; t: Theme }) {
   const panelHeight = Math.max(240, 540 - (hasGame ? 116 : 0) - (hasStats ? 92 : 0))
   const game = spec.game
   return (
-    <Frame t={t} season={spec.season} kicker={`Story ${spec.index} of ${spec.count}`} title={spec.label}>
+    <Frame
+      t={t}
+      season={spec.season}
+      kicker={spec.count > 1 ? `Story ${spec.index} of ${spec.count}` : `Matchweek ${pad(spec.week)}`}
+      title={spec.label}
+    >
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: 26 }}>
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 10,
-            height: panelHeight,
-            borderRadius: t.radius + 4,
-            background: 'rgba(255, 255, 255, 0.10)',
-            border: '2px solid rgba(255, 255, 255, 0.35)',
-            color: t.ink2,
-          }}
-        >
-          <div style={{ display: 'flex', fontSize: 19, letterSpacing: 3, textTransform: 'uppercase' }}>Add photo or video</div>
-          {spec.mediaHint && (
-            <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 30, textTransform: 'uppercase', color: t.ink, maxWidth: 820, textAlign: 'center' }}>
-              {spec.mediaHint}
-            </div>
-          )}
-        </div>
+        {spec.mediaUrl ? (
+          // The media team's own picture, filling the panel; cropped to fit, never stretched.
+          <div style={{ display: 'flex', height: panelHeight, borderRadius: t.radius + 4, overflow: 'hidden' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- next/og draws plain <img> */}
+            <img src={spec.mediaUrl} width={936} height={panelHeight} style={{ width: 936, height: panelHeight, objectFit: 'cover' }} alt="" />
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 10,
+              height: panelHeight,
+              borderRadius: t.radius + 4,
+              background: 'rgba(255, 255, 255, 0.10)',
+              border: '2px solid rgba(255, 255, 255, 0.35)',
+              color: t.ink2,
+            }}
+          >
+            <div style={{ display: 'flex', fontSize: 19, letterSpacing: 3, textTransform: 'uppercase' }}>Add photo or video</div>
+            {spec.mediaHint && (
+              <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 30, textTransform: 'uppercase', color: t.ink, maxWidth: 820, textAlign: 'center' }}>
+                {spec.mediaHint}
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginTop: 24 }}>
           {spec.club && !game && <Crest slug={spec.club.slug} box={t.crest(92)} />}
