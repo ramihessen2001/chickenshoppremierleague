@@ -41,6 +41,7 @@ import {
   TotwGraphic,
   ThumbnailGraphic,
   GraphicClub,
+  MotmGraphic,
 } from './spec'
 import { Sponsor, SPONSORS, sponsorOf } from './sponsors'
 import { GraphicStyle, groundFor, resolveStyle, StylePalette } from './styles'
@@ -1995,8 +1996,158 @@ function StorySlide({ spec, t }: { spec: StoryGraphic; t: Theme }) {
   )
 }
 
+/**
+ * Man of the Match: the media team's photo fills the graphic, darkened at the
+ * top for the league mark and fading to the style's deep ground at the bottom,
+ * where the award, the player and the scoreline sit centred.
+ */
+function Motm({ spec, t }: { spec: MotmGraphic; t: Theme }) {
+  const { width, height } = GRAPHIC_SIZES.motm
+  const deep = t.bgTo ?? t.bg
+  const kicker = spec.week > 0 ? `Matchweek ${pad(spec.week)}` : 'Playoffs'
+  const statLine = [spec.player.position, ...spec.player.stats.map((s) => `${s.value} ${s.label}`)]
+    .filter(Boolean)
+    .join(' · ')
+  const scoreName = (name: string) => (
+    <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: fitName(name, [[12, 34]], 28), textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+      {name}
+    </div>
+  )
+
+  return (
+    <div style={{ width, height, display: 'flex', position: 'relative', backgroundColor: deep, color: t.ink, fontFamily: UTIL }}>
+      {spec.mediaUrl ? (
+        // The photo is cropped to fill, never stretched.
+        // eslint-disable-next-line @next/next/no-img-element -- next/og draws plain <img>
+        <img src={spec.mediaUrl} width={width} height={height} style={{ position: 'absolute', top: 0, left: 0, width, height, objectFit: 'cover' }} alt="" />
+      ) : (
+        <div style={{ position: 'absolute', top: 0, left: 0, width, height, display: 'flex', ...groundStyle(t) }} />
+      )}
+
+      {/* Shade under the league mark, and the fade the bottom block sits on. */}
+      <div style={{ position: 'absolute', top: 0, left: 0, width, height: 260, display: 'flex', backgroundImage: 'linear-gradient(180deg, rgba(4, 12, 40, 0.75) 0%, rgba(4, 12, 40, 0) 100%)' }} />
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          bottom: 0,
+          width,
+          height: 760,
+          display: 'flex',
+          backgroundImage: `linear-gradient(180deg, rgba(6, 20, 74, 0) 0%, rgba(6, 20, 74, 0.72) 38%, ${deep} 78%)`,
+        }}
+      />
+
+      <div style={{ position: 'absolute', top: 0, left: 0, width, height, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '56px 72px 64px' }}>
+        <div style={{ display: 'flex', alignSelf: 'stretch', alignItems: 'center', gap: 20 }}>
+          <Crest slug="cspl" box={76} />
+          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 28, lineHeight: 1, textTransform: 'uppercase' }}>
+            YM Chicken Shop Premier League
+          </div>
+          <Crest slug="ymsoccer" box={60} />
+          <div
+            style={{
+              display: 'flex',
+              marginLeft: 'auto',
+              padding: '14px 22px 10px',
+              background: t.chipFill,
+              color: t.chipInk,
+              borderRadius: Math.min(t.radius, 8),
+              fontSize: 22,
+              letterSpacing: 2,
+              textTransform: 'uppercase',
+            }}
+          >
+            {kicker}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 'auto', alignSelf: 'stretch' }}>
+          <div
+            style={{
+              display: 'flex',
+              padding: '18px 40px 12px',
+              ...barSurface(t),
+              fontFamily: DISPLAY,
+              fontWeight: 700,
+              fontSize: 46,
+              lineHeight: 1,
+              letterSpacing: 2,
+              textTransform: 'uppercase',
+            }}
+          >
+            Man of the Match
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              marginTop: 26,
+              fontFamily: DISPLAY,
+              fontWeight: 700,
+              // Kept to one line, so the block stays low and clear of the player's face.
+              fontSize: fitName(spec.player.name, [[11, 124], [14, 106], [17, 88], [20, 76]], 64),
+              whiteSpace: 'nowrap',
+              lineHeight: 0.95,
+              textTransform: 'uppercase',
+              textAlign: 'center',
+            }}
+          >
+            {spec.player.name}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 20 }}>
+            <Crest slug={spec.player.club.slug} box={t.crest(54)} />
+            <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 32, lineHeight: 1, textTransform: 'uppercase' }}>
+              {spec.player.club.name}
+            </div>
+            {statLine && (
+              <div style={{ display: 'flex', fontSize: 24, letterSpacing: 2, textTransform: 'uppercase', color: t.accent }}>
+                {`· ${statLine}`}
+              </div>
+            )}
+          </div>
+
+          {/* One card: the scoreline, and under each half that club's sponsor. */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignSelf: 'stretch', marginTop: 40, padding: '0 24px', ...barSurface(t) }}>
+          <div style={{ display: 'flex', alignItems: 'center', height: 108 }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 16 }}>
+              {scoreName(spec.home.name)}
+              <Crest slug={spec.home.slug} box={t.crest(70)} plate={t.plate} />
+            </div>
+            <div style={{ width: 200, display: 'flex', justifyContent: 'center' }}>
+              <FigureBox t={t} value={`${spec.homeScore} – ${spec.awayScore}`} width={164} height={72} fontSize={46} />
+            </div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 16 }}>
+              <Crest slug={spec.away.slug} box={t.crest(70)} plate={t.plate} />
+              {scoreName(spec.away.name)}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', height: 104, borderTop: `2px solid ${t.barInk2}33` }}>
+            {[spec.home, spec.away].map((club, i) => {
+              const sponsor = sponsorOf(club.slug)
+              return (
+                <div key={club.slug} style={{ flex: 1, display: 'flex', justifyContent: 'center', marginLeft: i === 1 ? 200 : 0 }}>
+                  {sponsor && <SponsorLogo sponsor={sponsor} {...sponsorSize(sponsorRatio(sponsor), 9000, 72, 300)} />}
+                </div>
+              )
+            })}
+          </div>
+          </div>
+
+          <div style={{ display: 'flex', marginTop: 20, fontSize: 22, letterSpacing: 3, textTransform: 'uppercase', color: t.ink2 }}>
+            {spec.date}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Graphic({ spec, t }: { spec: GraphicSpec; t: Theme }) {
   switch (spec.type) {
+    case 'motm':
+      return <Motm spec={spec} t={t} />
     case 'week_cover':
       return <WeekCover spec={spec} t={t} />
     case 'story':

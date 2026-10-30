@@ -25,6 +25,7 @@ export type GraphicType =
   | 'results'
   | 'week_cover'
   | 'story'
+  | 'motm'
 export type Ground = 'black' | 'bone'
 
 export const GRAPHIC_TYPES: GraphicType[] = [
@@ -39,6 +40,7 @@ export const GRAPHIC_TYPES: GraphicType[] = [
   'results',
   'week_cover',
   'story',
+  'motm',
 ]
 
 /** Pixel size of each graphic: the four feed posts are 3:4, the matchday story 9:16. */
@@ -55,6 +57,7 @@ export const GRAPHIC_SIZES: Record<GraphicType, { width: number; height: number 
   results: { width: 1080, height: 1440 },
   week_cover: { width: 1080, height: 1440 },
   story: { width: 1080, height: 1440 },
+  motm: { width: 1080, height: 1440 },
 }
 export const GROUNDS: Ground[] = ['black', 'bone']
 
@@ -305,7 +308,34 @@ export interface WeekCoverGraphic {
   }[]
 }
 
+/**
+ * Man of the Match for one game: the media team's photo fills the graphic,
+ * and the player, their club and stat line, and the scoreline sit across the
+ * bottom. Everything but the photo comes from the game's box score.
+ */
+export interface MotmGraphic {
+  type: 'motm'
+  season: string
+  week: number
+  /** "Saturday 24 October" */
+  date: string
+  player: {
+    name: string
+    club: GraphicClub
+    position: string | null
+    /** The player's non-zero figures in this game, biggest first: "2 Goals". */
+    stats: { label: string; value: number }[]
+  }
+  home: GraphicClub
+  away: GraphicClub
+  homeScore: number
+  awayScore: number
+  /** The media team's photo, uploaded through the desk. Null draws a plain ground. */
+  mediaUrl: string | null
+}
+
 export type GraphicSpec =
+  | MotmGraphic
   | StoryGraphic
   | WeekCoverGraphic
   | ResultsGraphic
@@ -350,4 +380,5 @@ export const GRAPHIC_LABELS: Record<GraphicType, string> = {
   results: 'Weekend Results',
   week_cover: 'This Week in CSPL',
   story: 'Story',
+  motm: 'Man of the Match',
 }

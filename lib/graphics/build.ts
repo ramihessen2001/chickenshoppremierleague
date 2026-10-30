@@ -32,6 +32,7 @@ import {
   AwardRaceGraphic,
   GraphicClub,
   MatchdayGraphic,
+  MotmGraphic,
   ThumbnailGraphic,
   POWER_RANKING_BLURB_MAX,
   PowerRankingsGraphic,
@@ -178,6 +179,52 @@ function sideMaker(
     ...(clubs.get(slug) ?? { slug, name: 'TBD' }),
     standing: standingOf.get(slug) ?? null,
   })
+}
+
+/**
+ * Man of the Match for one completed game, around the media team's photo. The
+ * player is the game's recorded man of the match; their figures, the clubs and
+ * the score come from the box score.
+ */
+export async function buildMotm(gameId: string, mediaUrl: string | null): Promise<MotmGraphic> {
+  const [game, clubs, season] = await Promise.all([getGameById(gameId), clubDirectory(), seasonLabel()])
+  if (!game) throw new GraphicInputError(`No game with id ${gameId}.`)
+  if (game.status !== 'completed' || game.homeScore === null || game.awayScore === null) {
+    throw new GraphicInputError('That game has no final score yet.')
+  }
+  const potm = game.playerOfGame
+  if (!potm) throw new GraphicInputError('No man of the match is recorded for that game yet.')
+
+  const totals = { goal: 0, assist: 0, save: 0 }
+  for (const stat of game.statistics) {
+    if (stat.playerId !== potm.id) continue
+    if (stat.type === 'goal' || stat.type === 'assist' || stat.type === 'save') totals[stat.type] += stat.count ?? 1
+  }
+  const label = (n: number, one: string, many: string) => (n === 1 ? one : many)
+  const stats = (
+    [
+      { label: label(totals.goal, 'Goal', 'Goals'), value: totals.goal },
+      { label: label(totals.assist, 'Assist', 'Assists'), value: totals.assist },
+      { label: label(totals.save, 'Save', 'Saves'), value: totals.save },
+    ]
+  )
+    .filter((s) => s.value > 0)
+    .sort((a, b) => b.value - a.value)
+
+  const club = (slug: string) => clubs.get(slug) ?? { slug, name: 'TBD' }
+  const { weekday, date } = dayLabels(game.date)
+  return {
+    type: 'motm',
+    season,
+    week: game.weekNumber,
+    date: `${weekday} ${date}`,
+    player: { name: potm.name, club: club(potm.teamId), position: potm.position ?? null, stats },
+    home: club(game.homeTeamId),
+    away: club(game.awayTeamId),
+    homeScore: game.homeScore,
+    awayScore: game.awayScore,
+    mediaUrl,
+  }
 }
 
 /** The matchday story for one game. */

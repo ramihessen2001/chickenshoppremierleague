@@ -5,6 +5,8 @@
  *   GET ?type=matchday&game=<game id>&ground=black|bone           -> PNG
  *   GET ?type=thumbnail[&week=N][&day=0]                            -> PNG, one matchday's
  *       YouTube thumbnail (day = which day of the week, from 0)
+ *   GET ?type=motm&game=<game id>[&media=<photo url>]                -> PNG, Man of the
+ *       Match over the photo (one uploaded through the desk)
  *   Any of them also takes &style=<style id> (CSPL by default). Styles still under
  *   design (DRAFT_STYLES in lib/graphics/styles.ts) can be previewed here by id.
  *
@@ -15,6 +17,7 @@
 import { fail, requireMedia } from '@/lib/apiAuth'
 import {
   buildMatchday,
+  buildMotm,
   buildThumbnailWeek,
   buildSlate,
   buildStatLeaders,
@@ -48,13 +51,22 @@ export async function GET(request: Request) {
       const game = params.get('game')
       if (!game) return fail('matchday needs a game id')
       spec = await buildMatchday(game)
+    } else if (type === 'motm') {
+      const game = params.get('game')
+      if (!game) return fail('motm needs a game id')
+      const media = params.get('media')
+      const uploads = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/league-images/content/`
+      // Locally a photo from this server's public folder will do, for trying layouts.
+      const local = process.env.NODE_ENV === 'development' && media?.startsWith(`${new URL(request.url).origin}/`)
+      if (media && !media.startsWith(uploads) && !local) return fail('media must be a photo uploaded through the desk')
+      spec = await buildMotm(game, media)
     } else if (type === 'thumbnail') {
       const { thumbnails } = await buildThumbnailWeek(week)
       const day = Number(params.get('day') ?? 0)
       const pick = thumbnails[Number.isInteger(day) ? day : 0]
       if (!pick) return fail(`That week has ${thumbnails.length} matchday(s); day counts from 0`, 422)
       spec = pick
-    } else return fail('type must be table, stat_leaders, slate, matchday or thumbnail')
+    } else return fail('type must be table, stat_leaders, slate, matchday, thumbnail or motm')
   } catch (error) {
     if (error instanceof GraphicInputError) return fail(error.message, 422)
     throw error

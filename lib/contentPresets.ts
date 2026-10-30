@@ -26,6 +26,8 @@ export interface ContentPreset {
    * choosing any.
    */
   stories?: { requireMedia: boolean }
+  /** The team uploads a photo and picks a completed game, instead of writing any detail. */
+  photoAndGame?: boolean
 }
 
 export const CONTENT_PRESETS: ContentPreset[] = [
@@ -43,6 +45,13 @@ export const CONTENT_PRESETS: ContentPreset[] = [
       "Make This Week in CSPL for Instagram: a cover listing the stories, the weekend's results, the league table, a slide for each story the media team dictates, and last the following week's slate.",
     detailHint: 'Which matchweek, e.g. 3? Blank: the latest matchweek with results.',
     stories: { requireMedia: false },
+  },
+  {
+    kind: 'motm',
+    label: 'Man of the Match',
+    brief: "Make the Man of the Match graphic for a completed game, over the media team's photo.",
+    detailHint: '',
+    photoAndGame: true,
   },
   {
     kind: 'matchday',

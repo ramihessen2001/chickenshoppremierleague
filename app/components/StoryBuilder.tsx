@@ -42,9 +42,9 @@ export const newStoryEntry = (): StoryEntry => ({ id: crypto.randomUUID(), note:
 /** The longest side a slide ever draws a picture at is under 1000px; this leaves room to crop. */
 const MAX_SIDE = 1600
 
-/** A JPEG of the picture, no more than MAX_SIDE on its longest side. */
-async function shrink(source: CanvasImageSource, width: number, height: number): Promise<Blob> {
-  const scale = Math.min(1, MAX_SIDE / Math.max(width, height))
+/** A JPEG of the picture, no more than `maxSide` on its longest side. */
+async function shrink(source: CanvasImageSource, width: number, height: number, maxSide = MAX_SIDE): Promise<Blob> {
+  const scale = Math.min(1, maxSide / Math.max(width, height))
   const canvas = document.createElement('canvas')
   canvas.width = Math.round(width * scale)
   canvas.height = Math.round(height * scale)
@@ -88,17 +88,36 @@ function frameFromVideo(file: File): Promise<Blob> {
   })
 }
 
-async function prepare(file: File): Promise<{ blob: Blob; fromVideo: boolean }> {
-  if (file.type.startsWith('video/')) return { blob: await frameFromVideo(file), fromVideo: true }
-  if (!file.type.startsWith('image/')) throw new Error('Choose a photo or a video.')
+/**
+ * A photo as an upright JPEG, no more than `maxSide` on its longest side. The
+ * camera's orientation is applied here, so a phone photo never arrives sideways.
+ */
+export async function preparePhoto(file: File, maxSide = MAX_SIDE): Promise<Blob> {
+  if (!file.type.startsWith('image/')) throw new Error('Choose a photo.')
   try {
     const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
-    const blob = await shrink(bitmap, bitmap.width, bitmap.height)
+    const blob = await shrink(bitmap, bitmap.width, bitmap.height, maxSide)
     bitmap.close()
-    return { blob, fromVideo: false }
+    return blob
   } catch {
     throw new Error('Could not read that picture. Try a JPEG or PNG.')
   }
+}
+
+/** Sends a prepared picture to the desk's uploads, returning where it now lives. */
+export async function uploadPicture(blob: Blob): Promise<string> {
+  const form = new FormData()
+  form.append('file', new File([blob], 'story.jpg', { type: 'image/jpeg' }))
+  const response = await fetch('/api/media/uploads', { method: 'POST', body: form })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(body?.error || 'The upload failed. Try again.')
+  return body.url
+}
+
+async function prepare(file: File): Promise<{ blob: Blob; fromVideo: boolean }> {
+  if (file.type.startsWith('video/')) return { blob: await frameFromVideo(file), fromVideo: true }
+  if (!file.type.startsWith('image/')) throw new Error('Choose a photo or a video.')
+  return { blob: await preparePhoto(file), fromVideo: false }
 }
 
 export function StoryBuilder({
@@ -130,12 +149,7 @@ export function StoryBuilder({
     try {
       const { blob, fromVideo } = await prepare(file)
       patchMedia(id, { previewUrl: URL.createObjectURL(blob), fromVideo })
-      const form = new FormData()
-      form.append('file', new File([blob], 'story.jpg', { type: 'image/jpeg' }))
-      const response = await fetch('/api/media/uploads', { method: 'POST', body: form })
-      const body = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(body?.error || 'The upload failed. Try again.')
-      patchMedia(id, { url: body.url, uploading: false })
+      patchMedia(id, { url: await uploadPicture(blob), uploading: false })
     } catch (error) {
       patchMedia(id, { uploading: false, error: error instanceof Error ? error.message : 'The upload failed.' })
     }

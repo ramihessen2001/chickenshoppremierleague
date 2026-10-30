@@ -7,7 +7,9 @@
  *           is one of CONTENT_PRESETS; `details` is an optional line (which
  *           week; `choice` picks the award for an Award Race). Matchday Stories makes one draft per game of the matchweek,
  *           and Matchday Thumbnails one per day of it, both straight from the
- *           schedule; the others run the content agent.
+ *           schedule; Man of the Match takes `game` and the uploaded photo's
+ *           `mediaUrl` and is built from the box score; the others run the
+ *           content agent.
  *           Nothing is published: the media team reviews it next.
  */
 
@@ -17,6 +19,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fail, readJson, requireMedia } from '@/lib/apiAuth'
 import {
   buildMatchdayWeek,
+  buildMotm,
   latestResultsWeek,
   buildResults,
   buildSlate,
@@ -65,6 +68,8 @@ export async function POST(request: Request) {
     details?: string
     choice?: string
     items?: { mediaUrl?: string; note?: string; isVideo?: boolean }[]
+    game?: string
+    mediaUrl?: string
   }>(request)
   const details = typeof body?.details === 'string' ? body.details.trim() : ''
   if (details.length > MAX_DETAILS_LENGTH) {
@@ -80,6 +85,7 @@ export async function POST(request: Request) {
   if (kind === 'thumbnail') return makeThumbnails(details)
   if (kind === 'week_in_cspl') return makeWeekInCspl(details, body?.items ?? [])
   if (kind === 'story_media') return makeStoriesFromMedia(body?.items ?? [])
+  if (kind === 'motm') return makeMotm(body?.game ?? '', body?.mediaUrl ?? '')
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return fail(
@@ -218,6 +224,44 @@ function agentFailure(error: unknown) {
   return null
 }
 
+/**
+ * Man of the Match for one completed game, over the photo the media team
+ * uploaded. All box-score data, no agent.
+ */
+async function makeMotm(gameId: string, mediaUrl: string) {
+  if (!gameId) return fail('Choose the game')
+  if (!mediaUrl) return fail('Choose a photo first')
+  if (!mediaUrl.startsWith(uploadsPrefix())) return fail('The photo was not uploaded through the desk')
+
+  let graphic: Awaited<ReturnType<typeof buildMotm>>
+  try {
+    graphic = await buildMotm(gameId, mediaUrl)
+  } catch (error) {
+    if (error instanceof GraphicInputError) return fail(error.message, 422)
+    throw error
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('content_drafts')
+    .insert({
+      kind: 'motm',
+      brief: `Man of the Match, matchweek ${graphic.week}: ${graphic.player.name}, ${graphic.home.name} ${graphic.homeScore}-${graphic.awayScore} ${graphic.away.name}.`,
+      body: '',
+      graphic,
+      style: DEFAULT_STYLE_ID,
+    })
+    .select()
+    .single()
+  if (error) {
+    console.error('Error saving Man of the Match draft:', error)
+    return fail('The graphic was made but could not be saved -- have migrations 027-029 been run?', 500)
+  }
+  return NextResponse.json({ drafts: [toContentDraft(data as ContentDraftRow)] })
+}
+
+/** Where the desk's uploads live: the only pictures a graphic may be pointed at. */
+const uploadsPrefix = () => `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/league-images/content/`
+
 type StoryItem = { mediaUrl?: string; note?: string; isVideo?: boolean }
 
 const MAX_NOTE_LENGTH = 600
@@ -231,7 +275,7 @@ const MAX_NOTE_LENGTH = 600
 function cleanStoryItems(items: StoryItem[], max: number, requireMedia: boolean) {
   if (items.length === 0) return fail(requireMedia ? 'Choose a photo or video first' : 'Describe at least one story')
   if (items.length > max) return fail(`Send ${max} stories or fewer at a time`)
-  const allowedPrefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/league-images/content/`
+  const allowedPrefix = uploadsPrefix()
   const clean: { note: string; media: { url: string; isVideo: boolean } | null }[] = []
   for (const item of items) {
     const note = (item.note ?? '').trim()

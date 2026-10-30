@@ -13,6 +13,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { buttonPrimary, buttonSecondary, fieldClass, FormError, labelClass } from './Modal'
 import { newStoryEntry, StoryBuilder, StoryEntry } from './StoryBuilder'
+import { MotmBuilder, MotmPhoto } from './MotmBuilder'
 import { CONTENT_PRESETS, presetLabel } from '@/lib/contentPresets'
 import { AWARD_LABELS, GRAPHIC_LABELS, GRAPHIC_SIZES, Ground } from '@/lib/graphics/spec'
 import { resolveStyle, selectableStyles } from '@/lib/graphics/styles'
@@ -131,6 +132,8 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
   const [details, setDetails] = useState('')
   const [choice, setChoice] = useState('')
   const [storyEntries, setStoryEntries] = useState<StoryEntry[]>([])
+  const [motmGame, setMotmGame] = useState('')
+  const [motmPhoto, setMotmPhoto] = useState<MotmPhoto | null>(null)
   const [isWriting, setIsWriting] = useState(false)
   const [writeError, setWriteError] = useState<string | null>(null)
 
@@ -183,6 +186,24 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
         return
       }
     }
+    if (chosen.photoAndGame) {
+      if (!motmGame) {
+        setWriteError('Choose the game')
+        return
+      }
+      if (!motmPhoto) {
+        setWriteError('Choose a photo')
+        return
+      }
+      if (motmPhoto.uploading) {
+        setWriteError('Wait for the upload to finish')
+        return
+      }
+      if (!motmPhoto.url) {
+        setWriteError('The photo did not upload. Remove it and choose it again.')
+        return
+      }
+    }
     setIsWriting(true)
     setWriteError(null)
     try {
@@ -200,7 +221,9 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
                   isVideo: entry.media?.fromVideo ?? false,
                 })),
               }
-            : { kind, details, choice }
+            : chosen.photoAndGame
+              ? { kind, game: motmGame, mediaUrl: motmPhoto?.url }
+              : { kind, details, choice }
         ),
       })
       if (response.status === 401) return onSignedOut()
@@ -215,6 +238,8 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
       setKind('')
       setChoice('')
       setStoryEntries([])
+      setMotmGame('')
+      setMotmPhoto(null)
     } catch {
       setWriteError('Lost the connection while the graphic was being made. Try again.')
     } finally {
@@ -319,6 +344,15 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
               requireMedia={chosen.stories.requireMedia}
             />
           )}
+          {chosen?.photoAndGame && (
+            <MotmBuilder
+              game={motmGame}
+              onGame={setMotmGame}
+              photo={motmPhoto}
+              onPhoto={setMotmPhoto}
+              disabled={isWriting}
+            />
+          )}
           {(!chosen || chosen.detailHint) && (
             <>
               <label htmlFor="desk-details" className={`mt-6 ${labelClass}`}>
@@ -355,7 +389,7 @@ function DeskWorkspace({ onSignedOut }: { onSignedOut: () => void }) {
                           : 'Make story'
                         : 'Make graphic'}
             </button>
-            {isWriting && (
+            {isWriting && !chosen?.photoAndGame && (
               <p className="mt-3 text-[13px] text-ink-tertiary" role="status">
                 The agent is reading the league data and making the graphic. This can take a minute.
               </p>
