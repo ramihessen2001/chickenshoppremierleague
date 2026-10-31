@@ -79,13 +79,17 @@ def slot_rank(slot):
     return SLOT_ORDER.index(slot) if slot in SLOT_ORDER else len(SLOT_ORDER)
 
 
-def load_week(week):
+def load_week(week, date=None):
     config = fetch('league_config', select='season,current_week')[0]
     games = fetch(
         'games',
         select='game_number,week_number,date,time,location,status,home:home_team_id(name,short_name,players(name,jersey_number,position,is_active)),away:away_team_id(name,short_name,players(name,jersey_number,position,is_active))',
         order='date,game_number',
     )
+    if date:
+        chosen = [g for g in games if g['date'] == date and g['status'] not in ('cancelled', 'postponed') and g['home'] and g['away']]
+        chosen.sort(key=lambda g: slot_rank(g['time']))
+        return config['season'], (chosen[0]['week_number'] if chosen else None), chosen
     if week is None:
         upcoming = [g['week_number'] for g in games if g['status'] == 'scheduled' and g['week_number'] >= config['current_week']]
         week = min(upcoming) if upcoming else config['current_week']
@@ -286,8 +290,11 @@ def sheet(c, season, game=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--blank', action='store_true', help='make one blank sheet instead of pre-filled ones')
+    parser.add_argument('--date', help='make sheets for one day, YYYY-MM-DD, or "today"')
     parser.add_argument('--week', type=int, help='matchweek to make sheets for (default: the next one with games to play)')
     args = parser.parse_args()
+    if args.week is not None and args.date:
+        parser.error('use --week or --date, not both')
 
     OUT.mkdir(exist_ok=True)
     if args.blank:
@@ -299,10 +306,14 @@ def main():
         print(path)
         return
 
-    season, week, games = load_week(args.week)
+    date = None
+    if args.date:
+        import datetime
+        date = datetime.date.today().isoformat() if args.date == 'today' else args.date
+    season, week, games = load_week(args.week, date)
     if not games:
-        sys.exit(f'Matchweek {week} has no games with both clubs set.')
-    path = OUT / f'stat-sheets-matchweek-{week:02d}.pdf'
+        sys.exit(f'No games with both clubs set on {date}.' if date else f'Matchweek {week} has no games with both clubs set.')
+    path = OUT / (f'stat-sheets-{date}.pdf' if date else f'stat-sheets-matchweek-{week:02d}.pdf')
     c = canvas.Canvas(str(path), pagesize=landscape(letter))
     c.setTitle(f'CSPL stat sheets, matchweek {week}')
     for game in games:
