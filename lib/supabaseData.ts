@@ -123,6 +123,12 @@ function transformGame(raw: any): Game {
     isPlayoff: raw.is_playoff ?? false,
     playoffRound: raw.playoff_round ?? null,
     streamUrl: raw.stream_url ?? null,
+    forfeitedBy:
+      raw.forfeited_by == null
+        ? null
+        : raw.forfeited_by === homeTeam?.id
+          ? homeTeam?.slug || ''
+          : awayTeam?.slug || '',
     statistics: (raw.statistics ?? []).map(transformStatistic),
     playerOfGameId: raw.player_of_game_id,
     playerOfGame: potm
@@ -184,9 +190,8 @@ export async function getStandings(): Promise<Standing[]> {
       // falling back to full club names. Eight rows, so the extra columns are
       // free.
       supabase.from('teams').select('*'),
-      supabase
-        .from('games')
-        .select('home_team_id, away_team_id, home_score, away_score, status, is_playoff'),
+      // `*` for the same reason: the points overrides arrived in migration 037.
+      supabase.from('games').select('*'),
     ])
 
   if (teamsError) {
@@ -213,6 +218,8 @@ export async function getStandings(): Promise<Standing[]> {
         awayTeamId: g.away_team_id,
         homeScore: g.home_score,
         awayScore: g.away_score,
+        homePointsOverride: g.home_points_override ?? null,
+        awayPointsOverride: g.away_points_override ?? null,
       }))
   )
 }

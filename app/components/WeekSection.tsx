@@ -176,7 +176,7 @@ function ScheduleRow({ game, onClick, onEditBoxScore, onEditGame }: ScheduleRowP
           <div className="flex min-w-0 items-center gap-3 font-util text-[11px] text-ink-tertiary">
             {game.location && <span className="truncate">{game.location}</span>}
             {played ? (
-              <span className="uppercase tracking-[0.1em]">Final</span>
+              <span className="uppercase tracking-[0.1em]">{game.forfeitedBy ? 'Forfeit' : 'Final'}</span>
             ) : (
               gameStatusLabel(game.status) && (
                 <span className="shrink-0 whitespace-nowrap font-semibold uppercase tracking-wider text-accent-ink">

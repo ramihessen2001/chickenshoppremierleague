@@ -144,7 +144,7 @@ function FixtureCard({ game, onOpen, onEdit }: FixtureCardProps) {
           </p>
           {played ? (
             <span className="font-util text-[10.5px] uppercase tracking-[0.1em] text-ink-tertiary">
-              Final
+              {game.forfeitedBy ? 'Forfeit' : 'Final'}
             </span>
           ) : (
             gameStatusLabel(game.status) && (

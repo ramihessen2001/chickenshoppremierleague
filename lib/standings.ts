@@ -29,6 +29,12 @@ export interface StandingsBuildGame {
   awayTeamId: string | null
   homeScore: number | null
   awayScore: number | null
+  /**
+   * Points the league awarded by special decision, in place of what the score
+   * earns (3 / 1 / 0). Null for the usual points.
+   */
+  homePointsOverride?: number | null
+  awayPointsOverride?: number | null
 }
 
 export interface StandingsRow {
@@ -75,9 +81,19 @@ export function buildStandings(
       points: 0,
     })
   }
+  // What the league's points decisions change from the usual points, per team.
+  const pointsAdjustment = new Map<string, number>()
+  const adjust = (teamId: string | null, override: number | null | undefined, earned: number) => {
+    if (teamId && override != null) {
+      pointsAdjustment.set(teamId, (pointsAdjustment.get(teamId) ?? 0) + override - earned)
+    }
+  }
 
   for (const game of games) {
     if (game.homeScore === null || game.awayScore === null) continue
+    const earned = (mine: number, theirs: number) => (mine > theirs ? 3 : mine === theirs ? 1 : 0)
+    adjust(game.homeTeamId, game.homePointsOverride, earned(game.homeScore, game.awayScore))
+    adjust(game.awayTeamId, game.awayPointsOverride, earned(game.awayScore, game.homeScore))
     const home = game.homeTeamId ? byTeam.get(game.homeTeamId) : undefined
     const away = game.awayTeamId ? byTeam.get(game.awayTeamId) : undefined
 
@@ -106,7 +122,7 @@ export function buildStandings(
 
   for (const row of byTeam.values()) {
     row.goalDifference = row.goalsFor - row.goalsAgainst
-    row.points = calculatePoints(row.wins, row.draws)
+    row.points = calculatePoints(row.wins, row.draws) + (pointsAdjustment.get(row.teamId) ?? 0)
   }
 
   return rankStandings(Array.from(byTeam.values()))

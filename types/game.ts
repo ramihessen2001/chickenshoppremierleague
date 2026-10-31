@@ -37,6 +37,12 @@ export interface Game {
   /** YouTube URL. The game is live when this is set and status is in_progress. */
   streamUrl?: string | null
 
+  /**
+   * Slug of the club that forfeited, when the game was a forfeit (recorded as
+   * 3-0 to the other club).
+   */
+  forfeitedBy?: string | null
+
   statistics: GameStatistic[]
 
   playerOfGameId?: string | null
