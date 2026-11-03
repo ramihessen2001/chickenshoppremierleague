@@ -12,6 +12,7 @@ import { PasswordModal } from './PasswordModal'
 import { useAdmin } from '@/lib/adminContext'
 import { useStatkeeper } from '@/lib/statkeeperContext'
 import { usePhase } from '@/lib/usePhase'
+import { useRevolution } from '@/lib/revolution'
 import { LEAGUE } from '@/config/league'
 
 export function Footer() {
@@ -20,6 +21,7 @@ export function Footer() {
   const { login } = useAdmin()
   const { login: statkeeperLogin } = useStatkeeper()
   const phase = usePhase()
+  const revolution = useRevolution()
 
   // Mirrors the header: the archive link only appears once this season is
   // under way, matching what the standings and stats pages show.
@@ -27,7 +29,8 @@ export function Footer() {
   const links = [
     ['/', 'Home'],
     ['/schedule', 'Schedule'],
-    ['/standings', 'Standings'],
+    // Hidden by the Revolution view, as in the header.
+    ...(revolution === false ? [['/standings', 'Standings']] : []),
     ['/stats', 'Stats'],
     ['/rules', 'Rules'],
     ...(showsArchive ? [['/archive', 'Archive']] : []),

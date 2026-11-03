@@ -24,12 +24,15 @@ interface FullScheduleProps {
   games: Game[]
   currentWeek: number
   totalWeeks: number
+  /** The first matchweek listed: later than 1 while the Revolution view hides the early ones. */
+  firstWeek?: number
 }
 
 export function FullSchedule({
   games,
   currentWeek,
   totalWeeks,
+  firstWeek = 1,
 }: FullScheduleProps) {
   const { isAdmin } = useAdmin()
   const { isStatkeeper } = useStatkeeper()
@@ -116,7 +119,7 @@ export function FullSchedule({
       </PageHeader>
 
       <div className="mx-auto max-w-6xl px-5 pb-20 sm:px-8">
-        {Array.from({ length: totalWeeks }, (_, i) => i + 1).map((week) => (
+        {Array.from({ length: Math.max(0, totalWeeks - firstWeek + 1) }, (_, i) => firstWeek + i).map((week) => (
           <WeekSection
             key={week}
             weekNumber={week}

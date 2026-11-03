@@ -11,7 +11,7 @@ import { Team } from '@/types/team'
 import { Game } from '@/types/game'
 import { Player } from '@/types/player'
 import { TeamRoster } from '@/app/components/TeamRoster'
-import { getTeamBySlug, getAllGames } from '@/lib/supabaseData'
+import { getTeamBySlug, getAllGames, getLeagueConfig } from '@/lib/supabaseData'
 import { useTeams } from '@/lib/teamsContext'
 import { fallbackTeamLogo } from '@/config/league'
 
@@ -26,9 +26,10 @@ export default function TeamPage() {
   const loadTeamData = useCallback(async () => {
     setIsLoading(true)
     try {
-      const [record, allGames] = await Promise.all([
+      const [record, allGames, config] = await Promise.all([
         getTeamBySlug(teamId),
         getAllGames(),
+        getLeagueConfig(),
       ])
 
       if (!record) {
@@ -67,7 +68,9 @@ export default function TeamPage() {
         createdAt: record.created_at,
         updatedAt: record.updated_at,
       })
-      setGames(allGames)
+      // The Revolution view leaves out the past fixtures: only games still to
+      // be played are listed.
+      setGames(config?.revolution_view ? allGames.filter((game) => game.status !== 'completed') : allGames)
     } catch (error) {
       console.error('Error loading team data:', error)
     } finally {

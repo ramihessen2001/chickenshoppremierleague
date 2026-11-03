@@ -3,7 +3,7 @@
  *
  *   PATCH -> { currentWeek?, season?, leagueName?, startDate?, endDate?,
  *              totalWeeks?, phase?, draftStreamUrl?, liveStreamUrl?,
- *              showHomeFixtures?, showHomeStats? }
+ *              showHomeFixtures?, showHomeStats?, revolutionView? }
  *
  * league_config holds exactly one row (enforced by a unique index in the
  * schema), so this updates whichever row exists rather than taking an id.
@@ -27,6 +27,7 @@ interface UpdateConfigBody {
   liveStreamUrl?: string | null
   showHomeFixtures?: boolean
   showHomeStats?: boolean
+  revolutionView?: boolean
 }
 
 export async function PATCH(request: Request) {
@@ -73,6 +74,10 @@ export async function PATCH(request: Request) {
   }
   if (body.showHomeStats !== undefined) {
     columns.show_home_stats = body.showHomeStats
+  }
+  if (body.revolutionView !== undefined) {
+    if (typeof body.revolutionView !== 'boolean') return fail('revolutionView must be true or false')
+    columns.revolution_view = body.revolutionView
   }
 
   if (Object.keys(columns).length === 0) return fail('No fields to update')

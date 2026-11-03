@@ -136,6 +136,8 @@ export interface LeagueConfig {
   live_stream_url?: string | null
   show_home_fixtures: boolean
   show_home_stats: boolean
+  /** The Revolution view: see lib/revolution.ts. Missing before migration 038. */
+  revolution_view?: boolean
   updated_at: string
 }
 

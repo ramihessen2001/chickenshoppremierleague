@@ -13,12 +13,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FullSchedule } from '@/app/components/FullSchedule'
 import { getAllGames, getLeagueConfig } from '@/lib/supabaseData'
+import { isHiddenWeek, REVOLUTION_HIDDEN_WEEKS } from '@/lib/revolution'
 import { Game } from '@/types/game'
 
 export function SchedulePageClient() {
   const [games, setGames] = useState<Game[]>([])
   const [currentWeek, setCurrentWeek] = useState(1)
   const [totalWeeks, setTotalWeeks] = useState(10)
+  const [revolution, setRevolution] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   const fetchData = useCallback(async () => {
@@ -27,14 +29,20 @@ export function SchedulePageClient() {
       if (config) {
         setCurrentWeek(config.current_week)
         setTotalWeeks(config.total_weeks)
+        setRevolution(config.revolution_view ?? false)
       }
 
       // Both dates are ISO (YYYY-MM-DD), so a string compare orders them.
       // Games after the end date are kept: a fixture can be rearranged into a
       // later week, and dropping it would hide a real game.
+      // The Revolution view also leaves out the early matchweeks' games.
       const seasonStart = config?.start_date
       setGames(
-        seasonStart ? allGames.filter((game) => game.date >= seasonStart) : allGames
+        allGames.filter(
+          (game) =>
+            (!seasonStart || game.date >= seasonStart) &&
+            !(config?.revolution_view && isHiddenWeek(game.weekNumber))
+        )
       )
     } catch (error) {
       console.error('Error fetching schedule:', error)
@@ -59,6 +67,11 @@ export function SchedulePageClient() {
   }
 
   return (
-    <FullSchedule games={games} currentWeek={currentWeek} totalWeeks={totalWeeks} />
+    <FullSchedule
+      games={games}
+      currentWeek={currentWeek}
+      totalWeeks={totalWeeks}
+      firstWeek={revolution ? REVOLUTION_HIDDEN_WEEKS + 1 : 1}
+    />
   )
 }

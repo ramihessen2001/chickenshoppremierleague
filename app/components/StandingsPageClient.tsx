@@ -29,6 +29,7 @@ import { StandingsTable } from './StandingsTable'
 export function StandingsPageClient() {
   const [standings, setStandings] = useState<Standing[]>([])
   const [phase, setPhase] = useState<LeaguePhase>('season')
+  const [revolution, setRevolution] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -36,6 +37,7 @@ export function StandingsPageClient() {
       const config = await getLeagueConfig()
       const currentPhase = config?.phase ?? 'season'
       setPhase(currentPhase)
+      setRevolution(config?.revolution_view ?? false)
 
       setStandings(await getStandings())
 
@@ -53,6 +55,12 @@ export function StandingsPageClient() {
         <p className="loading">Loading</p>
       </div>
     )
+  }
+
+  // The Revolution view hides the standings. The page is unlinked while it
+  // is on; anyone arriving here directly gets a plain note, not the table.
+  if (revolution) {
+    return <PageHeader title="Standings" description="The standings aren't available right now." />
   }
 
   // Nil across the board until the season starts. Saying so beats leaving a

@@ -320,13 +320,20 @@ export function HomePageClient() {
   const liveStreamUrl =
     simulatedLiveUrl() ?? (showsCommissionersBoard ? config?.live_stream_url || null : null)
 
-  const actions = heroActions({
+  const phaseActions = heroActions({
     phase,
     hasTeams: teams.length > 0,
     hasFixtures: gameCount > 0,
     awardsOpen,
     draftStreamUrl: config?.draft_stream_url ?? null,
   })
+  // The Revolution view hides the standings, so its button goes too; whatever
+  // is left leads.
+  const actions = config?.revolution_view
+    ? phaseActions
+        .filter((action) => action.href !== '/standings')
+        .map((action, i) => (i === 0 ? { ...action, variant: 'primary' as const } : action))
+    : phaseActions
 
   // Only ever rendered under `isRegistering`, but computed here so the deadline
   // is read once. Null once the closing date has passed.
@@ -481,6 +488,7 @@ export function HomePageClient() {
             totalWeeks={totalWeeks}
             draftStreamUrl={config?.draft_stream_url ?? null}
             liveStreamUrl={config?.live_stream_url ?? null}
+            revolutionView={config?.revolution_view ?? false}
             seasonLabel={config?.season ?? ''}
             onWeekChange={handleWeekChange}
             onConfigChange={fetchData}

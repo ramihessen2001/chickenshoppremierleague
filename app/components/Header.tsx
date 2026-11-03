@@ -14,6 +14,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LEAGUE } from '@/config/league'
 import { useAdmin } from '@/lib/adminContext'
+import { useRevolution } from '@/lib/revolution'
 
 const BASE_NAV = [
   { href: '/schedule', label: 'Schedule' },
@@ -25,12 +26,18 @@ const BASE_NAV = [
 export function Header() {
   const pathname = usePathname()
   const { isAdmin } = useAdmin()
+  const revolution = useRevolution()
 
   // Archive is always linked. It used to be hidden during signups and draft,
   // on the grounds that the standings page was showing last season's table
   // anyway -- but standings now shows this season's teams in every phase, so
   // hiding the link would leave no route to the past season at all.
-  const NAV = [...BASE_NAV, { href: '/archive', label: 'Archive' }]
+  // The Revolution view hides the standings tab. Left out while the setting
+  // loads too, so it never flashes in and out.
+  const NAV = [
+    ...BASE_NAV.filter(({ href }) => href !== '/standings' || revolution === false),
+    { href: '/archive', label: 'Archive' },
+  ]
 
   // Signups and questions both hold contact details, so those links only
   // appear once signed in.

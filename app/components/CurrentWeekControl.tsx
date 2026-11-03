@@ -12,6 +12,7 @@ import { fieldClass } from './Modal'
 import { ArchiveSeasonControl } from './ArchiveSeasonControl'
 import { LeaguePhase } from '@/lib/supabase'
 import { updateLeagueConfig, notifyDataUpdated } from '@/lib/supabaseData'
+import { REVOLUTION_HIDDEN_WEEKS } from '@/lib/revolution'
 
 interface CurrentWeekControlProps {
   phase: LeaguePhase
@@ -21,6 +22,8 @@ interface CurrentWeekControlProps {
   draftStreamUrl: string | null
   /** The league-wide broadcast that replaces the homepage headline while set. */
   liveStreamUrl: string | null
+  /** Whether the Revolution view is on (see lib/revolution.ts). */
+  revolutionView: boolean
   /** For the "type the season name to confirm" archive control. */
   seasonLabel: string
   onWeekChange: (newWeek: number) => void
@@ -49,6 +52,7 @@ export function CurrentWeekControl({
   totalWeeks,
   draftStreamUrl,
   liveStreamUrl,
+  revolutionView,
   seasonLabel,
   onWeekChange,
   onConfigChange,
@@ -90,6 +94,12 @@ export function CurrentWeekControl({
     run(async () => {
       await updateLeagueConfig({ liveStreamUrl: url })
       setLiveUrlInput(url ?? '')
+      onConfigChange?.()
+    })
+
+  const toggleRevolution = () =>
+    run(async () => {
+      await updateLeagueConfig({ revolutionView: !revolutionView })
       onConfigChange?.()
     })
 
@@ -250,6 +260,36 @@ export function CurrentWeekControl({
           </p>
         </div>
       )}
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-hairline pt-5">
+        <div className="min-w-0">
+          <p id="revolution-label" className="eyebrow">
+            Revolution
+          </p>
+          <p className="mt-1.5 text-[13px] text-ink-tertiary">
+            {revolutionView
+              ? `On: matchweeks 1–${REVOLUTION_HIDDEN_WEEKS}, team results and the standings are hidden from the site.`
+              : `Hides matchweeks 1–${REVOLUTION_HIDDEN_WEEKS} from the schedule, past fixtures from team pages, and the standings.`}
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={revolutionView}
+          aria-labelledby="revolution-label"
+          onClick={toggleRevolution}
+          disabled={isUpdating}
+          className={`relative h-7 w-12 shrink-0 rounded-pill transition-colors disabled:opacity-50 ${
+            revolutionView ? 'bg-surface-inverse' : 'border border-hairline-strong bg-surface'
+          }`}
+        >
+          <span
+            className={`absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-pill transition-all ${
+              revolutionView ? 'left-6 bg-surface' : 'left-1 bg-ink-tertiary'
+            }`}
+          />
+        </button>
+      </div>
 
       {error && (
         <p className="mt-4 text-[13px] text-negative" role="alert">

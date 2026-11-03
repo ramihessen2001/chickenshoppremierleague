@@ -1294,6 +1294,7 @@ export interface LeagueConfigWriteFields {
   liveStreamUrl?: string | null
   showHomeFixtures?: boolean
   showHomeStats?: boolean
+  revolutionView?: boolean
 }
 
 export async function updateLeagueConfig(
@@ -1321,6 +1322,9 @@ export async function updateLeagueConfig(
       }),
       ...(fields.showHomeStats !== undefined && {
         show_home_stats: fields.showHomeStats,
+      }),
+      ...(fields.revolutionView !== undefined && {
+        revolution_view: fields.revolutionView,
       }),
     })
     return {} as LeagueConfig
