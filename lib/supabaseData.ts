@@ -1068,6 +1068,11 @@ export interface GameWriteFields {
   isPlayoff?: boolean
   playoffRound?: string | null
   playerOfGameId?: string | null
+  /**
+   * UUID of the club that forfeited, or null for no forfeit. A forfeit is
+   * saved as a completed 3-0 to the other club, whatever scores are sent.
+   */
+  forfeitedBy?: string | null
 }
 
 /** A team's slug and name from its UUID. Read-only, so safe even in the sandbox. */
@@ -1136,6 +1141,9 @@ export async function updateGame(gameId: string, fields: GameWriteFields): Promi
     if (fields.weekNumber !== undefined) patch.weekNumber = fields.weekNumber ?? 0
     if (fields.isPlayoff !== undefined) patch.isPlayoff = fields.isPlayoff
     if (fields.playerOfGameId !== undefined) patch.playerOfGameId = fields.playerOfGameId
+    if (fields.forfeitedBy !== undefined) {
+      patch.forfeitedBy = (await resolveTeam(fields.forfeitedBy))?.slug ?? null
+    }
     if (fields.homeTeamId !== undefined) {
       const team = await resolveTeam(fields.homeTeamId)
       patch.homeTeamId = team?.slug ?? ''

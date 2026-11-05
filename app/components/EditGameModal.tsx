@@ -43,6 +43,8 @@ interface GameFormData {
   isPlayoff: boolean
   playoffRound: string
   streamUrl: string
+  /** Slug of the club that forfeited; '' for no forfeit. */
+  forfeitSlug: string
 }
 
 const PLAYOFF_ROUNDS = [
@@ -89,6 +91,7 @@ export function EditGameModal({
             isPlayoff: game.isPlayoff ?? game.weekNumber === 0,
             playoffRound: game.playoffRound ?? '',
             streamUrl: game.streamUrl ?? '',
+            forfeitSlug: game.forfeitedBy ?? '',
           }
         : {
             weekNumber: defaultWeek && defaultWeek > 0 ? defaultWeek : 1,
@@ -103,6 +106,7 @@ export function EditGameModal({
             isPlayoff: defaultWeek === 0,
             playoffRound: '',
             streamUrl: '',
+            forfeitSlug: '',
           }
     )
   }, [game, isOpen, defaultWeek, teams])
@@ -139,6 +143,18 @@ export function EditGameModal({
       return
     }
 
+    // A forfeit names one of the two clubs as they now stand.
+    const forfeitTeam =
+      formData.forfeitSlug === formData.homeTeamSlug
+        ? homeTeam
+        : formData.forfeitSlug === formData.awayTeamSlug
+          ? awayTeam
+          : undefined
+    if (formData.forfeitSlug && !forfeitTeam) {
+      setError('Choose which team forfeited again: the teams have changed')
+      return
+    }
+
     if (formData.streamUrl.trim() && !youTubeVideoId(formData.streamUrl)) {
       setError(
         'That does not look like a YouTube video link. Use the watch, live or youtu.be URL for the stream itself, not a channel.'
@@ -148,6 +164,8 @@ export function EditGameModal({
 
     setIsSaving(true)
     try {
+      // A forfeit is a completed 3-0 to the club that turned up.
+      const forfeitScore = (slug: string) => (formData.forfeitSlug === slug ? 0 : 3)
       const fields = {
         weekNumber: formData.isPlayoff ? 0 : formData.weekNumber,
         date: formData.date,
@@ -155,16 +173,17 @@ export function EditGameModal({
         location: formData.location.trim() || 'TBD',
         homeTeamId: homeTeam?.id ?? null,
         awayTeamId: awayTeam?.id ?? null,
-        homeScore: parseScore(formData.homeScore),
-        awayScore: parseScore(formData.awayScore),
-        status: formData.status,
+        homeScore: forfeitTeam ? forfeitScore(formData.homeTeamSlug) : parseScore(formData.homeScore),
+        awayScore: forfeitTeam ? forfeitScore(formData.awayTeamSlug) : parseScore(formData.awayScore),
+        status: forfeitTeam ? ('completed' as const) : formData.status,
         isPlayoff: formData.isPlayoff,
         playoffRound: formData.isPlayoff ? formData.playoffRound || null : null,
         streamUrl: formData.streamUrl.trim() || null,
       }
 
       if (game) {
-        await updateGame(game.id, fields)
+        // Only an existing game can be forfeited.
+        await updateGame(game.id, { ...fields, forfeitedBy: forfeitTeam?.id ?? null })
       } else {
         await createGame(fields)
       }
@@ -362,7 +381,39 @@ export function EditGameModal({
           </p>
         </div>
 
-        {formData.status === 'completed' && (
+        {game && !formData.isPlayoff && formData.homeTeamSlug && formData.awayTeamSlug && (
+          <div>
+            <label htmlFor="game-forfeit" className={labelClass}>
+              Forfeit
+            </label>
+            <select
+              id="game-forfeit"
+              value={formData.forfeitSlug}
+              onChange={(e) => update('forfeitSlug', e.target.value)}
+              className={fieldClass}
+            >
+              <option value="">No forfeit</option>
+              {[formData.homeTeamSlug, formData.awayTeamSlug].map((slug) => (
+                <option key={slug} value={slug}>
+                  {getTeam(slug)?.name ?? slug} forfeited
+                </option>
+              ))}
+            </select>
+            {formData.forfeitSlug && (
+              <p className="mt-1.5 text-[12px] text-ink-tertiary">
+                Saved as completed, 3–0 to{' '}
+                {getTeam(
+                  formData.forfeitSlug === formData.homeTeamSlug
+                    ? formData.awayTeamSlug
+                    : formData.homeTeamSlug
+                )?.name ?? 'the other team'}
+                , and shown as &ldquo;Forfeit&rdquo; on the schedule.
+              </p>
+            )}
+          </div>
+        )}
+
+        {formData.status === 'completed' && !formData.forfeitSlug && (
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="game-home-score" className={labelClass}>

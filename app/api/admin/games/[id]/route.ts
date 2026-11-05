@@ -1,7 +1,9 @@
 /**
  * Update or delete a single game. Admin only.
  *
- *   PATCH  -> partial game fields
+ *   PATCH  -> partial game fields. `forfeitedBy` (a team id, or null to clear)
+ *             records a forfeit: the game is saved as completed, 3-0 to the
+ *             other club, whatever scores were sent.
  *   DELETE -> removes the game (its statistics cascade)
  */
 
@@ -23,6 +25,7 @@ interface UpdateGameBody {
   playoffRound?: string | null
   playerOfGameId?: string | null
   streamUrl?: string | null
+  forfeitedBy?: string | null
 }
 
 const VALID_STATUSES = [
@@ -74,6 +77,27 @@ export async function PATCH(request: Request, { params }: Params) {
   assign('playoff_round', body.playoffRound)
   assign('player_of_game_id', body.playerOfGameId)
   assign('stream_url', body.streamUrl)
+
+  if (body.forfeitedBy !== undefined) {
+    columns.forfeited_by = body.forfeitedBy
+    if (body.forfeitedBy !== null) {
+      // The club must be one of the two playing, as they stand after this save.
+      const { data: current, error: readError } = await supabaseAdmin
+        .from('games')
+        .select('home_team_id, away_team_id')
+        .eq('id', id)
+        .maybeSingle()
+      if (readError || !current) return fail('Game not found', 404)
+      const home = body.homeTeamId !== undefined ? body.homeTeamId : current.home_team_id
+      const away = body.awayTeamId !== undefined ? body.awayTeamId : current.away_team_id
+      if (body.forfeitedBy !== home && body.forfeitedBy !== away) {
+        return fail('The club that forfeited must be one of the two teams in the game')
+      }
+      columns.status = 'completed'
+      columns.home_score = body.forfeitedBy === home ? 0 : 3
+      columns.away_score = body.forfeitedBy === away ? 0 : 3
+    }
+  }
 
   if (Object.keys(columns).length === 0) {
     return fail('No fields to update')
