@@ -838,7 +838,19 @@ function StatLeaders({ spec, t }: { spec: StatLeadersGraphic; t: Theme }) {
                 {leader ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: tight ? 100 : 124, lineHeight: 0.82 }}>{leader.total}</div>
-                    <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 34, lineHeight: 1, textTransform: 'uppercase' }}>
+                    {/* One line, however long the name: the column is exactly full, so a
+                        second line would push everything up under the category label. */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        fontFamily: DISPLAY,
+                        fontWeight: 700,
+                        fontSize: fitName(leader.player, [[16, 34], [19, 30], [22, 26]], 22),
+                        lineHeight: 1,
+                        textTransform: 'uppercase',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       {leader.player}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
