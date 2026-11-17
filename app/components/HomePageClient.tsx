@@ -15,7 +15,7 @@ import { WeeklyGames } from './WeeklyGames'
 import { TeamLogos } from './TeamLogos'
 import { StatLeaders } from './StatLeaders'
 import { CurrentWeekControl } from './CurrentWeekControl'
-import { PlayoffBracket } from './PlayoffBracket'
+import { HeroBracket } from './HeroBracket'
 import { PlayoffBracketGenerator } from './PlayoffBracketGenerator'
 import { SignupForm } from './SignupForm'
 import { LiveNow } from './LiveNow'
@@ -360,6 +360,8 @@ export function HomePageClient() {
             only thing anyone opening the site right then is there to do. */}
         {liveStreamUrl ? (
           <LiveStreamHero url={liveStreamUrl} />
+        ) : phase === 'playoffs' ? (
+          <HeroBracket />
         ) : (
           <div
             className={
@@ -502,10 +504,7 @@ export function HomePageClient() {
 
       {/* Playoffs: the bracket leads, right after the fixtures slot above. */}
       {phase === 'playoffs' && (
-        <>
-          <PlayoffBracketGenerator />
-          <PlayoffBracket />
-        </>
+        <PlayoffBracketGenerator />
       )}
 
       {/* Draft: last season's leaders stand in until this season has games

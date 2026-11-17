@@ -22,7 +22,7 @@ import { getStandings, getLeagueConfig } from '@/lib/supabaseData'
 import { Standing } from '@/types/standing'
 import { LeaguePhase } from '@/lib/supabase'
 import { PageHeader } from './PageHeader'
-import { PlayoffBracket } from './PlayoffBracket'
+import { HeroBracket } from './HeroBracket'
 import { PlayoffBracketGenerator } from './PlayoffBracketGenerator'
 import { StandingsTable } from './StandingsTable'
 
@@ -77,25 +77,21 @@ export function StandingsPageClient() {
       <PageHeader
         title="Standings"
         description={
-          beforeKickoff
-            ? 'This season\'s teams. The table fills in as results come in.'
-            : undefined
+          beforeKickoff ? "This season's teams. The table fills in as results come in." : undefined
         }
       />
 
       {phase === 'playoffs' && (
         <>
           <PlayoffBracketGenerator />
-          <PlayoffBracket />
+          <div className="mx-auto max-w-6xl px-5 pt-12 sm:px-8">
+            <HeroBracket showTitle={false} />
+          </div>
         </>
       )}
 
       <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
-        <StandingsTable
-          standings={standings}
-          showPlayoffFormat={eightTeamPlayoffs}
-          linkTeams
-        />
+        <StandingsTable standings={standings} showPlayoffFormat={eightTeamPlayoffs} linkTeams />
       </div>
     </>
   )
