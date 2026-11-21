@@ -302,7 +302,14 @@ const SLOT_ORDER = ['assr', 'maghrib', "isha'a"]
 const slotRank = (slot: string) => {
   // The apostrophe in Isha'a may be straight or curly depending on who typed it.
   const rank = SLOT_ORDER.indexOf(slot.trim().toLowerCase().replace(/[’‘`]/g, "'"))
-  return rank === -1 ? SLOT_ORDER.length : rank
+  if (rank !== -1) return rank
+  // A clock time ("8:00 PM", as the playoffs use) sorts by the time of day.
+  const clock = slot.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
+  if (clock) {
+    const hours = (Number(clock[1]) % 12) + (clock[3]?.toUpperCase() === 'PM' ? 12 : 0)
+    return SLOT_ORDER.length + hours * 60 + Number(clock[2])
+  }
+  return SLOT_ORDER.length + 24 * 60
 }
 
 /**
