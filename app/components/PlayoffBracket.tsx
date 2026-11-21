@@ -18,7 +18,7 @@ import { StatkeeperBoxScoreModal } from './StatkeeperBoxScoreModal'
 import { BoxScoreModal } from './BoxScoreModal'
 import { Game } from '@/types/game'
 import { getPlayoffGames, getGameById } from '@/lib/supabaseData'
-import { formatDate, formatGameWhen } from '@/lib/dateUtils'
+import { formatDate, formatGameWhen, isAwaitingReschedule } from '@/lib/dateUtils'
 
 /** Rounds in the order they are played. */
 const ROUND_ORDER = ['quarterfinal', 'semifinal', 'final'] as const
@@ -84,9 +84,14 @@ export function PlayoffBracket() {
 
   if (isLoading || rounds.length === 0) return null
 
-  /** "Oct 12" or "Oct 12 – Oct 14" across the games in a round. */
+  /**
+   * "Oct 12" or "Oct 12 – Oct 14" across the games in a round. A game waiting
+   * to be rescheduled has no real date yet, so it does not count.
+   */
   const roundDates = (games: Game[]) => {
-    const dates = [...new Set(games.map((g) => g.date))].filter(Boolean).sort()
+    const dates = [...new Set(games.filter((g) => !isAwaitingReschedule(g)).map((g) => g.date))]
+      .filter(Boolean)
+      .sort()
     if (dates.length === 0) return ''
     if (dates.length === 1) return formatDate(dates[0])
     return `${formatDate(dates[0])} – ${formatDate(dates[dates.length - 1])}`
