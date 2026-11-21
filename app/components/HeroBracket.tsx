@@ -2,10 +2,13 @@
  * The playoff bracket shown at the top of the homepage during the playoffs,
  * in place of the headline and commissioner's board.
  *
- * Seeds come from the standings (top 8). The left half (1v8, 4v5) plays the
- * first quarterfinal day and the right half (2v7, 3v6) the second; each half
- * feeds its own semifinal and the two meet in the final. Scores fill in from
- * the playoff games as they are played, and winners advance on their own.
+ * Seeds come from the standings (top 8). Each half (1v8 and 4v5 on the left,
+ * 2v7 and 3v6 on the right) feeds its own semifinal and the two meet in the
+ * final. Scores fill in from the playoff games as they are played, and winners
+ * advance on their own.
+ *
+ * No dates or kick-off times: those live on the schedule page only, so a
+ * rescheduled game is never shown wrong here.
  */
 
 'use client'
@@ -16,13 +19,6 @@ import { getStandings, getPlayoffGames } from '@/lib/supabaseData'
 import { useTeams } from '@/lib/teamsContext'
 import { Standing } from '@/types/standing'
 import { Game } from '@/types/game'
-
-// The 2/3 half plays Friday and the 1/4 half Saturday. Friday's lower-seeded
-// game goes first; Saturday's Mansoura v Ramallah is the late game.
-const LEFT_DATE = 'Saturday, November 21'
-const RIGHT_DATE = 'Friday, November 20'
-const FIRST_GAME = '8:00 PM'
-const SECOND_GAME = '9:00 PM'
 
 /** Bracket geometry: every card is vertically centred at a % of the height. */
 const HEIGHT = 360
@@ -176,7 +172,7 @@ export function HeroBracket({ showTitle = true }: { showTitle?: boolean }) {
   }
 
   /** One matchup, centred at `top`% of the column. */
-  const card = (top: number, round: Round, a: Slot, b: Slot, time?: string) => {
+  const card = (top: number, round: Round, a: Slot, b: Slot) => {
     const game = gameBetween(round, a, b)
     const sa = scoreIn(game, a)
     const sb = scoreIn(game, b)
@@ -192,11 +188,6 @@ export function HeroBracket({ showTitle = true }: { showTitle?: boolean }) {
         }}
         aria-label={`${round}: ${a.slug ?? 'TBD'} versus ${b.slug ?? 'TBD'}`}
       >
-        {time && (
-          <p className="tabular absolute -top-5 left-0 text-[11px] uppercase tracking-wide text-ink-secondary">
-            {time}
-          </p>
-        )}
         <div className="flex h-full flex-col divide-y divide-hairline">
           {teamRow(a, game, decided ? sa > sb : null, 'a')}
           {teamRow(b, game, decided ? sb > sa : null, 'b')}
@@ -253,11 +244,11 @@ export function HeroBracket({ showTitle = true }: { showTitle?: boolean }) {
           }}
         >
           <div>
-            {heading(LEFT_DATE)}
+            {heading('Quarterfinal')}
             {col(
               <>
-                {card(QF_TOP, 'quarterfinal', q18[0], q18[1], FIRST_GAME)}
-                {card(QF_BOTTOM, 'quarterfinal', q45[0], q45[1], SECOND_GAME)}
+                {card(QF_TOP, 'quarterfinal', q18[0], q18[1])}
+                {card(QF_BOTTOM, 'quarterfinal', q45[0], q45[1])}
               </>,
             )}
           </div>
@@ -290,11 +281,11 @@ export function HeroBracket({ showTitle = true }: { showTitle?: boolean }) {
             {conn(<Join flip />)}
           </div>
           <div>
-            {heading(RIGHT_DATE)}
+            {heading('Quarterfinal')}
             {col(
               <>
-                {card(QF_TOP, 'quarterfinal', q27[0], q27[1], SECOND_GAME)}
-                {card(QF_BOTTOM, 'quarterfinal', q36[0], q36[1], FIRST_GAME)}
+                {card(QF_TOP, 'quarterfinal', q27[0], q27[1])}
+                {card(QF_BOTTOM, 'quarterfinal', q36[0], q36[1])}
               </>,
             )}
           </div>
