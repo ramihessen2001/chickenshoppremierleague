@@ -76,14 +76,20 @@ def fetch(path, **query):
 
 def slot_rank(slot):
     slot = (slot or '').strip().lower().replace('’', "'")
-    return SLOT_ORDER.index(slot) if slot in SLOT_ORDER else len(SLOT_ORDER)
+    if slot in SLOT_ORDER:
+        return SLOT_ORDER.index(slot)
+    # Playoff games carry a clock time ("8:00 PM"); sort those after the named slots by time.
+    m = re.match(r'(\d{1,2}):(\d{2})\s*([ap])m', slot)
+    if m:
+        return len(SLOT_ORDER) + ((int(m[1]) % 12) + (12 if m[3] == 'p' else 0)) * 60 + int(m[2])
+    return len(SLOT_ORDER) + 24 * 60
 
 
 def load_week(week, date=None):
     config = fetch('league_config', select='season,current_week')[0]
     games = fetch(
         'games',
-        select='game_number,week_number,date,time,location,status,home:home_team_id(name,short_name,players(name,jersey_number,position,is_active)),away:away_team_id(name,short_name,players(name,jersey_number,position,is_active))',
+        select='game_number,week_number,playoff_round,date,time,location,status,home:home_team_id(name,short_name,players(name,jersey_number,position,is_active)),away:away_team_id(name,short_name,players(name,jersey_number,position,is_active))',
         order='date,game_number',
     )
     if date:
@@ -140,7 +146,8 @@ def header(c, season, game):
     g = game or {}
     cell = (PAGE_W - 2 * MARGIN - 3 * 14) / 4
     labelled_line(c, MARGIN, y, 'GAME #', cell * 0.7, str(g.get('game_number', '')) if g else '')
-    labelled_line(c, MARGIN + cell * 0.7 + 14, y, 'MATCHWEEK', cell * 0.9, str(g.get('week_number', '')) if g else '')
+    round_name = {'quarterfinal': 'Quarterfinal', 'semifinal': 'Semifinal', 'final': 'Final'}.get((g.get('playoff_round') or ''), '') if g else ''
+    labelled_line(c, MARGIN + cell * 0.7 + 14, y, 'ROUND' if round_name else 'MATCHWEEK', cell * 0.9, round_name or (str(g.get('week_number', '')) if g else ''))
     labelled_line(c, MARGIN + cell * 1.6 + 28, y, 'DATE', cell * 1.2, nice_date(g['date']) if g else '')
     labelled_line(c, MARGIN + cell * 2.8 + 42, y, 'SLOT', cell * 1.2, g.get('time', '') if g else '')
     return y - 8
